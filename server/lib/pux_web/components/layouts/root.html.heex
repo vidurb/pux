@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>pux</title>
+    <link phx-track-static rel="stylesheet" href="/assets/app.css" />
+    <script defer phx-track-static type="text/javascript" src="/assets/app.js"></script>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0 auto; max-width: 40rem; padding: 2rem; line-height: 1.5; }
+      .signup h1 { margin-bottom: 0.25rem; }
+      .warning { color: #b45309; font-weight: 600; }
+      .primary { font-size: 1rem; padding: 0.75rem 1.25rem; cursor: pointer; }
+      code { word-break: break-all; }
+      .qr { margin: 1rem 0; }
+    </style>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>

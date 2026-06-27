@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+bin/pux eval "Pux.Release.migrate"
+exec bin/pux start

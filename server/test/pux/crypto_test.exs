@@ -1,0 +1,17 @@
+defmodule Pux.CryptoTest do
+  use ExUnit.Case, async: true
+
+  alias Pux.Crypto
+
+  test "sealed box roundtrip encoding" do
+    %{public_key: public_key, private_key: private_key} = Crypto.generate_keypair()
+    plaintext = "hello otp"
+
+    assert {:ok, ciphertext} = Crypto.seal(plaintext, public_key)
+    assert {:ok, decoded_pub} = Crypto.decode_key(Crypto.encode_key(public_key))
+    assert {:ok, decoded_priv} = Crypto.decode_key(Crypto.encode_key(private_key))
+    assert decoded_pub == public_key
+    assert decoded_priv == private_key
+    assert :enacl.box_seal_open(ciphertext, public_key, private_key) == plaintext
+  end
+end

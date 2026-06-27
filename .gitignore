@@ -1,0 +1,24 @@
+# Elixir
+server/_build/
+server/deps/
+server/*.ez
+server/erl_crash.dump
+server/.elixir_ls/
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/**/Generated.xcconfig
+mobile/**/flutter_export_environment.sh
+
+# Secrets
+**/*-local.*
+**/.env
+**/.env.*
+
+# OS
+.DS_Store
+Thumbs.db
