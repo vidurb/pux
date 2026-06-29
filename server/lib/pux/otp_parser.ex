@@ -40,7 +40,7 @@ defmodule Pux.OtpParser do
   defp parse_bank(haystack, sender) do
     Enum.reduce_while(@bank_parsers, {:error, :no_otp}, fn {bank, {marker, pattern, label}},
                                                            _acc ->
-      if marker =~ sender or marker =~ haystack do
+      if sender =~ marker or haystack =~ marker do
         case Regex.run(pattern, haystack, capture: :all_but_first) do
           [otp] ->
             {:halt, {:ok, %{otp: otp, sender_label: label, parser: bank}}}

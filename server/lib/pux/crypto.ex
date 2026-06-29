@@ -7,7 +7,7 @@ defmodule Pux.Crypto do
 
   @spec generate_keypair() :: keypair()
   def generate_keypair do
-    {public_key, private_key} = :enacl.box_keypair()
+    %{public: public_key, secret: private_key} = :enacl.box_keypair()
     %{public_key: public_key, private_key: private_key}
   end
 

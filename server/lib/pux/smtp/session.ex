@@ -10,12 +10,18 @@ defmodule Pux.SMTP.Session do
   require Logger
 
   @impl true
-  def init(_hostname, _session, _options) do
-    {:ok, %{recipients: [], from: nil}}
+  def init(_hostname, _session_count, _address, _options) do
+    {:ok, "220 pux ready", %{recipients: [], from: nil}}
   end
 
   @impl true
-  def handle_MAIL(from, _email, state) do
+  def handle_HELO(_hostname, state), do: {:ok, state}
+
+  @impl true
+  def handle_EHLO(_hostname, _extensions, state), do: {:ok, [], state}
+
+  @impl true
+  def handle_MAIL(from, state) do
     {:ok, %{state | from: from}}
   end
 
@@ -23,29 +29,30 @@ defmodule Pux.SMTP.Session do
   def handle_RCPT(to, state) do
     case extract_inbox_token(to) do
       {:ok, token} -> {:ok, %{state | recipients: [token | state.recipients]}}
-      :error -> {:error, "550 Recipient rejected"}
+      :error -> {:error, "550 Recipient rejected", state}
     end
   end
 
   @impl true
-  def handle_DATA(data, _session, state) do
+  def handle_DATA(_from, _to, data, state) do
     mail_domain = Application.get_env(:pux, :smtp)[:mail_domain] || "localhost"
+    sender = state.from
 
     Enum.each(state.recipients, fn inbox_token ->
-      process_message(inbox_token, data, state.from, mail_domain)
+      process_message(inbox_token, data, sender, mail_domain)
     end)
 
-    :ok
+    {:ok, "250 OK", %{state | recipients: [], from: nil}}
   end
 
   @impl true
-  def handle_RSET(state), do: {:ok, %{state | recipients: [], from: nil}}
+  def handle_RSET(state), do: %{state | recipients: [], from: nil}
 
   @impl true
-  def handle_other(_payload, state), do: {:ok, state}
+  def handle_other(_verb, _args, state), do: {["500 Error: command not recognized"], state}
 
   @impl true
-  def terminate(_reason, _state), do: :ok
+  def terminate(_reason, state), do: {:ok, :normal, state}
 
   defp process_message(inbox_token, raw_email, from, _mail_domain) do
     with %Records.Record{} = record <- Records.get_record_by_inbox_token(inbox_token),
@@ -76,33 +83,42 @@ defmodule Pux.SMTP.Session do
   end
 
   defp parse_email(raw) when is_binary(raw) do
-    case Mail.read(raw) do
-      {:ok, %Mail.Message{} = message} ->
-        {:ok,
-         %{
-           from: format_address(message.from),
-           subject: message.subject || "",
-           body: extract_body(message)
-         }}
+    message = Mail.parse(raw)
 
-      {:error, _} ->
-        {:ok, %{from: nil, subject: "", body: raw}}
+    {:ok,
+     %{
+       from: format_address(Mail.get_from(message)),
+       subject: Mail.get_subject(message) || "",
+       body: extract_body(message)
+     }}
+  rescue
+    _ -> {:ok, %{from: nil, subject: "", body: raw}}
+  end
+
+  defp extract_body(%Mail.Message{} = message) do
+    case Mail.get_text(message) do
+      %Mail.Message{body: body} when is_binary(body) ->
+        body
+
+      _ ->
+        case message.body do
+          body when is_binary(body) -> body
+          parts when is_list(parts) -> join_parts(parts)
+          _ -> ""
+        end
     end
   end
 
-  defp extract_body(%Mail.Message{body: body}) when is_binary(body), do: body
-
-  defp extract_body(%Mail.Message{body: parts}) when is_list(parts) do
+  defp join_parts(parts) do
     parts
     |> Enum.map(fn
       {_, content} when is_binary(content) -> content
       content when is_binary(content) -> content
+      %Mail.Message{body: body} when is_binary(body) -> body
       _ -> ""
     end)
     |> Enum.join("\n")
   end
-
-  defp extract_body(_), do: ""
 
   defp format_address(nil), do: nil
   defp format_address({_, addr}), do: addr

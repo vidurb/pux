@@ -12,6 +12,6 @@ defmodule Pux.CryptoTest do
     assert {:ok, decoded_priv} = Crypto.decode_key(Crypto.encode_key(private_key))
     assert decoded_pub == public_key
     assert decoded_priv == private_key
-    assert :enacl.box_seal_open(ciphertext, public_key, private_key) == plaintext
+    assert {:ok, plaintext} = :enacl.box_seal_open(ciphertext, public_key, private_key)
   end
 end

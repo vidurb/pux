@@ -149,10 +149,8 @@ defmodule Pux.Records do
   end
 
   defp generate_inbox_token do
-    1..@token_length
-    |> Enum.map_join(fn _ ->
-      Enum.random(@inbox_token_alphabet)
-      |> List.to_string()
-    end)
+    for _ <- 1..@token_length, into: "" do
+      <<Enum.random(@inbox_token_alphabet)::utf8>>
+    end
   end
 end

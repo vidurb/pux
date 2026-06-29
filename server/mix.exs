@@ -35,7 +35,7 @@ defmodule Pux.MixProject do
       {:telemetry_poller, "~> 1.2"},
       {:jason, "~> 1.4"},
       {:plug_cowboy, "~> 2.7"},
-      {:enacl, "~> 1.2"},
+      {:enacl, github: "aeternity/enacl", ref: "4eb7ec70084ba7c87b1af8797c4c4e90c84f95a2"},
       {:gen_smtp, "~> 1.2"},
       {:eqrcode, "~> 0.2.1"},
       {:goth, "~> 1.4"},
