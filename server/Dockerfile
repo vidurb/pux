@@ -1,6 +1,6 @@
 FROM hexpm/elixir:1.18.4-erlang-27.3.4-alpine-3.21.3 AS build
 
-RUN apk add --no-cache build-base git
+RUN apk add --no-cache build-base git libsodium-dev
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ RUN mix release
 
 FROM alpine:3.21.3
 
-RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates
+RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
 WORKDIR /app
 

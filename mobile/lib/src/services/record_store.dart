@@ -42,6 +42,7 @@ class RecordStore {
 
   Future<String?> recordId() => _storage.read(key: _recordIdKey);
   Future<String?> privateKey() => _storage.read(key: _privateKeyKey);
+  Future<String?> publicKey() => _storage.read(key: _publicKeyKey);
   Future<String?> inbox() => _storage.read(key: _inboxKey);
 
   Future<Map<String, dynamic>> enrollmentPayload() async {

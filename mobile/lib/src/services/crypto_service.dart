@@ -13,23 +13,24 @@ class CryptoService {
   late Sodium _sodium;
 
   Future<void> init() async {
-    _sodium = await Sodium.init();
+    _sodium = await SodiumInit.init();
   }
 
   Future<Map<String, dynamic>> decryptPayload(String ciphertextB64) async {
     final privateKeyB64 = await RecordStore.instance.privateKey();
-    if (privateKeyB64 == null) {
+    final publicKeyB64 = await RecordStore.instance.publicKey();
+    if (privateKeyB64 == null || publicKeyB64 == null || publicKeyB64.isEmpty) {
       throw StateError('Device is not enrolled');
     }
 
-    final privateKey = _decodeKey(privateKeyB64);
-    final publicKey = _sodium.crypto.box.keyPairFromSecretKey(privateKey).publicKey;
+    final publicKey = _decodeKey(publicKeyB64);
+    final secretKey = _sodium.secureCopy(_decodeKey(privateKeyB64));
     final ciphertext = _decodeB64(ciphertextB64);
 
     final plaintext = _sodium.crypto.box.sealOpen(
       cipherText: ciphertext,
       publicKey: publicKey,
-      secretKey: privateKey,
+      secretKey: secretKey,
     );
 
     return jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;

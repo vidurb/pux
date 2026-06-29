@@ -27,7 +27,6 @@ class _EnrollScreenState extends State<EnrollScreen> {
       final payload = RecordStore.instance.parseQr(raw);
       await RecordStore.instance.saveEnrollment(payload);
 
-      final recordId = payload['record_id'] as String;
       final server = payload['server'] as String?;
       if (server != null) {
         RecordStore.instance.serverUrl = server;

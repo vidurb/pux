@@ -35,7 +35,7 @@ defmodule Pux.MixProject do
       {:telemetry_poller, "~> 1.2"},
       {:jason, "~> 1.4"},
       {:plug_cowboy, "~> 2.7"},
-      {:enacl, "~> 0.4.1"},
+      {:enacl, "~> 1.2"},
       {:gen_smtp, "~> 1.2"},
       {:eqrcode, "~> 0.2.1"},
       {:goth, "~> 1.4"},
