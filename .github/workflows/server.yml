@@ -39,7 +39,7 @@ jobs:
       MIX_ENV: test
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/pux_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.18"
@@ -59,7 +59,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
