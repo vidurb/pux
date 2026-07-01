@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app.dart';
 import '../services/api_client.dart';
 import '../services/crypto_service.dart';
-import '../services/push_service.dart';
+import '../services/delivery_runtime.dart';
 import '../services/record_store.dart';
 import 'home_screen.dart';
 
@@ -44,7 +44,7 @@ class _CreateRelayScreenState extends ConsumerState<CreateRelayScreen> {
 
       String? pushWarning;
       try {
-        await PushService.instance.init();
+        await deliveryServiceForPlatform().init();
       } catch (error) {
         pushWarning = 'Relay created, but push registration failed: $error';
       }

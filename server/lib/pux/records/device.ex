@@ -5,7 +5,7 @@ defmodule Pux.Records.Device do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "devices" do
     field :push_token, :string
-    field :platform, Ecto.Enum, values: [:fcm, :apns]
+    field :platform, Ecto.Enum, values: [:fcm, :apns, :desktop]
     field :last_seen_at, :utc_datetime_usec
 
     belongs_to :record, Pux.Records.Record, type: :binary_id

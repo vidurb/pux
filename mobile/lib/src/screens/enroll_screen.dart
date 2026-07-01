@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../app.dart';
-import '../services/push_service.dart';
+import '../services/delivery_runtime.dart';
 import '../services/record_store.dart';
 import 'home_screen.dart';
 
@@ -46,7 +46,7 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
 
       String? pushWarning;
       try {
-        await PushService.instance.init();
+        await deliveryServiceForPlatform().init();
       } catch (error) {
         pushWarning = 'Enrolled, but push registration failed: $error';
       }

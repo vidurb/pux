@@ -5,7 +5,7 @@ Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-
 ## Architecture
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, marketing site, FCM push)
-- **mobile/** — Flutter app (Android-first; iOS scaffolded)
+- **mobile/** — Flutter app (Android, iOS, macOS, Windows, Linux)
 
 ## Security model
 
@@ -13,7 +13,7 @@ Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-
 - The server stores only the client-supplied public key and encrypts OTP payloads with libsodium sealed boxes.
 - Emails are parsed in memory and never stored.
 - No accounts: a record ID is the only credential.
-- New devices enroll in-app (`Create new relay`) or by scanning a QR from an existing device.
+- New devices enroll in-app (`Create new relay` on mobile) or by scanning/importing a QR enrollment payload from an existing device. Desktop clients import enrollment JSON only (no key generation).
 - Inbound SMTP validates recipient domains and caps message size.
 - Push delivery is asynchronous (Oban) so SMTP responds immediately.
 
@@ -42,7 +42,17 @@ flutter run
 
 Set `PUX_SERVER_URL` via `--dart-define=PUX_SERVER_URL=http://10.0.2.2:4000` for the Android emulator.
 
-For FCM on device builds, add `android/app/google-services.json` and run `flutterfire configure`, or pass Firebase values via `--dart-define=FIREBASE_*`.
+Platform targets:
+
+| Platform | Delivery | Onboarding |
+|----------|----------|------------|
+| Android | FCM push | Create relay or QR scan |
+| iOS | FCM push (APNs) | Create relay or QR scan |
+| macOS / Windows / Linux | WebSocket + poll fallback | Import enrollment JSON only |
+
+For FCM on mobile device builds, add `android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist`, then run `flutterfire configure`, or pass Firebase values via `--dart-define=FIREBASE_*`.
+
+Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` and `WS /ws/delivery?token=<record_id>`.
 
 ## Production environment variables
 

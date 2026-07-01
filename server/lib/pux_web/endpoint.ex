@@ -5,6 +5,8 @@ defmodule PuxWeb.Endpoint do
     websocket: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]],
     longpoll: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]]
 
+  socket "/ws/delivery", PuxWeb.DeliverySocket, websocket: true
+
   plug Plug.Static,
     at: "/",
     from: :pux,

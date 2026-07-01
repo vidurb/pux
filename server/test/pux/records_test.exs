@@ -26,4 +26,16 @@ defmodule Pux.RecordsTest do
     assert device.push_token == "fcm-token-123"
     assert length(Records.list_devices(enrollment.record_id)) == 1
   end
+
+  test "registers desktop device for record" do
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
+
+    assert {:ok, device} =
+             Records.register_device(enrollment.record_id, %{
+               push_token: "desktop-client-1",
+               platform: :desktop
+             })
+
+    assert device.platform == :desktop
+  end
 end

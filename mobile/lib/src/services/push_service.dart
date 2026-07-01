@@ -2,14 +2,16 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
+import 'delivery_service.dart';
 import 'notification_service.dart';
 import 'record_store.dart';
 
-class PushService {
+class PushService implements DeliveryService {
   PushService._();
 
   static final PushService instance = PushService._();
 
+  @override
   Future<void> init() async {
     final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission();

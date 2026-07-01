@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -13,6 +14,7 @@ class RecordStore {
   static const _publicKeyKey = 'public_key';
   static const _inboxKey = 'inbox';
   static const _serverKey = 'server_url';
+  static const _desktopDeviceIdKey = 'desktop_device_id';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -47,6 +49,17 @@ class RecordStore {
   Future<String?> privateKey() => _storage.read(key: _privateKeyKey);
   Future<String?> publicKey() => _storage.read(key: _publicKeyKey);
   Future<String?> inbox() => _storage.read(key: _inboxKey);
+
+  Future<String> desktopDeviceId() async {
+    final existing = await _storage.read(key: _desktopDeviceIdKey);
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+
+    final generated = _generateDesktopDeviceId();
+    await _storage.write(key: _desktopDeviceIdKey, value: generated);
+    return generated;
+  }
 
   Future<Map<String, dynamic>> enrollmentPayload() async {
     return {
@@ -107,5 +120,11 @@ class RecordStore {
     final mod = value.length % 4;
     if (mod == 0) return value;
     return value.padRight(value.length + (4 - mod), '=');
+  }
+
+  String _generateDesktopDeviceId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
   }
 }

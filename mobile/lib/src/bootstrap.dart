@@ -1,11 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 
 import 'firebase_options.dart';
+import 'platform.dart';
 import 'services/crypto_service.dart';
+import 'services/delivery_runtime.dart';
 import 'services/notification_service.dart';
-import 'services/push_service.dart';
 import 'services/record_store.dart';
 
 @pragma('vm:entry-point')
@@ -36,9 +36,12 @@ Future<void> bootstrap() async {
   await CryptoService.instance.init();
   await NotificationService.instance.init();
 
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+  if (supportsFirebasePush) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await PushService.instance.init();
+  }
+
+  if (await RecordStore.instance.isEnrolled()) {
+    await deliveryServiceForPlatform().init();
   }
 }

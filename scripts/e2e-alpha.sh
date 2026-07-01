@@ -36,11 +36,29 @@ curl -fsS -X POST "${BASE_URL}/api/v1/records/${RECORD_ID}/devices" \
   -d '{"push_token":"test-fcm-token","platform":"fcm"}'
 
 echo
+echo "==> Register desktop client"
+curl -fsS -X POST "${BASE_URL}/api/v1/records/${RECORD_ID}/devices" \
+  -H "authorization: Bearer ${RECORD_ID}" \
+  -H 'content-type: application/json' \
+  -d '{"push_token":"desktop-client-test","platform":"desktop"}'
+
+echo
+echo "==> Poll pending deliveries (empty initially)"
+curl -fsS "${BASE_URL}/api/v1/records/${RECORD_ID}/deliveries" \
+  -H "authorization: Bearer ${RECORD_ID}"
+
+echo
 echo "==> Send test SMTP mail (requires swaks or nc on port 2525 in dev)"
 cat <<EOF
 
 Manual SMTP test (dev port 2525):
   swaks --to ${INBOX} --from bank@example.com --server localhost:2525 --body 'Your OTP is 123456'
+
+After sending mail, poll desktop deliveries:
+  curl -fsS -H "authorization: Bearer ${RECORD_ID}" ${BASE_URL}/api/v1/records/${RECORD_ID}/deliveries
+
+WebSocket delivery endpoint:
+  ws://localhost:4000/ws/delivery?token=${RECORD_ID}
 
 Decrypt verification uses the client-generated private key:
   private_key=${PRIVATE_KEY}

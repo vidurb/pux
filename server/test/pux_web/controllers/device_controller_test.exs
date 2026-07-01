@@ -27,6 +27,18 @@ defmodule PuxWeb.DeviceControllerTest do
     assert %{"device_id" => _, "platform" => "fcm"} = json_response(conn, 201)
   end
 
+  test "registers desktop device", %{conn: conn, enrollment: enrollment} do
+    conn =
+      conn
+      |> auth_conn(enrollment.record_id)
+      |> post("/api/v1/records/#{enrollment.record_id}/devices", %{
+        "push_token" => "desktop-client-abc",
+        "platform" => "desktop"
+      })
+
+    assert %{"device_id" => _, "platform" => "desktop"} = json_response(conn, 201)
+  end
+
   test "rejects apns platform", %{conn: conn, enrollment: enrollment} do
     conn =
       conn
@@ -36,7 +48,7 @@ defmodule PuxWeb.DeviceControllerTest do
         "platform" => "apns"
       })
 
-    assert %{"error" => "platform must be fcm"} = json_response(conn, 422)
+    assert %{"error" => "platform must be fcm or desktop"} = json_response(conn, 422)
   end
 
   test "rejects unauthenticated request", %{conn: conn, enrollment: enrollment} do

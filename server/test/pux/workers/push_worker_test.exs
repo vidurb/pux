@@ -56,4 +56,23 @@ defmodule Pux.Workers.PushWorkerTest do
     refreshed = Records.get_device(device.id)
     assert DateTime.compare(refreshed.last_seen_at, stale_time) == :gt
   end
+
+  test "deliver_to_record creates pending delivery for desktop devices" do
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
+    record = Records.get_record(enrollment.record_id)
+
+    {:ok, _} =
+      Records.register_device(enrollment.record_id, %{
+        push_token: "desktop-client-1",
+        platform: :desktop
+      })
+
+    plaintext = Jason.encode!(%{otp: "654321", sender: "DesktopTest"})
+
+    assert :ok = Push.deliver_to_record(record, plaintext)
+
+    pending = Pux.Deliveries.list_pending(enrollment.record_id)
+    assert length(pending) == 1
+    assert pending |> hd() |> Map.fetch!(:envelope) |> Map.has_key?("ciphertext")
+  end
 end

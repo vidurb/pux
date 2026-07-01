@@ -40,6 +40,8 @@ defmodule PuxWeb.Router do
     pipe_through [:api, :record_auth]
 
     post "/records/:id/devices", DeviceController, :create
+    get "/records/:id/deliveries", DeliveryController, :index
+    delete "/records/:id/deliveries/:delivery_id", DeliveryController, :delete
   end
 
   scope "/", PuxWeb do

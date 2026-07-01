@@ -59,6 +59,19 @@ Security details and setup instructions are at `https://pux.vidur.xyz/signup`.
 
 Release APKs block cleartext HTTP except localhost / emulator (`10.0.2.2`).
 
+## Mobile alpha (iOS)
+
+See [mobile/ios/README.md](../mobile/ios/README.md). iOS uses the same FCM data-message flow as Android.
+
+## Desktop alpha (macOS / Windows / Linux)
+
+1. Create a relay on a mobile device and export the enrollment JSON from the home-screen QR payload.
+2. Run the desktop app: `flutter run -d macos` (or `-d windows` / `-d linux`).
+3. Choose **Import enrollment** and paste the JSON.
+4. Desktop clients receive OTPs via WebSocket (`/ws/delivery`) with poll fallback (`GET/DELETE /api/v1/records/:id/deliveries`).
+
+Desktop builds do not generate keys or create relays.
+
 ## Verification checklist
 
 - [ ] `curl https://pux.vidur.xyz/health` returns `{"status":"ok"}`

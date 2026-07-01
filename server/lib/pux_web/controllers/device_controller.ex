@@ -18,7 +18,7 @@ defmodule PuxWeb.DeviceController do
       {:error, :invalid_platform} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{error: "platform must be fcm"})
+        |> json(%{error: "platform must be fcm or desktop"})
     end
   end
 
@@ -46,6 +46,7 @@ defmodule PuxWeb.DeviceController do
   end
 
   defp parse_platform("fcm"), do: {:ok, :fcm}
+  defp parse_platform("desktop"), do: {:ok, :desktop}
   defp parse_platform("apns"), do: {:error, :invalid_platform}
   defp parse_platform(_), do: {:error, :invalid_platform}
 

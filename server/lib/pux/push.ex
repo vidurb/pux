@@ -3,7 +3,7 @@ defmodule Pux.Push do
   Encrypt OTP payloads and fan out to registered devices.
   """
 
-  alias Pux.{Crypto, Records}
+  alias Pux.{Crypto, Deliveries, Records}
   alias Pux.Records.Record
   alias Pux.Push.{APNs, FCM}
 
@@ -25,6 +25,22 @@ defmodule Pux.Push do
           |> Oban.insert()
         end)
 
+        if Deliveries.has_desktop_devices?(record.id) do
+          case Deliveries.create_pending(record.id, envelope) do
+            {:ok, pending} ->
+              Phoenix.PubSub.broadcast(
+                Pux.PubSub,
+                delivery_topic(record.id),
+                {:envelope, pending.id, envelope}
+              )
+
+            {:error, reason} ->
+              Logger.error(
+                "Pending delivery persistence failed for record #{record.id}: #{inspect(reason)}"
+              )
+          end
+        end
+
         :ok
 
       {:error, reason} ->
@@ -32,6 +48,9 @@ defmodule Pux.Push do
         :ok
     end
   end
+
+  @spec delivery_topic(Ecto.UUID.t()) :: String.t()
+  def delivery_topic(record_id), do: "delivery:#{record_id}"
 
   @spec dispatch_device(map(), map()) :: :ok | {:error, term()}
   def dispatch_device(%{platform: :fcm, push_token: token}, envelope) do
@@ -41,6 +60,10 @@ defmodule Pux.Push do
 
   def dispatch_device(%{platform: :apns, push_token: token}, envelope) do
     APNs.deliver(token, envelope)
+    :ok
+  end
+
+  def dispatch_device(%{platform: :desktop}, _envelope) do
     :ok
   end
 end
