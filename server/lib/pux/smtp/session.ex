@@ -10,8 +10,13 @@ defmodule Pux.SMTP.Session do
   require Logger
 
   @impl true
-  def init(_hostname, _session_count, _address, _options) do
-    {:ok, "220 pux ready", %{recipients: [], from: nil}}
+  def init(_hostname, _session_count, _address, options) do
+    mail_domain =
+      options
+      |> Keyword.get(:mail_domain, "localhost")
+      |> String.downcase()
+
+    {:ok, "220 pux ready", %{recipients: [], from: nil, mail_domain: mail_domain}}
   end
 
   @impl true
@@ -26,8 +31,8 @@ defmodule Pux.SMTP.Session do
   end
 
   @impl true
-  def handle_RCPT(to, state) do
-    case extract_inbox_token(to) do
+  def handle_RCPT(to, %{mail_domain: mail_domain} = state) do
+    case extract_inbox_token(to, mail_domain) do
       {:ok, token} -> {:ok, %{state | recipients: [token | state.recipients]}}
       :error -> {:error, "550 Recipient rejected", state}
     end
@@ -92,7 +97,9 @@ defmodule Pux.SMTP.Session do
        body: extract_body(message)
      }}
   rescue
-    _ -> {:ok, %{from: nil, subject: "", body: raw}}
+    e ->
+      Logger.warning("SMTP: failed to parse email: #{Exception.message(e)}")
+      {:ok, %{from: nil, subject: "", body: raw}}
   end
 
   defp extract_body(%Mail.Message{} = message) do
@@ -125,13 +132,22 @@ defmodule Pux.SMTP.Session do
   defp format_address(addr) when is_binary(addr), do: addr
   defp format_address(addrs) when is_list(addrs), do: addrs |> List.first() |> format_address()
 
-  defp extract_inbox_token(recipient) when is_binary(recipient) do
+  defp extract_inbox_token(recipient, mail_domain) when is_binary(recipient) do
     case String.split(recipient, "@", parts: 2) do
-      [token, _domain] when byte_size(token) >= 8 -> {:ok, String.downcase(token)}
-      _ -> :error
+      [token, domain] when byte_size(token) >= 8 ->
+        if String.downcase(domain) == mail_domain do
+          {:ok, String.downcase(token)}
+        else
+          :error
+        end
+
+      _ ->
+        :error
     end
   end
 
-  defp extract_inbox_token({_, recipient}), do: extract_inbox_token(recipient)
-  defp extract_inbox_token(_), do: :error
+  defp extract_inbox_token({_, recipient}, mail_domain),
+    do: extract_inbox_token(recipient, mail_domain)
+
+  defp extract_inbox_token(_, _), do: :error
 end

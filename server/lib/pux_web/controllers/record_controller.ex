@@ -16,10 +16,10 @@ defmodule PuxWeb.RecordController do
           qr_payload: enrollment.qr_payload
         })
 
-      {:error, reason} ->
+      {:error, _reason} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{error: inspect(reason)})
+        |> json(%{error: "could not create record"})
     end
   end
 end

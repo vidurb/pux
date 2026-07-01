@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'crypto_service.dart';
@@ -20,25 +21,29 @@ class NotificationService {
     final ciphertext = data['ciphertext'] as String?;
     if (ciphertext == null) return;
 
-    final payload = await CryptoService.instance.decryptPayload(ciphertext);
-    final otp = payload['otp'] as String? ?? '??????';
-    final sender = payload['sender'] as String? ?? 'Unknown sender';
+    try {
+      final payload = await CryptoService.instance.decryptPayload(ciphertext);
+      final otp = payload['otp'] as String? ?? '??????';
+      final sender = payload['sender'] as String? ?? 'Unknown sender';
 
-    const androidDetails = AndroidNotificationDetails(
-      'pux_otp',
-      'OTP codes',
-      channelDescription: 'Decrypted OTP notifications from pux',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
+      const androidDetails = AndroidNotificationDetails(
+        'pux_otp',
+        'OTP codes',
+        channelDescription: 'Decrypted OTP notifications from pux',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
 
-    const details = NotificationDetails(android: androidDetails);
+      const details = NotificationDetails(android: androidDetails);
 
-    await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      'OTP from $sender',
-      otp,
-      details,
-    );
+      await _plugin.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'OTP from $sender',
+        otp,
+        details,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to handle encrypted push: $error\n$stackTrace');
+    }
   }
 }

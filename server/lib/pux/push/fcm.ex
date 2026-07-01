@@ -1,17 +1,3 @@
-defmodule Pux.Push.FCM.Supervisor do
-  @moduledoc false
-  use Supervisor
-
-  def start_link(init_arg) do
-    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end
-
-  @impl true
-  def init(_init_arg) do
-    Supervisor.init([], strategy: :one_for_one)
-  end
-end
-
 defmodule Pux.Push.FCM do
   @moduledoc """
   Firebase Cloud Messaging HTTP v1 data messages. Payload is already E2E encrypted.
@@ -40,7 +26,7 @@ defmodule Pux.Push.FCM do
       message: %{
         token: push_token,
         data: %{
-          "ciphertext" => envelope.ciphertext
+          "ciphertext" => envelope["ciphertext"] || envelope.ciphertext
         },
         android: %{
           priority: "HIGH"
@@ -67,8 +53,8 @@ defmodule Pux.Push.FCM do
         maybe_prune_token(push_token)
         :ok
 
-      {:ok, %Finch.Response{status: status, body: body}} ->
-        Logger.warning("FCM push failed (#{status}): #{body}")
+      {:ok, %Finch.Response{status: status}} ->
+        Logger.warning("FCM push failed (#{status})")
         :ok
 
       {:error, reason} ->

@@ -1,16 +1,9 @@
 defmodule PuxWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :pux
 
-  @session_options [
-    store: :cookie,
-    key: "_pux_key",
-    signing_salt: "pux_cookie_salt",
-    same_site: "Lax"
-  ]
-
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]],
+    longpoll: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]]
 
   plug Plug.Static,
     at: "/",
@@ -31,6 +24,25 @@ defmodule PuxWeb.Endpoint do
     json_decoder: Phoenix.json_library()
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :session
   plug PuxWeb.Router
+
+  def user_session(_conn), do: session_options()
+
+  def session(conn, _opts) do
+    Plug.Session.call(conn, Plug.Session.init(session_options()))
+  end
+
+  def session_options do
+    [
+      store: :cookie,
+      key: "_pux_key",
+      signing_salt: cookie_signing_salt(),
+      same_site: "Lax"
+    ]
+  end
+
+  defp cookie_signing_salt do
+    Application.get_env(:pux, PuxWeb.Endpoint)[:cookie_signing_salt] || "pux_cookie_salt"
+  end
 end

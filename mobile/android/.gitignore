@@ -2,5 +2,7 @@ gradle-wrapper.jar
 /.gradle
 /captures/
 /local.properties
+/key.properties
+/keystore/
 GeneratedPluginRegistrant.java
 .cxx/

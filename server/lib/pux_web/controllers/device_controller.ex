@@ -6,11 +6,29 @@ defmodule PuxWeb.DeviceController do
   def create(conn, %{"push_token" => push_token, "platform" => platform}) do
     record_id = conn.assigns.record_id
 
-    attrs = %{
-      push_token: push_token,
-      platform: parse_platform(platform)
-    }
+    case parse_platform(platform) do
+      {:ok, platform_atom} ->
+        attrs = %{
+          push_token: push_token,
+          platform: platform_atom
+        }
 
+        register_device_response(conn, record_id, attrs)
+
+      {:error, :invalid_platform} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "platform must be fcm"})
+    end
+  end
+
+  def create(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: "push_token and platform are required"})
+  end
+
+  defp register_device_response(conn, record_id, attrs) do
     case Records.register_device(record_id, attrs) do
       {:ok, device} ->
         conn
@@ -27,15 +45,9 @@ defmodule PuxWeb.DeviceController do
     end
   end
 
-  def create(conn, _params) do
-    conn
-    |> put_status(:unprocessable_entity)
-    |> json(%{error: "push_token and platform are required"})
-  end
-
-  defp parse_platform("fcm"), do: :fcm
-  defp parse_platform("apns"), do: :apns
-  defp parse_platform(_), do: :fcm
+  defp parse_platform("fcm"), do: {:ok, :fcm}
+  defp parse_platform("apns"), do: {:error, :invalid_platform}
+  defp parse_platform(_), do: {:error, :invalid_platform}
 
   defp format_changeset(%Ecto.Changeset{} = changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)

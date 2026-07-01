@@ -21,24 +21,50 @@ defmodule Pux.Records do
           qr_payload: map()
         }
 
+  @max_inbox_token_attempts 5
+
   @spec create_record() :: {:ok, enrollment()} | {:error, term()}
   def create_record do
-    now = DateTime.utc_now()
+    now = DateTime.utc_now(:microsecond)
     %{public_key: public_key, private_key: private_key} = Crypto.generate_keypair()
-    inbox_token = generate_inbox_token()
 
+    insert_record_with_token(public_key, now, private_key, 0)
+  end
+
+  defp insert_record_with_token(public_key, now, private_key, attempt)
+       when attempt < @max_inbox_token_attempts do
     attrs = %{
-      inbox_token: inbox_token,
+      inbox_token: generate_inbox_token(),
       public_key: public_key,
       last_active_at: now
     }
 
-    with {:ok, record} <-
-           %Record{}
-           |> Record.changeset(attrs)
-           |> Repo.insert() do
-      enrollment = build_enrollment(record, private_key)
-      {:ok, enrollment}
+    case %Record{}
+         |> Record.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, record} ->
+        {:ok, build_enrollment(record, private_key)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if inbox_token_collision?(changeset) do
+          insert_record_with_token(public_key, now, private_key, attempt + 1)
+        else
+          {:error, changeset}
+        end
+    end
+  end
+
+  defp insert_record_with_token(_public_key, _now, _private_key, _attempt) do
+    {:error, :inbox_token_collision}
+  end
+
+  defp inbox_token_collision?(%Ecto.Changeset{errors: errors}) do
+    case Keyword.get(errors, :inbox_token) do
+      {_, opts} when is_list(opts) ->
+        Keyword.get(opts, :constraint) == :unique
+
+      _ ->
+        false
     end
   end
 
@@ -89,6 +115,18 @@ defmodule Pux.Records do
     Device
     |> where([d], d.record_id == ^record_id)
     |> Repo.all()
+  end
+
+  @spec get_device(Ecto.UUID.t()) :: Device.t() | nil
+  def get_device(id), do: Repo.get(Device, id)
+
+  @spec touch_device!(Device.t()) :: Device.t()
+  def touch_device!(%Device{} = device) do
+    now = DateTime.utc_now(:microsecond)
+
+    device
+    |> Ecto.Changeset.change(last_seen_at: now)
+    |> Repo.update!()
   end
 
   @spec delete_device(Device.t()) :: {:ok, Device.t()} | {:error, term()}
@@ -149,8 +187,12 @@ defmodule Pux.Records do
   end
 
   defp generate_inbox_token do
-    for _ <- 1..@token_length, into: "" do
-      <<Enum.random(@inbox_token_alphabet)::utf8>>
-    end
+    alphabet_size = length(@inbox_token_alphabet)
+
+    :crypto.strong_rand_bytes(@token_length)
+    |> :binary.bin_to_list()
+    |> Enum.map_join(fn byte ->
+      <<Enum.at(@inbox_token_alphabet, rem(byte, alphabet_size))::utf8>>
+    end)
   end
 end

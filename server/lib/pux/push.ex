@@ -14,13 +14,15 @@ defmodule Pux.Push do
     case Crypto.seal(plaintext, record.public_key) do
       {:ok, ciphertext} ->
         envelope = %{
-          ciphertext: Crypto.encode_ciphertext(ciphertext)
+          "ciphertext" => Crypto.encode_ciphertext(ciphertext)
         }
 
         record.id
         |> Records.list_devices()
         |> Enum.each(fn device ->
-          dispatch(device, envelope)
+          %{device_id: device.id, envelope: envelope}
+          |> Pux.Workers.PushWorker.new()
+          |> Oban.insert()
         end)
 
         :ok
@@ -31,11 +33,14 @@ defmodule Pux.Push do
     end
   end
 
-  defp dispatch(%{platform: :fcm, push_token: token}, envelope) do
+  @spec dispatch_device(map(), map()) :: :ok | {:error, term()}
+  def dispatch_device(%{platform: :fcm, push_token: token}, envelope) do
     FCM.deliver(token, envelope)
+    :ok
   end
 
-  defp dispatch(%{platform: :apns, push_token: token}, envelope) do
+  def dispatch_device(%{platform: :apns, push_token: token}, envelope) do
     APNs.deliver(token, envelope)
+    :ok
   end
 end

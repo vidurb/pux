@@ -10,6 +10,24 @@ defmodule PuxWeb.SignupLive do
 
   @impl true
   def handle_event("create", _params, socket) do
+    client_key = client_ip(socket)
+
+    rate_opts = [
+      key: "record_create",
+      scale_ms: rate_limit_config(:record_create_scale_ms, 60_000),
+      limit: rate_limit_config(:record_create_limit, 10)
+    ]
+
+    case PuxWeb.Plugs.RateLimit.allow?(client_key, rate_opts) do
+      :ok ->
+        create_record(socket)
+
+      {:error, :rate_limited} ->
+        {:noreply, put_flash(socket, :error, "Too many signup attempts. Please try again later.")}
+    end
+  end
+
+  defp create_record(socket) do
     case Records.create_record() do
       {:ok, enrollment} ->
         qr_svg =
@@ -23,9 +41,20 @@ defmodule PuxWeb.SignupLive do
          |> assign(:enrollment, enrollment)
          |> assign(:qr_svg, qr_svg)}
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Could not create record: #{inspect(reason)}")}
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Could not create record. Please try again.")}
     end
+  end
+
+  defp client_ip(socket) do
+    case get_connect_info(socket, :peer_data) do
+      %{address: address} -> address |> :inet.ntoa() |> to_string()
+      _ -> "unknown"
+    end
+  end
+
+  defp rate_limit_config(key, default) do
+    Application.get_env(:pux, :rate_limit, []) |> Keyword.get(key, default)
   end
 
   @impl true
@@ -41,7 +70,7 @@ defmodule PuxWeb.SignupLive do
           <p class="warning">
             This QR contains your private key. It is shown once and never stored on the server.
           </p>
-          <div class="qr" phx-no-curriculum>
+          <div class="qr">
             <%= raw @qr_svg %>
           </div>
           <dl>

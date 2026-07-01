@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import 'firebase_options.dart';
 import 'services/crypto_service.dart';
 import 'services/notification_service.dart';
 import 'services/push_service.dart';
@@ -9,8 +10,20 @@ import 'services/record_store.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initBackgroundServices();
   await NotificationService.instance.handleEncryptedMessage(message.data);
+}
+
+Future<void> _initBackgroundServices() async {
+  const serverUrl = String.fromEnvironment(
+    'PUX_SERVER_URL',
+    defaultValue: 'https://pux.vidur.xyz',
+  );
+
+  await RecordStore.instance.init(serverUrl: serverUrl);
+  await CryptoService.instance.init();
+  await NotificationService.instance.init();
 }
 
 Future<void> bootstrap() async {
@@ -24,7 +37,7 @@ Future<void> bootstrap() async {
   await NotificationService.instance.init();
 
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await PushService.instance.init();
   }

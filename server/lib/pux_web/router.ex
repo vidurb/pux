@@ -14,6 +14,11 @@ defmodule PuxWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :rate_limited_create do
+    plug :accepts, ["json"]
+    plug PuxWeb.Plugs.RateLimit, key: "record_create"
+  end
+
   pipeline :record_auth do
     plug PuxWeb.Plugs.RecordAuth
   end
@@ -26,7 +31,7 @@ defmodule PuxWeb.Router do
   end
 
   scope "/api/v1", PuxWeb do
-    pipe_through :api
+    pipe_through :rate_limited_create
 
     post "/records", RecordController, :create
   end

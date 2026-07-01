@@ -25,7 +25,8 @@ defmodule Pux.Integration.SmtpPushTest do
 
     log =
       capture_log(fn ->
-        Push.deliver_to_record(record, plaintext)
+        assert :ok = Push.deliver_to_record(record, plaintext)
+        Oban.drain_queue(queue: :push)
       end)
 
     assert log =~ "FCM disabled" or log == ""

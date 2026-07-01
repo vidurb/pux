@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 import 'notification_service.dart';
@@ -19,11 +20,19 @@ class PushService {
     );
 
     FirebaseMessaging.onMessage.listen((message) async {
-      await NotificationService.instance.handleEncryptedMessage(message.data);
+      try {
+        await NotificationService.instance.handleEncryptedMessage(message.data);
+      } catch (error, stackTrace) {
+        debugPrint('Foreground push handling failed: $error\n$stackTrace');
+      }
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) async {
-      await NotificationService.instance.handleEncryptedMessage(message.data);
+      try {
+        await NotificationService.instance.handleEncryptedMessage(message.data);
+      } catch (error, stackTrace) {
+        debugPrint('Opened push handling failed: $error\n$stackTrace');
+      }
     });
 
     final recordId = await RecordStore.instance.recordId();
@@ -41,11 +50,15 @@ class PushService {
     messaging.onTokenRefresh.listen((newToken) async {
       final id = await RecordStore.instance.recordId();
       if (id == null) return;
-      await ApiClient.instance.registerDevice(
-        recordId: id,
-        pushToken: newToken,
-        platform: 'fcm',
-      );
+      try {
+        await ApiClient.instance.registerDevice(
+          recordId: id,
+          pushToken: newToken,
+          platform: 'fcm',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Token refresh registration failed: $error\n$stackTrace');
+      }
     });
   }
 }

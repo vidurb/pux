@@ -11,6 +11,7 @@ config :pux, Pux.Repo,
 config :pux, PuxWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
+  cookie_signing_salt: "pux_cookie_salt_dev",
   render_errors: [
     formats: [html: PuxWeb.ErrorHTML, json: PuxWeb.ErrorJSON],
     layout: false
@@ -21,7 +22,15 @@ config :pux, PuxWeb.Endpoint,
 config :pux, :smtp,
   port: 2525,
   domain: "localhost",
-  mail_domain: "localhost"
+  mail_domain: "localhost",
+  max_message_size: 1_048_576
+
+config :pux, :rate_limit,
+  record_create_scale_ms: 60_000,
+  record_create_limit: 10
+
+config :hammer,
+  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4]}
 
 config :pux, :pruner,
   record_ttl_days: 90,
