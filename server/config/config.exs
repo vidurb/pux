@@ -30,7 +30,12 @@ config :pux, :rate_limit,
   record_create_limit: 10
 
 config :hammer,
-  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4]}
+  backend:
+    {Hammer.Backend.ETS,
+     [
+       expiry_ms: 60_000 * 60 * 4,
+       cleanup_interval_ms: 60_000 * 10
+     ]}
 
 config :pux, :pruner,
   record_ttl_days: 90,
