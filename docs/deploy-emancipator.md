@@ -44,7 +44,9 @@ Only recipients at the configured `MAIL_DOMAIN` are accepted.
 
 ## Email forwarding
 
-After signup at `https://pux.vidur.xyz/signup`, forward bank OTP emails to the assigned address, e.g. `abc123xyz@pux.vidur.xyz`.
+Create a relay in the mobile app (`Create new relay`), then forward bank OTP emails to the assigned inbox address, e.g. `abc123xyz@pux.vidur.xyz`.
+
+Security details and setup instructions are at `https://pux.vidur.xyz/signup`.
 
 ## Mobile alpha (Android)
 
@@ -53,7 +55,7 @@ After signup at `https://pux.vidur.xyz/signup`, forward bank OTP emails to the a
 3. The Google Services Gradle plugin applies automatically when `google-services.json` is present.
 4. For release builds, create a keystore and `mobile/android/key.properties` (see `key.properties.example`).
 5. Build: `cd mobile && flutter build apk --dart-define=PUX_SERVER_URL=https://pux.vidur.xyz`
-6. Scan the signup QR to enroll; grant notification permission.
+6. Open the app, tap **Create new relay**, and grant notification permission.
 
 Release APKs block cleartext HTTP except localhost / emulator (`10.0.2.2`).
 
@@ -61,6 +63,6 @@ Release APKs block cleartext HTTP except localhost / emulator (`10.0.2.2`).
 
 - [ ] `curl https://pux.vidur.xyz/health` returns `{"status":"ok"}`
 - [ ] `nc -zv mail.pux.vidur.xyz 25` connects
-- [ ] Signup QR scans in the Android app
+- [ ] Mobile app creates a relay and shows an inbox address
 - [ ] Test email with body `Your OTP is 123456` triggers a decrypted notification
 - [ ] Stale records pruned after `record_ttl_days` (default 90)

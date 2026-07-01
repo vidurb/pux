@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
 # Local verification script for the pux alpha flow.
-# Requires: curl, jq (optional), running pux server with Postgres.
+# Requires: curl, running pux server with Postgres, Elixir deps in server/.
 set -euo pipefail
 
 BASE_URL="${PUX_BASE_URL:-http://localhost:4000}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_DIR="${SCRIPT_DIR}/../server"
 
 echo "==> Health check"
 curl -fsS "${BASE_URL}/health"
 
 echo
-echo "==> Create record"
-RESPONSE=$(curl -fsS -X POST "${BASE_URL}/api/v1/records")
+echo "==> Generate client keypair (simulates mobile enrollment)"
+read -r PUBLIC_KEY PRIVATE_KEY <<< "$(cd "${SERVER_DIR}" && mix run --no-start -e '
+pair = :enacl.box_keypair()
+pub = Base.url_encode64(pair.public, padding: false)
+priv = Base.url_encode64(pair.secret, padding: false)
+IO.write(:stdio, "#{pub} #{priv}")
+')"
+
+echo "==> Create record with client public key"
+RESPONSE=$(curl -fsS -X POST "${BASE_URL}/api/v1/records" \
+  -H 'content-type: application/json' \
+  -d "{\"public_key\":\"${PUBLIC_KEY}\"}")
 RECORD_ID=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["record_id"])')
 INBOX=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["inbox_address"])')
-PRIVATE_KEY=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["private_key"])')
-PUBLIC_KEY=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["public_key"])')
 
 echo "Record: $RECORD_ID"
 echo "Inbox:  $INBOX"
@@ -32,7 +42,7 @@ cat <<EOF
 Manual SMTP test (dev port 2525):
   swaks --to ${INBOX} --from bank@example.com --server localhost:2525 --body 'Your OTP is 123456'
 
-Decrypt verification uses the private key from signup:
+Decrypt verification uses the client-generated private key:
   private_key=${PRIVATE_KEY}
   public_key=${PUBLIC_KEY}
 

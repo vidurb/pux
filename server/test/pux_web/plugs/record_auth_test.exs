@@ -1,11 +1,12 @@
 defmodule PuxWeb.Plugs.RecordAuthTest do
   use PuxWeb.ConnCase, async: true
 
+  alias Pux.Fixtures
   alias Pux.Records
   alias PuxWeb.Plugs.RecordAuth
 
   setup do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
     {:ok, enrollment: enrollment}
   end
 
@@ -21,7 +22,7 @@ defmodule PuxWeb.Plugs.RecordAuthTest do
   end
 
   test "rejects mismatched bearer token", %{conn: conn, enrollment: enrollment} do
-    {:ok, other} = Records.create_record()
+    {:ok, other} = Records.create_record(Fixtures.public_key())
 
     conn =
       conn

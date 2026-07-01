@@ -81,7 +81,7 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'Scan the signup QR from the pux web page, or from an existing device.',
+              'Scan the QR from an existing enrolled device.',
               textAlign: TextAlign.center,
             ),
           ),

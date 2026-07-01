@@ -2,13 +2,13 @@ defmodule Pux.Workers.PushWorkerTest do
   use Pux.DataCase, async: false
   use Oban.Testing, repo: Pux.Repo
 
-  alias Pux.{Push, Records}
+  alias Pux.{Fixtures, Push, Records}
   alias Pux.Workers.PushWorker
 
   import ExUnit.CaptureLog
 
   test "deliver_to_record enqueues push jobs for devices" do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
     record = Records.get_record(enrollment.record_id)
 
     {:ok, device} =
@@ -32,7 +32,7 @@ defmodule Pux.Workers.PushWorkerTest do
   end
 
   test "touch_device updates last_seen_at after successful push job" do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
 
     {:ok, device} =
       Records.register_device(enrollment.record_id, %{

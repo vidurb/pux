@@ -16,6 +16,16 @@ class CryptoService {
     _sodium = await SodiumInit.init();
   }
 
+  Future<Map<String, String>> generateKeyPair() async {
+    final keyPair = _sodium.crypto.box.keyPair();
+    return {
+      'public_key': _encodeKey(keyPair.publicKey),
+      'private_key': keyPair.secretKey.runUnlockedSync(
+        (secret) => _encodeKey(Uint8List.fromList(secret)),
+      ),
+    };
+  }
+
   Future<Map<String, dynamic>> decryptPayload(String ciphertextB64) async {
     final privateKeyB64 = await RecordStore.instance.privateKey();
     final publicKeyB64 = await RecordStore.instance.publicKey();
@@ -43,6 +53,8 @@ class CryptoService {
     }
     return Uint8List.fromList(decoded);
   }
+
+  String _encodeKey(Uint8List key) => base64Url.encode(key).replaceAll('=', '');
 
   Uint8List _decodeB64(String value) => Uint8List.fromList(base64Url.decode(_pad(value)));
 

@@ -1,60 +1,9 @@
 defmodule PuxWeb.SignupLive do
   use PuxWeb, :live_view
 
-  alias Pux.Records
-
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, enrollment: nil, qr_svg: nil)}
-  end
-
-  @impl true
-  def handle_event("create", _params, socket) do
-    client_key = client_ip(socket)
-
-    rate_opts = [
-      key: "record_create",
-      scale_ms: rate_limit_config(:record_create_scale_ms, 60_000),
-      limit: rate_limit_config(:record_create_limit, 10)
-    ]
-
-    case PuxWeb.Plugs.RateLimit.allow?(client_key, rate_opts) do
-      :ok ->
-        create_record(socket)
-
-      {:error, :rate_limited} ->
-        {:noreply, put_flash(socket, :error, "Too many signup attempts. Please try again later.")}
-    end
-  end
-
-  defp create_record(socket) do
-    case Records.create_record() do
-      {:ok, enrollment} ->
-        qr_svg =
-          enrollment.qr_payload
-          |> Jason.encode!()
-          |> EQRCode.encode()
-          |> EQRCode.svg(width: 240)
-
-        {:noreply,
-         socket
-         |> assign(:enrollment, enrollment)
-         |> assign(:qr_svg, qr_svg)}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not create record. Please try again.")}
-    end
-  end
-
-  defp client_ip(socket) do
-    case get_connect_info(socket, :peer_data) do
-      %{address: address} -> address |> :inet.ntoa() |> to_string()
-      _ -> "unknown"
-    end
-  end
-
-  defp rate_limit_config(key, default) do
-    Application.get_env(:pux, :rate_limit, []) |> Keyword.get(key, default)
+    {:ok, socket}
   end
 
   @impl true
@@ -64,29 +13,52 @@ defmodule PuxWeb.SignupLive do
       <h1>pux</h1>
       <p>Encrypted OTP relay. No accounts. No stored emails.</p>
 
-      <%= if @enrollment do %>
-        <section class="enrollment">
-          <h2>Scan with the pux app</h2>
-          <p class="warning">
-            This QR contains your private key. It is shown once and never stored on the server.
-          </p>
-          <div class="qr">
-            <%= raw @qr_svg %>
-          </div>
-          <dl>
-            <dt>Inbox address</dt>
-            <dd><code>{@enrollment.inbox_address}</code></dd>
-            <dt>Record ID</dt>
-            <dd><code>{@enrollment.record_id}</code></dd>
-          </dl>
-          <p>
-            Set up email forwarding from your bank OTP address to
-            <strong>{@enrollment.inbox_address}</strong>.
-          </p>
-        </section>
-      <% else %>
-        <button phx-click="create" class="primary">Create relay</button>
-      <% end %>
+      <section class="security">
+        <h2>How it stays private</h2>
+        <ul>
+          <li>
+            <strong>Client-side keys.</strong>
+            Your encryption keypair is generated on your phone. The private key never leaves your device.
+          </li>
+          <li>
+            <strong>Public key only.</strong>
+            The server stores your public key so it can encrypt OTPs for you. It cannot decrypt them.
+          </li>
+          <li>
+            <strong>Sealed boxes.</strong>
+            OTP payloads are encrypted with libsodium sealed boxes before push delivery.
+          </li>
+          <li>
+            <strong>No stored mail.</strong>
+            Inbound email is parsed in memory and discarded. OTPs are never written to disk or the database.
+          </li>
+          <li>
+            <strong>No accounts.</strong>
+            A record ID is your only credential. Add more devices by scanning a QR from an enrolled phone.
+          </li>
+        </ul>
+      </section>
+
+      <section class="setup">
+        <h2>Get started</h2>
+        <ol>
+          <li>Install the pux Android app.</li>
+          <li>Open the app and tap <strong>Create new relay</strong>.</li>
+          <li>Copy your inbox address and set up email forwarding from your bank OTP address.</li>
+          <li>Grant notification permission when prompted.</li>
+        </ol>
+        <p class="note">
+          Enrollment happens entirely in the mobile app. The server never sees your private key.
+        </p>
+      </section>
+
+      <section class="smtp">
+        <h2>SMTP relay</h2>
+        <p>
+          This server accepts inbound mail for <code>*@pux.vidur.xyz</code> (or your configured mail domain).
+          Only recipients with a valid inbox token are accepted. Messages are size-limited and processed in memory.
+        </p>
+      </section>
     </div>
     """
   end

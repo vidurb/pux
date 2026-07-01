@@ -16,22 +16,18 @@ defmodule Pux.Records do
           record_id: Ecto.UUID.t(),
           inbox_token: String.t(),
           inbox_address: String.t(),
-          public_key: String.t(),
-          private_key: String.t(),
-          qr_payload: map()
+          public_key: String.t()
         }
 
   @max_inbox_token_attempts 5
 
-  @spec create_record() :: {:ok, enrollment()} | {:error, term()}
-  def create_record do
+  @spec create_record(binary()) :: {:ok, enrollment()} | {:error, term()}
+  def create_record(public_key) when is_binary(public_key) do
     now = DateTime.utc_now(:microsecond)
-    %{public_key: public_key, private_key: private_key} = Crypto.generate_keypair()
-
-    insert_record_with_token(public_key, now, private_key, 0)
+    insert_record_with_token(public_key, now, 0)
   end
 
-  defp insert_record_with_token(public_key, now, private_key, attempt)
+  defp insert_record_with_token(public_key, now, attempt)
        when attempt < @max_inbox_token_attempts do
     attrs = %{
       inbox_token: generate_inbox_token(),
@@ -43,18 +39,18 @@ defmodule Pux.Records do
          |> Record.changeset(attrs)
          |> Repo.insert() do
       {:ok, record} ->
-        {:ok, build_enrollment(record, private_key)}
+        {:ok, build_enrollment(record)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         if inbox_token_collision?(changeset) do
-          insert_record_with_token(public_key, now, private_key, attempt + 1)
+          insert_record_with_token(public_key, now, attempt + 1)
         else
           {:error, changeset}
         end
     end
   end
 
-  defp insert_record_with_token(_public_key, _now, _private_key, _attempt) do
+  defp insert_record_with_token(_public_key, _now, _attempt) do
     {:error, :inbox_token_collision}
   end
 
@@ -156,34 +152,15 @@ defmodule Pux.Records do
     count
   end
 
-  defp build_enrollment(%Record{} = record, private_key) do
+  defp build_enrollment(%Record{} = record) do
     mail_domain = Application.get_env(:pux, :smtp)[:mail_domain] || "localhost"
-    host = endpoint_host()
-
-    qr_payload = %{
-      v: 1,
-      record_id: record.id,
-      private_key: Crypto.encode_key(private_key),
-      public_key: Crypto.encode_key(record.public_key),
-      inbox: "#{record.inbox_token}@#{mail_domain}",
-      server: "https://#{host}"
-    }
 
     %{
       record_id: record.id,
       inbox_token: record.inbox_token,
       inbox_address: "#{record.inbox_token}@#{mail_domain}",
-      public_key: Crypto.encode_key(record.public_key),
-      private_key: Crypto.encode_key(private_key),
-      qr_payload: qr_payload
+      public_key: Crypto.encode_key(record.public_key)
     }
-  end
-
-  defp endpoint_host do
-    case Application.get_env(:pux, PuxWeb.Endpoint)[:url] do
-      [host: host] -> host
-      _ -> "localhost"
-    end
   end
 
   defp generate_inbox_token do

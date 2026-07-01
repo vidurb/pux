@@ -4,15 +4,16 @@ Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-
 
 ## Architecture
 
-- **server/** — Phoenix/Elixir service (inbound SMTP, LiveView signup, FCM push)
+- **server/** — Phoenix/Elixir service (inbound SMTP, marketing site, FCM push)
 - **mobile/** — Flutter app (Android-first; iOS scaffolded)
 
 ## Security model
 
+- Encryption keypairs are generated on the mobile device; the private key never leaves the phone.
+- The server stores only the client-supplied public key and encrypts OTP payloads with libsodium sealed boxes.
 - Emails are parsed in memory and never stored.
-- OTP payloads are encrypted with libsodium sealed boxes; the server only holds the public key.
-- No accounts: a record ID (from the enrollment QR) is the only credential.
-- New devices enroll by scanning a QR from an existing device.
+- No accounts: a record ID is the only credential.
+- New devices enroll in-app (`Create new relay`) or by scanning a QR from an existing device.
 - Inbound SMTP validates recipient domains and caps message size.
 - Push delivery is asynchronous (Oban) so SMTP responds immediately.
 

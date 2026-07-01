@@ -1,12 +1,12 @@
 defmodule Pux.Integration.SmtpPushTest do
   use Pux.DataCase, async: false
 
-  alias Pux.{Crypto, OtpParser, Push, Records}
+  alias Pux.{Crypto, Fixtures, OtpParser, Push, Records}
 
   import ExUnit.CaptureLog
 
   test "end-to-end: record creation, OTP parse, encrypt payload" do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
     record = Records.get_record(enrollment.record_id)
 
     body = "Dear customer, OTP is 654321 for your transaction."
@@ -33,7 +33,7 @@ defmodule Pux.Integration.SmtpPushTest do
   end
 
   test "pruner removes stale records" do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
     record = Records.get_record(enrollment.record_id)
 
     stale_time = DateTime.utc_now() |> DateTime.add(-120, :day)

@@ -1,10 +1,11 @@
 defmodule PuxWeb.DeviceControllerTest do
   use PuxWeb.ConnCase, async: true
 
+  alias Pux.Fixtures
   alias Pux.Records
 
   setup do
-    {:ok, enrollment} = Records.create_record()
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
     {:ok, enrollment: enrollment}
   end
 

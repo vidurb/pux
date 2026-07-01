@@ -3,14 +3,6 @@ defmodule Pux.Crypto do
   libsodium sealed-box helpers. The server only ever encrypts with the record public key.
   """
 
-  @type keypair :: %{public_key: binary(), private_key: binary()}
-
-  @spec generate_keypair() :: keypair()
-  def generate_keypair do
-    %{public: public_key, secret: private_key} = :enacl.box_keypair()
-    %{public_key: public_key, private_key: private_key}
-  end
-
   @spec seal(binary(), binary()) :: {:ok, binary()} | {:error, term()}
   def seal(plaintext, public_key) when is_binary(plaintext) and is_binary(public_key) do
     try do

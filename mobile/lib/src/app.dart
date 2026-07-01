@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'screens/enroll_screen.dart';
+import 'screens/enroll_chooser_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/record_store.dart';
 
@@ -23,7 +23,7 @@ class PuxApp extends ConsumerWidget {
         useMaterial3: true,
       ),
       home: enrollment.when(
-        data: (enrolled) => enrolled ? const HomeScreen() : const EnrollScreen(),
+        data: (enrolled) => enrolled ? const HomeScreen() : const EnrollChooserScreen(),
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (error, _) => Scaffold(body: Center(child: Text('Error: $error'))),
       ),

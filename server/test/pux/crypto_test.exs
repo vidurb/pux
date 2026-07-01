@@ -4,7 +4,7 @@ defmodule Pux.CryptoTest do
   alias Pux.Crypto
 
   test "sealed box roundtrip encoding" do
-    %{public_key: public_key, private_key: private_key} = Crypto.generate_keypair()
+    %{public: public_key, secret: private_key} = :enacl.box_keypair()
     plaintext = "hello otp"
 
     assert {:ok, ciphertext} = Crypto.seal(plaintext, public_key)
