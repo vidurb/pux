@@ -14,7 +14,7 @@ defmodule PuxWeb.DeliverySocketTest do
 
   test "connect accepts valid record token", %{enrollment: enrollment} do
     conn = %Plug.Conn{query_params: %{"token" => enrollment.record_id}}
-    assert {:ok, %{record_id: ^record_id}} = PuxWeb.DeliverySocket.connect(conn)
+    assert {:ok, %{record_id: record_id}} = PuxWeb.DeliverySocket.connect(conn)
     assert record_id == enrollment.record_id
   end
 

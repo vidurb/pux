@@ -101,6 +101,7 @@ jobs:
     runs-on: windows-latest
     env:
       CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+      CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
     defaults:
       run:
         working-directory: mobile
