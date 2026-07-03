@@ -10,6 +10,7 @@ import firebase_messaging
 import flutter_local_notifications
 import flutter_secure_storage_macos
 import mobile_scanner
+import no_screenshot
 import sodium_libs
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
@@ -18,5 +19,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterSecureStoragePlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStoragePlugin"))
   MobileScannerPlugin.register(with: registry.registrar(forPlugin: "MobileScannerPlugin"))
+  MacOSNoScreenshotPlugin.register(with: registry.registrar(forPlugin: "MacOSNoScreenshotPlugin"))
   SodiumLibsPlugin.register(with: registry.registrar(forPlugin: "SodiumLibsPlugin"))
 }

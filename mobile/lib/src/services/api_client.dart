@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'record_store.dart';
@@ -15,15 +16,26 @@ class PendingDelivery {
 }
 
 class ApiClient {
-  ApiClient._();
+  ApiClient._({http.Client? client}) : _client = client ?? http.Client();
 
-  static final ApiClient instance = ApiClient._();
+  @visibleForTesting
+  ApiClient.forTesting({http.Client? client}) : _client = client ?? http.Client();
+
+  static ApiClient _instance = ApiClient._();
+  static ApiClient get instance => _instance;
+
+  @visibleForTesting
+  static void setInstanceForTesting(ApiClient client) {
+    _instance = client;
+  }
+
+  final http.Client _client;
 
   static const _timeout = Duration(seconds: 15);
 
   Future<Map<String, String>> createRecord({required String publicKey}) async {
     final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records');
-    final response = await http
+    final response = await _client
         .post(
           uri,
           headers: {'content-type': 'application/json'},
@@ -55,7 +67,7 @@ class ApiClient {
     required String platform,
   }) async {
     final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId/devices');
-    final response = await http
+    final response = await _client
         .post(
           uri,
           headers: {
@@ -77,7 +89,7 @@ class ApiClient {
 
   Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
     final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries');
-    final response = await http
+    final response = await _client
         .get(
           uri,
           headers: {'authorization': 'Bearer $recordId'},
@@ -108,7 +120,7 @@ class ApiClient {
     final uri = Uri.parse(
       '${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries/$deliveryId',
     );
-    final response = await http
+    final response = await _client
         .delete(
           uri,
           headers: {'authorization': 'Bearer $recordId'},

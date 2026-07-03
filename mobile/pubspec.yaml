@@ -21,6 +21,7 @@ dependencies:
   sodium_libs: ^3.4.3+2
   flutter_riverpod: ^2.6.1
   web_socket_channel: ^3.0.2
+  no_screenshot: ^1.1.0
 
 dev_dependencies:
   flutter_test:
