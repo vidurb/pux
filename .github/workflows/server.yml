@@ -45,7 +45,7 @@ jobs:
           elixir-version: "1.18.4"
           otp-version: "27.3.4"
       - run: sudo apt-get update && sudo apt-get install -y libsodium-dev
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             server/deps
