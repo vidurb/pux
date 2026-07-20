@@ -14,6 +14,7 @@ COPY config/config.exs config/prod.exs config/runtime.exs config/
 COPY lib lib
 COPY priv priv
 RUN mix deps.compile
+RUN mix phx.digest
 RUN mix release
 
 FROM alpine:3.21.3

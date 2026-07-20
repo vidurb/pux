@@ -66,4 +66,8 @@ if config_env() == :prod do
         IO.warn("FCM_SERVICE_ACCOUNT_JSON is invalid (#{inspect(reason)}); FCM disabled")
     end
   end
+
+  if System.get_env("PHX_SERVER") do
+    config :pux, PuxWeb.Endpoint, server: true
+  end
 end
