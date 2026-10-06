@@ -20,20 +20,9 @@ defmodule Pux.Application do
   end
 
   defp maybe_start_goth(children) do
-    case Application.get_env(:pux, :fcm) do
-      %{enabled: true, service_account_json: json} when is_binary(json) ->
-        case Jason.decode(json) do
-          {:ok, credentials} ->
-            [{Goth, name: Pux.Goth, source: {:service_account, credentials}} | children]
-
-          {:error, reason} ->
-            require Logger
-            Logger.error("FCM service account JSON is invalid: #{inspect(reason)}")
-            children
-        end
-
-      _ ->
-        children
+    case Pux.Push.FCM.goth_child_spec() do
+      nil -> children
+      spec -> [spec | children]
     end
   end
 

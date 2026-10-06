@@ -7,35 +7,61 @@ defmodule Pux.Push.FCM do
 
   @fcm_url "https://fcm.googleapis.com/v1/projects"
 
-  @spec deliver(String.t(), map()) :: :ok
-  def deliver(push_token, envelope) when is_binary(push_token) and is_map(envelope) do
-    case Application.get_env(:pux, :fcm) do
-      %{enabled: true, project_id: project_id} when is_binary(project_id) ->
-        do_deliver(project_id, push_token, envelope)
+  @type result :: :ok | :unregistered | {:error, term()} | {:cancel, term()}
+
+  @doc "FCM config from `config :pux, :fcm` (keyword list or map)."
+  def config, do: Application.get_env(:pux, :fcm, [])
+
+  @spec enabled?() :: boolean()
+  def enabled? do
+    cfg = config()
+    cfg[:enabled] == true and is_binary(cfg[:project_id])
+  end
+
+  @doc "Goth child spec when FCM is enabled with valid credentials, else nil."
+  def goth_child_spec do
+    cfg = config()
+
+    with true <- enabled?(),
+         json when is_binary(json) <- cfg[:service_account_json],
+         {:ok, credentials} <- Jason.decode(json) do
+      {Goth, name: Pux.Goth, source: {:service_account, credentials}}
+    else
+      {:error, reason} ->
+        Logger.error("FCM service account JSON is invalid: #{inspect(reason)}")
+        nil
 
       _ ->
-        Logger.debug("FCM disabled; would push to #{String.slice(push_token, 0, 8)}...")
-        :ok
+        nil
     end
+  end
+
+  @spec deliver(String.t(), map()) :: result()
+  def deliver(push_token, envelope) when is_binary(push_token) and is_map(envelope) do
+    if enabled?() do
+      do_deliver(config()[:project_id], push_token, envelope)
+    else
+      Logger.debug("FCM disabled; would push to #{String.slice(push_token, 0, 8)}...")
+      :ok
+    end
+  end
+
+  @doc false
+  def message(push_token, envelope) do
+    %{
+      message: %{
+        token: push_token,
+        data: %{"ciphertext" => envelope["ciphertext"] || envelope[:ciphertext]},
+        android: %{priority: "HIGH", ttl: "300s"}
+      }
+    }
   end
 
   defp do_deliver(project_id, push_token, envelope) do
     url = "#{@fcm_url}/#{project_id}/messages:send"
 
-    body = %{
-      message: %{
-        token: push_token,
-        data: %{
-          "ciphertext" => envelope["ciphertext"] || envelope.ciphertext
-        },
-        android: %{
-          priority: "HIGH"
-        }
-      }
-    }
-
-    with {:ok, token} <- Goth.fetch(Pux.Goth),
-         {:ok, %Finch.Response{status: status}} when status in 200..299 <-
+    with {:ok, token} <- fetch_token(),
+         {:ok, %Finch.Response{status: status, body: body}} <-
            Finch.build(
              :post,
              url,
@@ -43,32 +69,46 @@ defmodule Pux.Push.FCM do
                {"authorization", "Bearer #{token.token}"},
                {"content-type", "application/json"}
              ],
-             Jason.encode!(body)
+             Jason.encode!(message(push_token, envelope))
            )
            |> Finch.request(Pux.Finch) do
-      :ok
+      classify_response(status, body)
     else
-      {:ok, %Finch.Response{status: 404}} ->
-        Logger.info("FCM token unregistered: #{String.slice(push_token, 0, 8)}...")
-        maybe_prune_token(push_token)
-        :ok
-
-      {:ok, %Finch.Response{status: status}} ->
-        Logger.warning("FCM push failed (#{status})")
-        :ok
-
       {:error, reason} ->
         Logger.warning("FCM push error: #{inspect(reason)}")
-        :ok
+        {:error, reason}
     end
   end
 
-  defp maybe_prune_token(push_token) do
-    import Ecto.Query
-    alias Pux.{Records.Device, Repo}
+  defp fetch_token do
+    Goth.fetch(Pux.Goth)
+  catch
+    :exit, reason -> {:error, {:goth_unavailable, reason}}
+  end
 
-    Device
-    |> where([d], d.push_token == ^push_token)
-    |> Repo.delete_all()
+  @doc false
+  @spec classify_response(non_neg_integer(), binary()) :: result()
+  def classify_response(status, _body) when status in 200..299, do: :ok
+
+  def classify_response(404, _body) do
+    Logger.info("FCM token unregistered")
+    :unregistered
+  end
+
+  def classify_response(status, body) when status in [400, 403] do
+    Logger.error("FCM push rejected (#{status}): #{error_status(body)}")
+    {:cancel, {:fcm, status}}
+  end
+
+  def classify_response(status, body) do
+    Logger.warning("FCM push failed (#{status}): #{error_status(body)}")
+    {:error, {:fcm, status}}
+  end
+
+  defp error_status(body) do
+    case Jason.decode(body || "") do
+      {:ok, %{"error" => %{"status" => status}}} -> status
+      _ -> "unknown"
+    end
   end
 end

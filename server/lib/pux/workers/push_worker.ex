@@ -1,8 +1,9 @@
 defmodule Pux.Workers.PushWorker do
   @moduledoc """
   Delivers encrypted push notifications asynchronously via FCM/APNs.
+  OTPs go stale in minutes, so retries are short.
   """
-  use Oban.Worker, queue: :push, max_attempts: 5
+  use Oban.Worker, queue: :push, max_attempts: 4
 
   alias Pux.Push
   alias Pux.Records
@@ -14,9 +15,21 @@ defmodule Pux.Workers.PushWorker do
         :ok
 
       device ->
-        Push.dispatch_device(device, envelope)
-        Records.touch_device!(device)
-        :ok
+        case Push.dispatch_device(device, envelope) do
+          :ok ->
+            Records.touch_device(device)
+            :ok
+
+          :unregistered ->
+            Records.delete_devices_by_token(device.push_token)
+            :ok
+
+          other ->
+            other
+        end
     end
   end
+
+  @impl Oban.Worker
+  def backoff(%Oban.Job{attempt: attempt}), do: attempt * 10
 end

@@ -18,7 +18,7 @@ defmodule Pux.Push do
         }
 
         record.id
-        |> Records.list_devices()
+        |> Records.list_push_devices()
         |> Enum.each(fn device ->
           %{device_id: device.id, envelope: envelope}
           |> Pux.Workers.PushWorker.new()
@@ -52,15 +52,13 @@ defmodule Pux.Push do
   @spec delivery_topic(Ecto.UUID.t()) :: String.t()
   def delivery_topic(record_id), do: "delivery:#{record_id}"
 
-  @spec dispatch_device(map(), map()) :: :ok | {:error, term()}
+  @spec dispatch_device(map(), map()) :: FCM.result()
   def dispatch_device(%{platform: :fcm, push_token: token}, envelope) do
     FCM.deliver(token, envelope)
-    :ok
   end
 
   def dispatch_device(%{platform: :apns, push_token: token}, envelope) do
     APNs.deliver(token, envelope)
-    :ok
   end
 
   def dispatch_device(%{platform: :desktop}, _envelope) do
