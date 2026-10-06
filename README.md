@@ -28,7 +28,9 @@ mix ecto.setup
 mix phx.server
 ```
 
-SMTP listens on port 2525 in dev (`SMTP_PORT`). HTTP on 4000.
+SMTP listens on port 2525 (`SMTP_PORT`) in every environment; map public port 25 to it. HTTP on 4000.
+
+Tests need PostgreSQL (`DATABASE_URL`) and libsodium. The SMTP integration test talks to the real listener on port 2526 and the WebSocket tests to the endpoint on 4002.
 
 Toolchain versions are pinned in [`.tool-versions`](.tool-versions) (Elixir 1.18.4 / OTP 27.3.4).
 
@@ -61,7 +63,12 @@ Without Firebase config the app still runs, but the home screen says push is not
 
 To add a desktop, open the QR panel on the phone, tap **Copy enrollment JSON**, and paste it into the desktop app's **Import enrollment** screen. The JSON contains the private key.
 
-Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` and `WS /ws/delivery?token=<record_id>`.
+Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` and `WS /ws/delivery` with the record ID in the `x-pux-token` header (`?token=<record_id>` still works but lands in proxy logs).
+
+Decrypted push payloads are JSON with a `type`:
+
+- `otp`: `otp`, `sender`, `received_at`, `parser`
+- `forward_confirm`: `code`, `url`, `sender`, `forwarding_from`, `received_at` (Gmail forwarding confirmation; confirm with the code or link to finish forwarding setup)
 
 ## Production environment variables
 
@@ -75,7 +82,10 @@ Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /
 | `COOKIE_SIGNING_SALT` | yes | Session cookie signing salt |
 | `PHX_HOST` | no | Public hostname (default `pux.vidur.xyz`) |
 | `MAIL_DOMAIN` | no | SMTP recipient domain |
+| `SMTP_PORT` | no | SMTP listen port (default `2525`; the image runs as non-root) |
 | `SMTP_MAX_MESSAGE_SIZE` | no | Max inbound message bytes (default 1MB) |
+| `SMTP_MAX_CONNECTIONS` | no | Max concurrent SMTP connections (default 100) |
+| `SMTP_MAX_CONNECTIONS_PER_IP` | no | Max concurrent SMTP connections per client IP (default 5) |
 | `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set |
 | `FCM_SERVICE_ACCOUNT_JSON` | no | Firebase service account JSON for push |
 
