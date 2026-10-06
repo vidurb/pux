@@ -5,7 +5,7 @@ Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-
 ## Architecture
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, marketing site, FCM push)
-- **mobile/** — Flutter app (Android, iOS, macOS, Windows, Linux)
+- **mobile/** — Flutter app (Android, iOS, macOS, Linux; Windows is not supported for now)
 
 ## Security model
 
@@ -48,9 +48,18 @@ Platform targets:
 |----------|----------|------------|
 | Android | FCM push | Create relay or QR scan |
 | iOS | FCM push (APNs) | Create relay or QR scan |
-| macOS / Windows / Linux | WebSocket + poll fallback | Import enrollment JSON only |
+| macOS / Linux | WebSocket + poll fallback | Import enrollment JSON only |
+| Windows | — | Not supported for now (does not build in CI) |
 
-For FCM on mobile device builds, add `android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist`, then run `flutterfire configure`, or pass Firebase values via `--dart-define=FIREBASE_*`.
+Without Firebase config the app still runs, but the home screen says push is not configured. To enable FCM, run `flutterfire configure --project=<id> --out=lib/src/firebase_options.dart --platforms=android,ios` in `mobile/` (this writes `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` and replaces the placeholder options), or pass `--dart-define=FIREBASE_*` values. These files are not secret and can be committed.
+
+#### Testing on an Android phone
+
+1. Configure Firebase as above and make sure the server has the matching `FCM_SERVICE_ACCOUNT_JSON`.
+2. Build and install: `flutter build apk --debug --dart-define=PUX_SERVER_URL=https://pux.vidur.xyz`, then `adb install build/app/outputs/flutter-apk/app-debug.apk` (or `flutter run -d <device> --dart-define=...`). CI also uploads a debug APK as the `pux-android-debug-apk` artifact of the `mobile` workflow, but it is built without Firebase config, so it cannot receive pushes.
+3. Open the app, tap **Create new relay**, allow notifications, and forward a test email (`Your OTP is 123456`) to the inbox address shown.
+
+To add a desktop, open the QR panel on the phone, tap **Copy enrollment JSON**, and paste it into the desktop app's **Import enrollment** screen. The JSON contains the private key.
 
 Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` and `WS /ws/delivery?token=<record_id>`.
 
