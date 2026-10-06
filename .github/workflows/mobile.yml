@@ -10,6 +10,10 @@ on:
     paths:
       - "mobile/**"
       - ".github/workflows/mobile.yml"
+  workflow_dispatch:
+
+env:
+  PUX_SERVER_URL: https://pux.vidur.xyz
 
 jobs:
   test:
@@ -28,7 +32,6 @@ jobs:
       - run: flutter test
 
   build-android:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     defaults:
@@ -41,9 +44,15 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --debug
+      - run: flutter build apk --debug --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pux-android-debug-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
 
   build-ios:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -59,7 +68,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build ios --release --no-codesign
+      - run: flutter build ios --release --no-codesign --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
 
   build-macos:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -75,7 +84,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build macos --release
+      - run: flutter build macos --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
 
   build-linux:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -93,24 +102,4 @@ jobs:
           cache: true
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
-      - run: flutter build linux --release
-
-  build-windows:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: windows-latest
-    env:
-      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
-      CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
-    defaults:
-      run:
-        working-directory: mobile
-    steps:
-      - uses: actions/checkout@v7
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter config --enable-windows-desktop
-      - run: flutter pub get
-      - run: flutter build windows --release
+      - run: flutter build linux --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
