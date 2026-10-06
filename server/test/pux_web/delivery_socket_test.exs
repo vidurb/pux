@@ -35,6 +35,10 @@ defmodule PuxWeb.DeliverySocketTest do
 
     assert {:ok, socket} = ws_connect("/ws/delivery", [{"x-pux-token", e.record_id}])
 
+    # The 101 can arrive before the socket process subscribes; a pong means init/1 ran.
+    send_text(socket, ~s({"type":"ping"}))
+    assert %{"type" => "pong"} = recv_json(socket)
+
     record = Records.get_record(e.record_id)
     assert :ok = Push.deliver_to_record(record, Jason.encode!(%{otp: "111222"}))
 
