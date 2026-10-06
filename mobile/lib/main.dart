@@ -23,4 +23,8 @@ Future<void> main() async {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     unawaited(DeliveryController.instance.start());
   });
+
+  // Keeps the device registration fresh; the server prunes devices it has
+  // not heard from in 30 days.
+  AppLifecycleListener(onResume: () => unawaited(DeliveryController.instance.onResume()));
 }

@@ -8,7 +8,8 @@ const _copyActionId = 'copy_code';
 
 /// What a decrypted payload asks us to show. The server sends
 /// `{"type": "otp", "otp", "sender"}` or
-/// `{"type": "forward_confirm", "code", "url", "sender"}`; payloads without a
+/// `{"type": "forward_confirm", "code", "url", "sender", "forwarding_from"}`
+/// (code, url and forwarding_from may be null); payloads without a
 /// `type` predate the field and are OTPs.
 @immutable
 class RelayNotification {
@@ -21,9 +22,15 @@ class RelayNotification {
       case 'forward_confirm':
         final code = payload['code'] as String?;
         final url = payload['url'] as String?;
+        final from = payload['forwarding_from'] as String?;
         return RelayNotification(
           title: 'Email forwarding confirmation',
-          body: [if (code != null) 'Code: $code', if (url != null) url, 'From $sender'].join('\n'),
+          body: [
+            if (from != null) 'Forwarding from $from',
+            if (code != null) 'Code: $code',
+            if (url != null) url,
+            if (from == null) 'From $sender',
+          ].join('\n'),
           code: code,
         );
       case 'otp':
