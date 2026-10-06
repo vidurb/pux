@@ -25,7 +25,11 @@ defmodule Pux.Workers.PushWorkerTest do
 
     log =
       capture_log(fn ->
-        assert :ok = perform_job(PushWorker, %{"device_id" => device.id, "envelope" => %{"ciphertext" => "abc"}})
+        assert :ok =
+                 perform_job(PushWorker, %{
+                   "device_id" => device.id,
+                   "envelope" => %{"ciphertext" => "abc"}
+                 })
       end)
 
     assert log =~ "FCM disabled" or log == ""

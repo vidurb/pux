@@ -48,7 +48,8 @@ if config_env() == :prod do
     mail_domain: mail_domain,
     max_message_size: smtp_max_message_size,
     max_connections: String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS") || "100"),
-    max_connections_per_ip: String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
+    max_connections_per_ip:
+      String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
     tls_certfile: smtp_tls_certfile,
     tls_keyfile: smtp_tls_keyfile
 

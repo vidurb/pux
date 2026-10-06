@@ -11,7 +11,10 @@ defmodule PuxWeb.Plugs.RateLimit do
   def call(conn, opts) do
     rate_config = Application.get_env(:pux, :rate_limit, [])
     key = Keyword.get(opts, :key, "default")
-    scale_ms = Keyword.get(opts, :scale_ms, Keyword.get(rate_config, :record_create_scale_ms, 60_000))
+
+    scale_ms =
+      Keyword.get(opts, :scale_ms, Keyword.get(rate_config, :record_create_scale_ms, 60_000))
+
     limit = Keyword.get(opts, :limit, Keyword.get(rate_config, :record_create_limit, 10))
     client_key = "#{key}:#{client_ip(conn)}"
 

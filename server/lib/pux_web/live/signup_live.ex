@@ -55,7 +55,8 @@ defmodule PuxWeb.SignupLive do
       <section class="smtp">
         <h2>SMTP relay</h2>
         <p>
-          This server accepts inbound mail for <code>*@pux.vidur.xyz</code> (or your configured mail domain).
+          This server accepts inbound mail for <code>*@pux.vidur.xyz</code>
+          (or your configured mail domain).
           Only recipients with a valid inbox token are accepted. Messages are size-limited and processed in memory.
         </p>
       </section>

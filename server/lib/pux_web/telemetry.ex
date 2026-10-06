@@ -18,7 +18,10 @@ defmodule PuxWeb.Telemetry do
   def metrics do
     [
       summary("phoenix.endpoint.stop.duration", unit: {:native, :millisecond}),
-      summary("phoenix.router_dispatch.stop.duration", tags: [:route], unit: {:native, :millisecond}),
+      summary("phoenix.router_dispatch.stop.duration",
+        tags: [:route],
+        unit: {:native, :millisecond}
+      ),
       summary("pux.repo.query.total_time", unit: {:native, :millisecond})
     ]
   end
