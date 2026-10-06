@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:sodium_libs/sodium_libs.dart';
+import 'package:sodium/sodium.dart';
 
 import 'record_store.dart';
 
@@ -10,20 +10,32 @@ class CryptoService {
 
   static final CryptoService instance = CryptoService._();
 
-  late Sodium _sodium;
+  Sodium? _sodium;
+
+  Sodium get _lib {
+    final sodium = _sodium;
+    if (sodium == null) {
+      throw StateError('CryptoService.init() has not completed');
+    }
+    return sodium;
+  }
 
   Future<void> init() async {
-    _sodium = await SodiumInit.init();
+    _sodium ??= await SodiumInit.init();
   }
 
   Future<Map<String, String>> generateKeyPair() async {
-    final keyPair = _sodium.crypto.box.keyPair();
-    return {
-      'public_key': _encodeKey(keyPair.publicKey),
-      'private_key': keyPair.secretKey.runUnlockedSync(
-        (secret) => _encodeKey(Uint8List.fromList(secret)),
-      ),
-    };
+    final keyPair = _lib.crypto.box.keyPair();
+    try {
+      return {
+        'public_key': encodeB64(keyPair.publicKey),
+        'private_key': keyPair.secretKey.runUnlockedSync(
+          (secret) => encodeB64(Uint8List.fromList(secret)),
+        ),
+      };
+    } finally {
+      keyPair.secretKey.dispose();
+    }
   }
 
   Future<Map<String, dynamic>> decryptPayload(String ciphertextB64) async {
@@ -33,34 +45,44 @@ class CryptoService {
       throw StateError('Device is not enrolled');
     }
 
-    final publicKey = _decodeKey(publicKeyB64);
-    final secretKey = _sodium.secureCopy(_decodeKey(privateKeyB64));
-    final ciphertext = _decodeB64(ciphertextB64);
-
-    final plaintext = _sodium.crypto.box.sealOpen(
-      cipherText: ciphertext,
-      publicKey: publicKey,
-      secretKey: secretKey,
+    return openSealed(
+      ciphertextB64: ciphertextB64,
+      publicKeyB64: publicKeyB64,
+      privateKeyB64: privateKeyB64,
     );
+  }
 
-    return jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+  /// Opens a libsodium sealed box produced by the server (`:enacl.box_seal`),
+  /// with keys and ciphertext in unpadded base64url.
+  Map<String, dynamic> openSealed({
+    required String ciphertextB64,
+    required String publicKeyB64,
+    required String privateKeyB64,
+  }) {
+    final publicKey = _decodeKey(publicKeyB64);
+    final secretKey = _lib.secureCopy(_decodeKey(privateKeyB64));
+    try {
+      final plaintext = _lib.crypto.box.sealOpen(
+        cipherText: decodeB64(ciphertextB64),
+        publicKey: publicKey,
+        secretKey: secretKey,
+      );
+      return jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+    } finally {
+      secretKey.dispose();
+    }
   }
 
   Uint8List _decodeKey(String value) {
-    final decoded = base64Url.decode(_pad(value));
+    final decoded = decodeB64(value);
     if (decoded.length != 32) {
       throw const FormatException('Invalid key length');
     }
-    return Uint8List.fromList(decoded);
+    return decoded;
   }
 
-  String _encodeKey(Uint8List key) => base64Url.encode(key).replaceAll('=', '');
+  static String encodeB64(Uint8List bytes) => base64Url.encode(bytes).replaceAll('=', '');
 
-  Uint8List _decodeB64(String value) => Uint8List.fromList(base64Url.decode(_pad(value)));
-
-  String _pad(String value) {
-    final mod = value.length % 4;
-    if (mod == 0) return value;
-    return value.padRight(value.length + (4 - mod), '=');
-  }
+  static Uint8List decodeB64(String value) =>
+      Uint8List.fromList(base64Url.decode(base64Url.normalize(value)));
 }
