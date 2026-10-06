@@ -75,4 +75,19 @@ defmodule Pux.Workers.PushWorkerTest do
     assert length(pending) == 1
     assert pending |> hd() |> Map.fetch!(:envelope) |> Map.has_key?("ciphertext")
   end
+
+  test "desktop devices get no push job" do
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
+
+    {:ok, _} =
+      Records.register_device(enrollment.record_id, %{
+        push_token: "desktop-client-2",
+        platform: :desktop
+      })
+
+    assert :ok =
+             Push.deliver_to_record(Records.get_record(enrollment.record_id), ~s({"otp":"1"}))
+
+    refute_enqueued(worker: PushWorker)
+  end
 end

@@ -113,16 +113,35 @@ defmodule Pux.Records do
     |> Repo.all()
   end
 
+  @doc "Devices that receive push notifications (desktop clients use pending deliveries)."
+  @spec list_push_devices(Ecto.UUID.t()) :: [Device.t()]
+  def list_push_devices(record_id) do
+    Device
+    |> where([d], d.record_id == ^record_id and d.platform != :desktop)
+    |> Repo.all()
+  end
+
   @spec get_device(Ecto.UUID.t()) :: Device.t() | nil
   def get_device(id), do: Repo.get(Device, id)
 
-  @spec touch_device!(Device.t()) :: Device.t()
-  def touch_device!(%Device{} = device) do
+  @doc "Bumps last_seen_at; a device deleted concurrently is not an error."
+  @spec touch_device(Device.t()) :: {:ok, Device.t()} | {:error, term()}
+  def touch_device(%Device{} = device) do
     now = DateTime.utc_now(:microsecond)
 
     device
     |> Ecto.Changeset.change(last_seen_at: now)
-    |> Repo.update!()
+    |> Repo.update(stale_error_field: :id)
+  end
+
+  @spec delete_devices_by_token(String.t()) :: non_neg_integer()
+  def delete_devices_by_token(push_token) do
+    {count, _} =
+      Device
+      |> where([d], d.push_token == ^push_token)
+      |> Repo.delete_all()
+
+    count
   end
 
   @spec delete_device(Device.t()) :: {:ok, Device.t()} | {:error, term()}
