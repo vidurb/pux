@@ -52,7 +52,32 @@ jobs:
             server/_build
           key: ${{ runner.os }}-mix-${{ hashFiles('server/mix.lock') }}
       - run: mix deps.get
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix hex.audit
       - run: mix test
+
+  image:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: server
+          load: true
+          tags: pux-server:ci
+      - name: Release boots as non-root on a read-only filesystem
+        run: |
+          docker run --rm --read-only --tmpfs /tmp \
+            -e DATABASE_URL=ecto://u:p@localhost/pux \
+            -e SECRET_KEY_BASE=$(head -c 48 /dev/urandom | base64) \
+            -e LIVE_VIEW_SIGNING_SALT=ci-salt-1234567890 \
+            -e COOKIE_SIGNING_SALT=ci-salt-1234567890 \
+            pux-server:ci bin/pux eval 'IO.puts(Application.get_env(:pux, :smtp)[:port])' | tee out.txt
+          grep -qx 2525 out.txt
+          test "$(docker run --rm pux-server:ci id -u)" = 65534
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

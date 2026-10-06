@@ -23,11 +23,17 @@ RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
 WORKDIR /app
 
-ENV MIX_ENV=prod
-ENV PHX_SERVER=true
+ENV MIX_ENV=prod \
+    PHX_SERVER=true \
+    HOME=/tmp \
+    RELEASE_TMP=/tmp
 
 COPY --from=build /app/_build/prod/rel/pux ./
 
-EXPOSE 4000 25
+# nobody; SMTP listens on 2525 so no privileged ports are needed and the
+# root filesystem can be mounted read-only with an emptyDir at /tmp.
+USER 65534:65534
+
+EXPOSE 4000 2525
 
 CMD ["/bin/sh", "-c", "bin/pux eval 'Pux.Release.migrate' && exec bin/pux start"]
