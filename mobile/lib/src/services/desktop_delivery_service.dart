@@ -123,6 +123,14 @@ class DesktopDeliveryService implements DeliveryService {
       _pingTimer = Timer.periodic(_pingInterval, (_) {
         _channel?.sink.add(jsonEncode({'type': 'ping'}));
       });
+
+      // The upgrade can complete before the server subscribes this socket to
+      // the record's topic; poll once so nothing sent in that gap is missed.
+      try {
+        await _pollPending();
+      } catch (error) {
+        debugPrint('Desktop delivery post-connect poll failed: $error');
+      }
     } catch (error, stackTrace) {
       debugPrint('Desktop delivery socket connect failed: $error\n$stackTrace');
       _scheduleReconnect(error: error);

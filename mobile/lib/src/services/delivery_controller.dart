@@ -60,15 +60,31 @@ class DeliveryController {
 
   DeliveryService get _service => deliveryServiceForPlatform();
 
+  /// The server prunes devices that have not registered for 30 days, so
+  /// registration is refreshed on every start and on resume after this long.
+  static const _refreshInterval = Duration(hours: 12);
+
   Timer? _retryTimer;
   int _attempt = 0;
   bool _running = false;
+  DateTime? _lastRegistered;
 
   /// Starts (or restarts) delivery. Safe to call repeatedly.
   Future<void> start() async {
     _retryTimer?.cancel();
     _attempt = 0;
     await _tryStart();
+  }
+
+  /// Called when the app returns to the foreground: re-registers if the last
+  /// registration is stale or delivery is not working.
+  Future<void> onResume() async {
+    final last = _lastRegistered;
+    final stale = last == null || DateTime.now().difference(last) > _refreshInterval;
+    final state = status.value.state;
+    if (stale || state == DeliveryState.retrying) {
+      await start();
+    }
   }
 
   Future<void> stop() async {
@@ -110,6 +126,7 @@ class DeliveryController {
     _set(DeliveryState.connecting);
     try {
       await _service.init();
+      _lastRegistered = DateTime.now();
       _attempt = 0;
       _set(DeliveryState.ready);
     } on FirebaseNotConfiguredException catch (error) {

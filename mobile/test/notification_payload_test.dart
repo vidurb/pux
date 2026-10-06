@@ -33,6 +33,20 @@ void main() {
       expect(n.code, '816235124');
     });
 
+    test('forwarding confirmation names the forwarding account', () {
+      final n = RelayNotification.fromPayload({
+        'type': 'forward_confirm',
+        'code': null,
+        'url': 'https://mail-settings.google.com/mail/vf-abc',
+        'sender': 'Gmail',
+        'forwarding_from': 'someone@gmail.com',
+        'received_at': '2026-10-06T00:00:00Z',
+      });
+      expect(n.body, contains('Forwarding from someone@gmail.com'));
+      expect(n.body, contains('https://mail-settings.google.com/mail/vf-abc'));
+      expect(n.code, isNull);
+    });
+
     test('forwarding confirmation without a code has nothing to copy', () {
       final n = RelayNotification.fromPayload({
         'type': 'forward_confirm',

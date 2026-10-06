@@ -14,6 +14,14 @@ const _fixtureCiphertext =
     '-h4t5FOku-OWtLBcg4jo8jCNDVhdUtGyVWDk4z_FmFAI46lEoMhWZkF76pcW6lcgJI9UJ8a8JQM-'
     'K3WA0vt7dXtlqXAKJwQfJ17REgKjSEVqOSjmmBpTmUcPtt_qHLCpMdk';
 
+// Fixture published with the server's typed-payload change (vidurb/pux#2).
+const _serverPrPublicKey = '6_SQ3WcbCBRRy0xu9yCMatZKbk29McalZTBo3gGzplw';
+const _serverPrSecretKey = 'vfIJ42agVVRyDVVmTMtIHPL02MMvNyXMuYf8BgviqDI';
+const _serverPrCiphertext =
+    'Xso7kEp1NhYtxtQC5hMfioNb2Q3_Y3KadFsVXxDtJRJ3KVUY_KqedKRIW-w4kMKf8SHpQ3FYbIJ7T8cM5LM-'
+    'tCLJrk6Dyqe1J60Fu13SM6Ci1fISV_VAN9fI0WxPAdzUOBLSqhoVNlmvDg60KTX6k-ubO7gtRDmh8Jit8g3O'
+    'MYhKV_KLn45FJKGjqF5ERXM6cmyCouvd2feDRw';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -28,6 +36,22 @@ void main() {
     );
 
     expect(payload, {'type': 'otp', 'otp': '482913', 'sender': 'HDFC Bank'});
+  });
+
+  test('opens the typed payload fixture from the server', () {
+    final payload = CryptoService.instance.openSealed(
+      ciphertextB64: _serverPrCiphertext,
+      publicKeyB64: _serverPrPublicKey,
+      privateKeyB64: _serverPrSecretKey,
+    );
+
+    expect(payload, {
+      'type': 'otp',
+      'otp': '123456',
+      'sender': 'Test Bank',
+      'received_at': '2026-10-06T00:00:00Z',
+      'parser': 'generic',
+    });
   });
 
   test('rejects a ciphertext sealed for a different key', () async {
