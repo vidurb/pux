@@ -3,85 +3,64 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pux/src/services/crypto_service.dart';
-import 'package:sodium_libs/sodium_libs.dart';
+import 'package:sodium/sodium.dart';
+
+// Sealed by the server's own `:enacl.box_seal/2` (projects/pux/server
+// lib/pux/crypto.ex), encoded the same way the server encodes keys and
+// ciphertext: unpadded base64url.
+const _fixturePublicKey = 'oVaRfoaaBI7h10MCUauxYiPWaLQaAjN_oklwaOO682M';
+const _fixturePrivateKey = '3h7LhAw9e7EtYS5TeRJsQqYI8v4LtpH49buqnScv9qU';
+const _fixtureCiphertext =
+    '-h4t5FOku-OWtLBcg4jo8jCNDVhdUtGyVWDk4z_FmFAI46lEoMhWZkF76pcW6lcgJI9UJ8a8JQM-'
+    'K3WA0vt7dXtlqXAKJwQfJ17REgKjSEVqOSjmmBpTmUcPtt_qHLCpMdk';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('sealed box roundtrip matches server crypto format', () async {
-    late Sodium sodium;
+  // No try/catch: if libsodium cannot load, these tests must fail, not skip.
+  setUpAll(() => CryptoService.instance.init());
 
-    try {
-      sodium = await SodiumInit.init();
-    } catch (_) {
-      // Native sodium plugin may be unavailable in headless test runners.
-      return;
-    }
-
-    final keyPair = sodium.crypto.box.keyPair();
-    final plaintext = utf8.encode(
-      jsonEncode({
-        'otp': '654321',
-        'sender': 'HDFC Bank',
-        'received_at': '2026-07-01T00:00:00Z',
-      }),
+  test('opens a sealed box produced by the server', () {
+    final payload = CryptoService.instance.openSealed(
+      ciphertextB64: _fixtureCiphertext,
+      publicKeyB64: _fixturePublicKey,
+      privateKeyB64: _fixturePrivateKey,
     );
 
-    final ciphertext = sodium.crypto.box.seal(
-      message: Uint8List.fromList(plaintext),
-      publicKey: keyPair.publicKey,
-    );
-
-    final opened = sodium.crypto.box.sealOpen(
-      cipherText: ciphertext,
-      publicKey: keyPair.publicKey,
-      secretKey: keyPair.secretKey,
-    );
-
-    final decoded = jsonDecode(utf8.decode(opened)) as Map<String, dynamic>;
-    expect(decoded['otp'], '654321');
-    expect(decoded['sender'], 'HDFC Bank');
+    expect(payload, {'type': 'otp', 'otp': '482913', 'sender': 'HDFC Bank'});
   });
 
-  test('generateKeyPair produces keys that round-trip sealed boxes', () async {
-    try {
-      await CryptoService.instance.init();
-    } catch (_) {
-      return;
-    }
+  test('rejects a ciphertext sealed for a different key', () async {
+    final other = await CryptoService.instance.generateKeyPair();
 
+    expect(
+      () => CryptoService.instance.openSealed(
+        ciphertextB64: _fixtureCiphertext,
+        publicKeyB64: other['public_key']!,
+        privateKeyB64: other['private_key']!,
+      ),
+      throwsA(isA<SodiumException>()),
+    );
+  });
+
+  test('generated keypairs are unpadded base64url and open sealed boxes', () async {
     final keys = await CryptoService.instance.generateKeyPair();
-    expect(keys['public_key'], isNotEmpty);
-    expect(keys['private_key'], isNotEmpty);
     expect(keys['public_key']!.contains('='), isFalse);
     expect(keys['private_key']!.contains('='), isFalse);
+    expect(CryptoService.decodeB64(keys['public_key']!).length, 32);
+    expect(CryptoService.decodeB64(keys['private_key']!).length, 32);
 
     final sodium = await SodiumInit.init();
-    final publicKey = Uint8List.fromList(base64Url.decode(_pad(keys['public_key']!)));
-    final secretKey = sodium.secureCopy(
-      Uint8List.fromList(base64Url.decode(_pad(keys['private_key']!))),
-    );
-    expect(publicKey.length, 32);
-    expect(secretKey.length, 32);
-
-    final plaintext = utf8.encode('{"otp":"123456"}');
-    final ciphertext = sodium.crypto.box.seal(
-      message: Uint8List.fromList(plaintext),
-      publicKey: publicKey,
+    final sealed = sodium.crypto.box.seal(
+      message: Uint8List.fromList(utf8.encode('{"otp":"123456"}')),
+      publicKey: CryptoService.decodeB64(keys['public_key']!),
     );
 
-    final opened = sodium.crypto.box.sealOpen(
-      cipherText: ciphertext,
-      publicKey: publicKey,
-      secretKey: secretKey,
+    final payload = CryptoService.instance.openSealed(
+      ciphertextB64: CryptoService.encodeB64(sealed),
+      publicKeyB64: keys['public_key']!,
+      privateKeyB64: keys['private_key']!,
     );
-
-    expect(utf8.decode(opened), '{"otp":"123456"}');
+    expect(payload['otp'], '123456');
   });
-}
-
-String _pad(String value) {
-  final mod = value.length % 4;
-  if (mod == 0) return value;
-  return value.padRight(value.length + (4 - mod), '=');
 }
