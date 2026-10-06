@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app.dart';
-import '../services/delivery_runtime.dart';
+import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
 import 'home_screen.dart';
 
@@ -17,7 +19,6 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
   final TextEditingController _controller = TextEditingController();
   bool _processing = false;
   String? _error;
-  String? _deliveryWarning;
 
   @override
   void dispose() {
@@ -31,35 +32,18 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
     setState(() {
       _processing = true;
       _error = null;
-      _deliveryWarning = null;
     });
 
     try {
       final payload = RecordStore.instance.parseQr(_controller.text.trim());
       await RecordStore.instance.saveEnrollment(payload);
-
-      final server = payload['server'] as String?;
-      if (server != null) {
-        RecordStore.instance.serverUrl = server;
-      }
-
-      String? deliveryWarning;
-      try {
-        await deliveryServiceForPlatform().init();
-      } catch (error) {
-        deliveryWarning = 'Enrolled, but delivery registration failed: $error';
-      }
-
+      unawaited(DeliveryController.instance.start());
       ref.invalidate(enrollmentProvider);
 
       if (!mounted) return;
-      setState(() => _deliveryWarning = deliveryWarning);
-
-      if (deliveryWarning == null) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
+      Navigator.of(
+        context,
+      ).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -94,23 +78,10 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
             ),
             const SizedBox(height: 16),
             if (_processing) const LinearProgressIndicator(),
-            if (_deliveryWarning != null) ...[
-              const SizedBox(height: 16),
-              Text(_deliveryWarning!, style: const TextStyle(color: Colors.orange)),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
-                  );
-                },
-                child: const Text('Continue'),
-              ),
-            ] else
-              FilledButton(
-                onPressed: _processing ? null : _importEnrollment,
-                child: const Text('Import and connect'),
-              ),
+            FilledButton(
+              onPressed: _processing ? null : _importEnrollment,
+              child: const Text('Import and connect'),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 16),
               Text(_error!, style: const TextStyle(color: Colors.red)),
