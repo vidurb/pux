@@ -42,16 +42,41 @@ defmodule PuxWeb.Plugs.RateLimit do
     end
   end
 
-  defp client_ip(conn) do
-    conn
-    |> get_req_header("x-forwarded-for")
-    |> List.first()
-    |> case do
-      nil ->
-        conn.remote_ip |> :inet.ntoa() |> to_string()
+  @doc """
+  Client IP for rate limiting. Only the rightmost `X-Forwarded-For` hop (appended
+  by the gateway) is trusted, and only when the peer is a private address.
+  """
+  @spec client_ip(Plug.Conn.t()) :: String.t()
+  def client_ip(conn) do
+    peer = normalize_ip(conn.remote_ip)
 
-      forwarded ->
-        forwarded |> String.split(",", parts: 2) |> List.first() |> String.trim()
+    case {private_ip?(peer), forwarded_for(conn)} do
+      {true, [_ | _] = hops} -> List.last(hops)
+      _ -> peer |> :inet.ntoa() |> to_string()
     end
   end
+
+  defp forwarded_for(conn) do
+    conn
+    |> get_req_header("x-forwarded-for")
+    |> Enum.flat_map(&String.split(&1, ","))
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp normalize_ip({0, 0, 0, 0, 0, 0xFFFF, ab, cd}) do
+    import Bitwise
+    {ab >>> 8, ab &&& 0xFF, cd >>> 8, cd &&& 0xFF}
+  end
+
+  defp normalize_ip(ip), do: ip
+
+  defp private_ip?({10, _, _, _}), do: true
+  defp private_ip?({172, b, _, _}) when b in 16..31, do: true
+  defp private_ip?({192, 168, _, _}), do: true
+  defp private_ip?({127, _, _, _}), do: true
+  defp private_ip?({100, b, _, _}) when b in 64..127, do: true
+  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp private_ip?({a, _, _, _, _, _, _, _}) when a in 0xFC00..0xFDFF, do: true
+  defp private_ip?(_), do: false
 end

@@ -5,7 +5,10 @@ defmodule PuxWeb.Endpoint do
     websocket: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]],
     longpoll: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]]
 
-  socket "/ws/delivery", PuxWeb.DeliverySocket, websocket: true
+  # Served at /ws/delivery itself (Phoenix appends "/websocket" by default).
+  socket "/ws/delivery", PuxWeb.DeliverySocket,
+    websocket: [path: "", connect_info: [:x_headers], timeout: 90_000],
+    longpoll: false
 
   plug Plug.Static,
     at: "/",
@@ -19,7 +22,7 @@ defmodule PuxWeb.Endpoint do
   end
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: {__MODULE__, :log_level, []}
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
@@ -28,6 +31,12 @@ defmodule PuxWeb.Endpoint do
   plug Plug.Head
   plug :session
   plug PuxWeb.Router
+
+  # Record IDs in /api/v1/records/:id are bearer credentials; keep them out of request logs.
+  # Health probes would otherwise drown everything else.
+  def log_level(%{path_info: ["api", "v1", "records", _ | _]}), do: false
+  def log_level(%{path_info: ["health"]}), do: false
+  def log_level(_conn), do: :info
 
   def user_session(_conn), do: session_options()
 
@@ -40,7 +49,8 @@ defmodule PuxWeb.Endpoint do
       store: :cookie,
       key: "_pux_key",
       signing_salt: cookie_signing_salt(),
-      same_site: "Lax"
+      same_site: "Lax",
+      secure: Application.get_env(:pux, :secure_cookies, false)
     ]
   end
 

@@ -12,15 +12,24 @@ defmodule PuxWeb.DeliverySocket do
     :ignore
   end
 
+  # The record ID is sent in the `x-pux-token` header; the `token` query param
+  # is a fallback for older clients and ends up in proxy access logs.
   @impl true
-  def connect(conn) do
-    with token when is_binary(token) <- conn.query_params["token"],
-         true <- valid_uuid?(token) do
+  def connect(%{params: params} = transport) do
+    with token when is_binary(token) <- header_token(transport) || params["token"],
+         true <- valid_uuid?(token),
+         %Pux.Records.Record{} <- Pux.Records.get_record(token) do
       {:ok, %{record_id: token}}
     else
       _ -> :error
     end
   end
+
+  defp header_token(%{connect_info: %{x_headers: headers}}) do
+    Enum.find_value(headers, fn {name, value} -> if name == "x-pux-token", do: value end)
+  end
+
+  defp header_token(_transport), do: nil
 
   @impl true
   def init(%{record_id: record_id} = state) do
@@ -34,7 +43,7 @@ defmodule PuxWeb.DeliverySocket do
     case Jason.decode(text) do
       {:ok, %{"type" => "ping"}} ->
         frame = {:text, Jason.encode!(%{"type" => "pong"})}
-        {:reply, frame, state}
+        {:reply, :ok, frame, state}
 
       _ ->
         {:ok, state}

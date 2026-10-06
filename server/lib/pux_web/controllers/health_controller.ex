@@ -8,10 +8,10 @@ defmodule PuxWeb.HealthController do
       {:ok, _} ->
         json(conn, %{status: "ok"})
 
-      {:error, reason} ->
+      {:error, _reason} ->
         conn
         |> put_status(:service_unavailable)
-        |> json(%{status: "error", database: inspect(reason)})
+        |> json(%{status: "error"})
     end
   end
 end
