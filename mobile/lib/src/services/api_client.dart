@@ -6,13 +6,19 @@ import 'package:http/http.dart' as http;
 import 'record_store.dart';
 
 class PendingDelivery {
-  const PendingDelivery({
-    required this.deliveryId,
-    required this.envelope,
-  });
+  const PendingDelivery({required this.deliveryId, required this.envelope});
 
   final String deliveryId;
   final Map<String, dynamic> envelope;
+}
+
+/// The server no longer knows this record (pruned after inactivity or never
+/// existed). Retrying will not help; the device has to enroll again.
+class RecordNotFoundException implements Exception {
+  const RecordNotFoundException();
+
+  @override
+  String toString() => 'Relay not found on the server';
 }
 
 class ApiClient {
@@ -55,10 +61,7 @@ class ApiClient {
       throw Exception('Record creation returned an incomplete response');
     }
 
-    return {
-      'record_id': recordId,
-      'inbox_address': inboxAddress,
-    };
+    return {'record_id': recordId, 'inbox_address': inboxAddress};
   }
 
   Future<void> registerDevice({
@@ -70,17 +73,14 @@ class ApiClient {
     final response = await _client
         .post(
           uri,
-          headers: {
-            'authorization': 'Bearer $recordId',
-            'content-type': 'application/json',
-          },
-          body: jsonEncode({
-            'push_token': pushToken,
-            'platform': platform,
-          }),
+          headers: {'authorization': 'Bearer $recordId', 'content-type': 'application/json'},
+          body: jsonEncode({'push_token': pushToken, 'platform': platform}),
         )
         .timeout(_timeout);
 
+    if (response.statusCode == 401 || response.statusCode == 404) {
+      throw const RecordNotFoundException();
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final body = response.body.isEmpty ? '(empty body)' : response.body;
       throw Exception('Device registration failed (${response.statusCode}): $body');
@@ -90,12 +90,12 @@ class ApiClient {
   Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
     final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries');
     final response = await _client
-        .get(
-          uri,
-          headers: {'authorization': 'Bearer $recordId'},
-        )
+        .get(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
 
+    if (response.statusCode == 401 || response.statusCode == 404) {
+      throw const RecordNotFoundException();
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final body = response.body.isEmpty ? '(empty body)' : response.body;
       throw Exception('Delivery poll failed (${response.statusCode}): $body');
@@ -113,18 +113,12 @@ class ApiClient {
     }).toList();
   }
 
-  Future<void> ackDelivery({
-    required String recordId,
-    required String deliveryId,
-  }) async {
+  Future<void> ackDelivery({required String recordId, required String deliveryId}) async {
     final uri = Uri.parse(
       '${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries/$deliveryId',
     );
     final response = await _client
-        .delete(
-          uri,
-          headers: {'authorization': 'Bearer $recordId'},
-        )
+        .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
 
     if (response.statusCode != 204 && response.statusCode != 404) {
@@ -133,6 +127,8 @@ class ApiClient {
     }
   }
 
+  /// The record ID is also sent as the `x-pux-token` header; the query
+  /// parameter is kept for servers that only read it from there.
   String deliveryWebSocketUrl(String recordId) {
     final base = Uri.parse(RecordStore.instance.serverUrl);
     final scheme = base.scheme == 'https' ? 'wss' : 'ws';

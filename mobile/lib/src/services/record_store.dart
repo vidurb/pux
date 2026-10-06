@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class RecordStore {
@@ -19,10 +19,22 @@ class RecordStore {
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
+
+  late String _defaultServerUrl;
   late String serverUrl;
 
+  /// Uses the server stored at enrollment, falling back to [serverUrl] (the
+  /// compile-time default) when the device has not enrolled yet.
   Future<void> init({required String serverUrl}) async {
-    this.serverUrl = serverUrl;
+    _defaultServerUrl = serverUrl;
+    final stored = await _storage.read(key: _serverKey);
+    this.serverUrl = (stored != null && stored.isNotEmpty) ? stored : serverUrl;
+  }
+
+  @visibleForTesting
+  void setServerUrlForTesting(String url) {
+    _defaultServerUrl = url;
+    serverUrl = url;
   }
 
   Future<bool> isEnrolled() async {
@@ -35,14 +47,15 @@ class RecordStore {
   Future<void> saveEnrollment(Map<String, dynamic> payload) async {
     _validateEnrollmentPayload(payload);
 
+    final server = payload['server'] as String?;
+    final effectiveServer = (server != null && server.isNotEmpty) ? server : serverUrl;
+
     await _storage.write(key: _recordIdKey, value: payload['record_id'] as String);
     await _storage.write(key: _privateKeyKey, value: payload['private_key'] as String);
     await _storage.write(key: _publicKeyKey, value: payload['public_key'] as String);
     await _storage.write(key: _inboxKey, value: payload['inbox'] as String);
-    await _storage.write(
-      key: _serverKey,
-      value: payload['server'] as String? ?? serverUrl,
-    );
+    await _storage.write(key: _serverKey, value: effectiveServer);
+    serverUrl = effectiveServer;
   }
 
   Future<String?> recordId() => _storage.read(key: _recordIdKey);
@@ -72,8 +85,10 @@ class RecordStore {
     };
   }
 
+  /// Forgets the enrollment (keys, record, server) on this device only.
   Future<void> clear() async {
     await _storage.deleteAll();
+    serverUrl = _defaultServerUrl;
   }
 
   Map<String, dynamic> parseQr(String raw) {

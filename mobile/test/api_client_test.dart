@@ -7,8 +7,8 @@ import 'package:pux/src/services/api_client.dart';
 import 'package:pux/src/services/record_store.dart';
 
 void main() {
-  setUp(() async {
-    await RecordStore.instance.init(serverUrl: 'https://pux.test');
+  setUp(() {
+    RecordStore.instance.setServerUrlForTesting('https://pux.test');
   });
 
   test('createRecord returns record_id and inbox_address', () async {
@@ -18,13 +18,7 @@ void main() {
       final body = jsonDecode(request.body);
       expect(body['public_key'], 'test_pub_key');
 
-      return http.Response(
-        jsonEncode({
-          'record_id': 'rec_123',
-          'inbox_address': 'inbox_456',
-        }),
-        200,
-      );
+      return http.Response(jsonEncode({'record_id': 'rec_123', 'inbox_address': 'inbox_456'}), 200);
     });
 
     final client = ApiClient.forTesting(client: mockClient);
@@ -50,11 +44,7 @@ void main() {
     final client = ApiClient.forTesting(client: mockClient);
     ApiClient.setInstanceForTesting(client);
 
-    await client.registerDevice(
-      recordId: 'rec_123',
-      pushToken: 'token_123',
-      platform: 'ios',
-    );
+    await client.registerDevice(recordId: 'rec_123', pushToken: 'token_123', platform: 'ios');
   });
 
   test('listPendingDeliveries returns parsed deliveries', () async {
@@ -68,9 +58,9 @@ void main() {
           'deliveries': [
             {
               'delivery_id': 'del_1',
-              'envelope': {'foo': 'bar'}
-            }
-          ]
+              'envelope': {'foo': 'bar'},
+            },
+          ],
         }),
         200,
       );
@@ -98,5 +88,33 @@ void main() {
     ApiClient.setInstanceForTesting(client);
 
     await client.ackDelivery(recordId: 'rec_123', deliveryId: 'del_1');
+  });
+
+  test('registerDevice maps 404 to RecordNotFoundException', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('{"error":"not_found"}', 404)),
+    );
+
+    expect(
+      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      throwsA(isA<RecordNotFoundException>()),
+    );
+  });
+
+  test('registerDevice surfaces other failures as retryable errors', () async {
+    final client = ApiClient.forTesting(client: MockClient((_) async => http.Response('', 503)));
+
+    expect(
+      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      throwsA(isNot(isA<RecordNotFoundException>())),
+    );
+  });
+
+  test('deliveryWebSocketUrl targets /ws/delivery over wss', () {
+    final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl('rec_123'));
+    expect(url.scheme, 'wss');
+    expect(url.host, 'pux.test');
+    expect(url.path, '/ws/delivery');
+    expect(url.queryParameters['token'], 'rec_123');
   });
 }
