@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "786084896862",
+    "project_id": "pux-vb",
+    "storage_bucket": "pux-vb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:786084896862:android:f82e343471f78c9b6e94cf",
+        "android_client_info": {
+          "package_name": "xyz.vidur.pux"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVuVyBmcp5aB72l6B6mnoJCnneOn4Xkgk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
