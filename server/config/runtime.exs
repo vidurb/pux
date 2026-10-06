@@ -33,10 +33,9 @@ if config_env() == :prod do
     secret_key_base: secret_key_base,
     cookie_signing_salt: cookie_signing_salt,
     check_origin: ["https://#{host}"],
-    force_ssl: [hsts: true],
     live_view: [signing_salt: live_view_signing_salt]
 
-  smtp_port = String.to_integer(System.get_env("SMTP_PORT") || "25")
+  smtp_port = String.to_integer(System.get_env("SMTP_PORT") || "2525")
   mail_domain = System.get_env("MAIL_DOMAIN") || host
   smtp_max_message_size = String.to_integer(System.get_env("SMTP_MAX_MESSAGE_SIZE") || "1048576")
 
@@ -48,6 +47,8 @@ if config_env() == :prod do
     domain: mail_domain,
     mail_domain: mail_domain,
     max_message_size: smtp_max_message_size,
+    max_connections: String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS") || "100"),
+    max_connections_per_ip: String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
     tls_certfile: smtp_tls_certfile,
     tls_keyfile: smtp_tls_keyfile
 
