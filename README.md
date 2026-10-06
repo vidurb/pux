@@ -95,7 +95,7 @@ Copy `mobile/android/key.properties.example` to `mobile/android/key.properties` 
 
 ## Deployment
 
-See [docs/deploy-emancipator.md](docs/deploy-emancipator.md) for homestacks / Emancipator alpha setup.
+Production runs on the homestacks Sinkhole cluster; see [`clusters/sinkhole/pux-system/README.md`](https://github.com/gpdl49/homestacks/blob/main/clusters/sinkhole/pux-system/README.md) for SMTP exposure, DNS, TLS and secrets.
 
 ## License
 
