@@ -59,7 +59,9 @@ defmodule Pux.OtpParser do
   defp decode_entities(text) do
     text
     |> String.replace(~r/&#(\d+);/, fn m -> m |> String.slice(2..-2//1) |> codepoint(10) end)
-    |> String.replace(~r/&#x([0-9a-f]+);/i, fn m -> m |> String.slice(3..-2//1) |> codepoint(16) end)
+    |> String.replace(~r/&#x([0-9a-f]+);/i, fn m ->
+      m |> String.slice(3..-2//1) |> codepoint(16)
+    end)
     |> String.replace(~r/&nbsp;/i, " ")
     |> String.replace(~r/&lt;/i, "<")
     |> String.replace(~r/&gt;/i, ">")

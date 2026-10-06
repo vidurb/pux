@@ -13,7 +13,10 @@ defmodule Pux.Integration.SmtpListenerTest do
     {:ok, enrollment} = Records.create_record(Fixtures.public_key())
 
     {:ok, device} =
-      Records.register_device(enrollment.record_id, %{push_token: "fcm-token-smtp", platform: :fcm})
+      Records.register_device(enrollment.record_id, %{
+        push_token: "fcm-token-smtp",
+        platform: :fcm
+      })
 
     {:ok, enrollment: enrollment, device: device}
   end
@@ -45,7 +48,9 @@ defmodule Pux.Integration.SmtpListenerTest do
   end
 
   test "EHLO advertises SIZE and MAIL extensions are refused cleanly" do
-    {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", @port, [:binary, active: false, packet: :line])
+    {:ok, socket} =
+      :gen_tcp.connect(~c"127.0.0.1", @port, [:binary, active: false, packet: :line])
+
     {:ok, "220 " <> _} = :gen_tcp.recv(socket, 0, 2000)
     :ok = :gen_tcp.send(socket, "EHLO t.local\r\n")
     assert read_multiline(socket) =~ "250-SIZE 2000"

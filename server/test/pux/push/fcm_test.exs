@@ -12,7 +12,12 @@ defmodule Pux.Push.FCMTest do
 
   test "runtime.exs keyword config enables FCM and Goth" do
     json = Jason.encode!(%{"project_id" => "pux-test", "type" => "service_account"})
-    Application.put_env(:pux, :fcm, enabled: true, project_id: "pux-test", service_account_json: json)
+
+    Application.put_env(:pux, :fcm,
+      enabled: true,
+      project_id: "pux-test",
+      service_account_json: json
+    )
 
     assert FCM.enabled?()
     assert {Goth, opts} = FCM.goth_child_spec()
