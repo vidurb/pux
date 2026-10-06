@@ -39,14 +39,19 @@ config :hammer,
 
 config :pux, :pruner,
   record_ttl_days: 90,
-  device_ttl_days: 30
+  device_ttl_days: 30,
+  delivery_ttl_minutes: 10
 
 config :pux, Oban,
   repo: Pux.Repo,
   plugins: [
+    # Job args hold encrypted envelopes; don't keep finished jobs around.
+    {Oban.Plugins.Pruner, max_age: 600},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(5)},
     {Oban.Plugins.Cron,
      crontab: [
-       {"0 3 * * *", Pux.Workers.PruneWorker}
+       {"0 3 * * *", Pux.Workers.PruneWorker},
+       {"*/5 * * * *", Pux.Workers.PruneWorker, args: %{"scope" => "deliveries"}}
      ]}
   ],
   queues: [default: 10, push: 20]
@@ -56,5 +61,6 @@ config :logger, :console,
   metadata: [:request_id]
 
 config :phoenix, :json_library, Jason
+config :phoenix, :filter_parameters, ["password", "token", "push_token", "public_key", "id"]
 
 import_config "#{config_env()}.exs"
