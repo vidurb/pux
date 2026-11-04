@@ -20,7 +20,7 @@ RUN mix release
 # OpenSSL and ncurses. Move the two stages together.
 FROM alpine:3.24.1
 
-RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates
+RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
 WORKDIR /app
 
