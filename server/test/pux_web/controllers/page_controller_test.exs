@@ -69,12 +69,35 @@ defmodule PuxWeb.PageControllerTest do
     # The test config turns Oban's plugins off, so read what production uses.
     config = Config.Reader.read!("config/config.exs", env: :prod)[:pux]
 
-    assert config[:pruner][:record_ttl_days] == 90
-    assert config[:pruner][:device_ttl_days] == 30
+    assert config[:pruner][:deviceless_record_ttl_days] == 30
+    assert config[:pruner][:device_max_idle_days] == 730
+    assert config[:pruner][:desktop_device_ttl_days] == 90
+    assert config[:pruner][:fcm_token_check_days] == 30
     assert config[:pruner][:delivery_ttl_minutes] == 10
     assert {Oban.Plugins.Pruner, max_age: 600} in config[Oban][:plugins]
     assert config[:smtp][:inbound_rate_limit] == 20
     assert config[:smtp][:inbound_rate_scale_ms] == 600_000
+  end
+
+  test "the site and legal pages state the retention rules", %{conn: conn} do
+    for path <- ["/", "/privacy", "/terms"] do
+      body = html_response(get(conn, path), 200)
+
+      assert body =~ "30 days after it loses its last device"
+      assert body =~ "2 years with no app open and no code delivered"
+      refute body =~ "without activity"
+      refute body =~ "without contact"
+      refute body =~ "no activity for"
+    end
+
+    for path <- ["/", "/privacy"] do
+      assert html_response(get(conn, path), 200) =~ "90 days without registering"
+      assert html_response(get(conn, path), 200) =~ "no registered devices is refused"
+    end
+
+    privacy = html_response(get(conn, "/privacy"), 200)
+    assert privacy =~ "uninstall the app from an iPhone"
+    assert privacy =~ "This sends nothing to your device"
   end
 
   test "GET /signup redirects permanently to the landing page", %{conn: conn} do

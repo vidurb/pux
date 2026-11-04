@@ -15,6 +15,27 @@ defmodule PuxWeb.DeviceControllerTest do
     |> put_req_header("content-type", "application/json")
   end
 
+  test "an app whose relay was pruned gets the same 401 as an unknown token", %{
+    conn: conn,
+    enrollment: enrollment
+  } do
+    stale = DateTime.utc_now() |> DateTime.add(-31, :day)
+
+    enrollment.record_id
+    |> Records.get_record()
+    |> Ecto.Changeset.change(last_active_at: stale)
+    |> Pux.Repo.update!()
+
+    assert Records.prune_deviceless_records(30) == 1
+
+    params = %{"push_token" => "token-abc", "platform" => "fcm"}
+    pruned = conn |> auth_conn(enrollment.record_id) |> post("/api/v1/record/devices", params)
+    unknown = conn |> auth_conn(Ecto.UUID.generate()) |> post("/api/v1/record/devices", params)
+
+    assert %{"error" => "unauthorized"} = json_response(pruned, 401)
+    assert json_response(pruned, 401) == json_response(unknown, 401)
+  end
+
   test "registers fcm device", %{conn: conn, enrollment: enrollment} do
     conn =
       conn

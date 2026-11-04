@@ -104,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       failureTitle: "Couldn't remove this device from the server",
       forgetWarning:
           'If you forget it locally, the server keeps this registration until '
-          'it expires after 30 days without use.',
+          'it expires, which can take up to 2 years.',
       serverCall: () async {
         final recordId = await RecordStore.instance.recordId();
         final deviceId = await RecordStore.instance.deviceId();

@@ -29,7 +29,13 @@ void main() {
     });
   });
 
-  tearDown(() => service.stop());
+  // A tick already past the timer when stop() runs still finishes its request.
+  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+
+  tearDown(() async {
+    await service.stop();
+    await settle();
+  });
 
   Future<void> waitFor(bool Function() condition) async {
     for (var i = 0; i < 200 && !condition(); i++) {
@@ -49,7 +55,8 @@ void main() {
   test('an app left running keeps re-registering as the same device', () async {
     final registrations = <Map<String, dynamic>>[];
     stubServer((request) {
-      expect(request.url.path, '/api/v1/records/$_recordId/devices');
+      expect(request.url.path, '/api/v1/record/devices');
+      expect(request.headers['authorization'], 'Bearer $_recordId');
       registrations.add(jsonDecode(request.body) as Map<String, dynamic>);
       return registered();
     });
@@ -71,10 +78,11 @@ void main() {
     service.keepRegistered(interval: const Duration(milliseconds: 1));
     await waitFor(() => count >= 1);
     await service.stop();
+    await settle();
 
-    final atStop = count;
-    await Future<void>.delayed(const Duration(milliseconds: 30));
-    expect(count, atStop);
+    final afterStop = count;
+    await settle();
+    expect(count, afterStop);
   });
 
   test('a transient failure leaves the timer running', () async {
@@ -89,7 +97,7 @@ void main() {
   });
 
   test('a relay the server no longer knows is reported', () async {
-    stubServer((_) => http.Response('', 404));
+    stubServer((_) => http.Response(jsonEncode({'error': 'unauthorized'}), 401));
 
     service.keepRegistered(interval: const Duration(milliseconds: 1));
     await waitFor(

@@ -177,12 +177,14 @@
           <tr>
             <th scope="row">Relay</th>
             <td>Record ID, inbox token, public key, last activity</td>
-            <td>Until you delete it, or 90 days without activity</td>
+            <td>Until you delete it, or 30 days after it loses its last device</td>
           </tr>
           <tr>
             <th scope="row">Device</th>
-            <td>Push token, platform, last seen</td>
-            <td>Until you remove it, or 30 days without contact</td>
+            <td>Push token, platform, last seen, last token check</td>
+            <td>
+              Phones: until you remove it, the push service reports it's no longer valid, or 2 years with no app open and no code delivered. Desktops: until you remove it, or 90 days without registering
+            </td>
           </tr>
         </tbody>
       </table>
@@ -272,7 +274,9 @@
     <details>
       <summary>Can a code get lost?</summary>
       <p>
-        Yes. Push services can delay messages, undelivered pushes expire after 5 minutes, and rate limits can drop mail. Keep your bank's usual way of getting a code available.
+        Yes. Push services can delay messages, undelivered pushes expire after 5 minutes, and rate limits can drop mail. Android can pause an app that hasn't been used for a few months, which stops its pushes until you open it; turn off
+        <strong>Pause app activity if unused</strong>
+        in the app's Android settings. Mail to a relay with no registered devices is refused, so the sender gets a bounce. Keep your bank's usual way of getting a code available.
       </p>
     </details>
     <details>
@@ -283,7 +287,7 @@
         <strong>Remove this device</strong>
         removes one device. You can also email
         <a href="mailto:privacy@vidur.xyz">privacy@vidur.xyz</a>
-        with your inbox address, but never send your record ID, enrollment JSON or private key. Relays with no activity for 90 days are deleted automatically.
+        with your inbox address, but never send your record ID, enrollment JSON or private key. A device is removed after 2 years with no app open and no code delivered, and a relay is deleted automatically 30 days after it loses its last device.
       </p>
     </details>
     <details>
