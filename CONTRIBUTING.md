@@ -19,6 +19,7 @@ verification) need a design discussion before code.
 | `server/` | Phoenix/Elixir service: inbound SMTP, OTP parsing, DKIM, HTTP API, push |
 | `mobile/` | Flutter app for Android, iOS, macOS and Linux, plus the iOS notification service extension |
 | `deploy/` | Docker Compose setup for self-hosting |
+| `brand/` | Logo sources and identity guide; `scripts/render-brand.sh` renders the PNGs from them |
 | `.github/` | CI, release workflow, Dependabot |
 
 ## Server

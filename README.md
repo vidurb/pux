@@ -1,4 +1,9 @@
-# pux
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/pux-wordmark-dark.svg">
+    <img src="brand/pux-wordmark.svg" alt="pux" height="72">
+  </picture>
+</h1>
 
 [![server](https://github.com/vidurb/pux/actions/workflows/server.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/server.yml)
 [![mobile](https://github.com/vidurb/pux/actions/workflows/mobile.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/mobile.yml)
@@ -8,10 +13,13 @@ Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-
 
 Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your own](deploy/README.md).
 
+<img src="brand/screenshots/site-desktop.jpg" alt="The pux website, showing the headline and an example of a sealed code on the server next to the readable code on a device" width="640"> <img src="brand/screenshots/site-mobile-dark.jpg" alt="The pux website on a phone in dark mode" height="360">
+
 ## Architecture
 
-- **server/** — Phoenix/Elixir service (inbound SMTP, marketing site, FCM push)
+- **server/** — Phoenix/Elixir service (inbound SMTP, website, FCM push)
 - **mobile/** — Flutter app (Android, iOS, macOS, Linux; Windows is not supported for now)
+- **brand/** — logo, palette and icon sources ([guide](brand/README.md))
 
 ## Security model
 
