@@ -110,6 +110,8 @@ defmodule PuxWeb.PageControllerTest do
 
       assert body =~ "Send your inbox address"
       assert body =~ "Never send your record ID, enrollment JSON or private key"
+      assert body =~ "We may ask you to confirm the request"
+      assert body =~ "as long as needed to handle your request"
       assert body =~ "Delete relay everywhere"
       assert body =~ "at least 18"
       refute body =~ ~r/ephemeral/i
