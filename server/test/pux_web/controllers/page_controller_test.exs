@@ -58,7 +58,9 @@ defmodule PuxWeb.PageControllerTest do
       assert body =~ "any app store yet"
       assert body =~ "hasn't been tested on a real device"
       assert body =~ "Not supported for now"
-      assert body =~ "a reverse proxy that logs paths would record it"
+      assert body =~ "a reverse proxy that logs paths doesn't capture it"
+      refute body =~ "appears in API paths"
+      refute body =~ "Turn off proxy access logs"
     end
   end
 
@@ -115,7 +117,16 @@ defmodule PuxWeb.PageControllerTest do
       assert body =~ "Delete relay everywhere"
       assert body =~ "at least 18"
       refute body =~ ~r/ephemeral/i
-      refute body =~ ~r/record ID[^.]*(never|not) (in|appear)/i
+    end
+
+    test "the privacy policy describes what the logs hold", %{conn: conn} do
+      body = html_response(get(conn, "/privacy"), 200)
+
+      assert body =~ "records the path and result of API requests"
+      assert body =~ "but not the record ID, which is sent only in a request header"
+      assert body =~ "Logs of request paths don't capture the record ID"
+      refute body =~ "left out of the request log"
+      refute body =~ "paths contain the record ID"
     end
 
     test "the footer links to them", %{conn: conn} do

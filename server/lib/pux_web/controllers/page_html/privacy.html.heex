@@ -33,7 +33,7 @@
   </ul>
   <h3>IP addresses and logs</h3>
   <p>
-    IP addresses are used in memory for rate limiting. If you exceed the limit for creating relays, your IP address appears in a server log line. Server logs don't include email contents or codes, and API requests are left out of the request log. The gateway and infrastructure the hosted service runs on can keep their own technical logs, which may include IP addresses and request details. API request paths contain the record ID, so logs of those paths can include it. Any database backups contain what was in the database when they were taken, including encrypted payloads and relay and device details.
+    IP addresses are used in memory for rate limiting. If you exceed the limit for creating relays, your IP address appears in a server log line. Server logs don't include email contents or codes. The server's request log records the path and result of API requests. Those paths can include a device or delivery ID, but not the record ID, which is sent only in a request header. The gateway and infrastructure the hosted service runs on can keep their own technical logs, which may include IP addresses and request details. Logs of request paths don't capture the record ID. Any database backups contain what was in the database when they were taken, including encrypted payloads and relay and device details.
   </p>
 
   <h2>This website</h2>
