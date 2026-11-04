@@ -1,14 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../app.dart';
-import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
 import 'confirm_server_dialog.dart';
-import 'home_screen.dart';
+import 'enrollment_commit.dart';
 
 class EnrollScreen extends ConsumerStatefulWidget {
   const EnrollScreen({super.key});
@@ -17,11 +13,10 @@ class EnrollScreen extends ConsumerStatefulWidget {
   ConsumerState<EnrollScreen> createState() => _EnrollScreenState();
 }
 
-class _EnrollScreenState extends ConsumerState<EnrollScreen> {
+class _EnrollScreenState extends ConsumerState<EnrollScreen> with EnrollmentCommit<EnrollScreen> {
   final MobileScannerController _scannerController = MobileScannerController();
   bool _processing = false;
   bool _enrolled = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -33,7 +28,7 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
     if (_processing || _enrolled) return;
     setState(() {
       _processing = true;
-      _error = null;
+      enrollmentError = null;
     });
 
     try {
@@ -45,17 +40,12 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
         await _scannerController.start();
         return;
       }
-      await RecordStore.instance.saveEnrollment(payload);
-      _enrolled = true;
-      unawaited(DeliveryController.instance.start());
-      ref.invalidate(enrollmentProvider);
-
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+      _enrolled = await commitEnrollment(() => RecordStore.instance.saveEnrollment(payload));
+      // Back to scanning, so a failed save can be retried from this screen.
+      if (!_enrolled && mounted) await _scannerController.start();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => enrollmentError = error.toString());
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -63,39 +53,41 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Enroll device')),
-      body: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Scan the QR from an existing enrolled device.',
-              textAlign: TextAlign.center,
+    return enrollmentPopScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Enroll device'), automaticallyImplyLeading: !committing),
+        body: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Scan the QR from an existing enrolled device.',
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-          Expanded(
-            child: MobileScanner(
-              controller: _scannerController,
-              onDetect: (capture) {
-                final barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  final raw = barcode.rawValue;
-                  if (raw != null) {
-                    _handleQr(raw);
-                    break;
+            Expanded(
+              child: MobileScanner(
+                controller: _scannerController,
+                onDetect: (capture) {
+                  final barcodes = capture.barcodes;
+                  for (final barcode in barcodes) {
+                    final raw = barcode.rawValue;
+                    if (raw != null) {
+                      _handleQr(raw);
+                      break;
+                    }
                   }
-                }
-              },
+                },
+              ),
             ),
-          ),
-          if (_processing) const LinearProgressIndicator(),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
-            ),
-        ],
+            if (_processing) const LinearProgressIndicator(),
+            if (enrollmentError != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(enrollmentError!, style: const TextStyle(color: Colors.red)),
+              ),
+          ],
+        ),
       ),
     );
   }

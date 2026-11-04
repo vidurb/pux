@@ -39,4 +39,5 @@ All notable changes to pux are recorded here. The format follows
 - The OTP parser no longer crashes on bodies that aren't valid UTF-8, or on codes near multi-byte characters such as `₹`.
 - An SMTP session no longer crashes if its relay is deleted while mail is being delivered.
 - Acknowledging a desktop delivery no longer races with a concurrent acknowledgement.
+- Apps: leaving an enrollment screen while its request is running can no longer lose the result. Back is disabled until the request finishes, the app reaches the home screen and starts delivery without a restart, and failures are always shown. A new relay that can't be saved on the device is deleted from the server.
 - Inbox addresses are generated without modulo bias.

@@ -1,13 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app.dart';
-import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
 import 'confirm_server_dialog.dart';
-import 'home_screen.dart';
+import 'enrollment_commit.dart';
 
 class ImportEnrollmentScreen extends ConsumerStatefulWidget {
   const ImportEnrollmentScreen({super.key});
@@ -16,10 +12,10 @@ class ImportEnrollmentScreen extends ConsumerStatefulWidget {
   ConsumerState<ImportEnrollmentScreen> createState() => _ImportEnrollmentScreenState();
 }
 
-class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen> {
+class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
+    with EnrollmentCommit<ImportEnrollmentScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _processing = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -32,23 +28,17 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
 
     setState(() {
       _processing = true;
-      _error = null;
+      enrollmentError = null;
     });
 
     try {
       final payload = RecordStore.instance.parseQr(_controller.text.trim());
       final server = RecordStore.instance.enrollmentServer(payload);
       if (!mounted || !await confirmEnrollmentServer(context, server)) return;
-      await RecordStore.instance.saveEnrollment(payload);
-      unawaited(DeliveryController.instance.start());
-      ref.invalidate(enrollmentProvider);
-
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+      await commitEnrollment(() => RecordStore.instance.saveEnrollment(payload));
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => enrollmentError = error.toString());
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -56,40 +46,45 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Import enrollment')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Paste the enrollment JSON exported from a mobile device. '
-              'Desktop clients receive OTP codes but do not generate keys.',
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                maxLines: null,
-                expands: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: '{"v":1,"record_id":"...","private_key":"..."}',
+    return enrollmentPopScope(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Import enrollment'),
+          automaticallyImplyLeading: !committing,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Paste the enrollment JSON exported from a mobile device. '
+                'Desktop clients receive OTP codes but do not generate keys.',
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  maxLines: null,
+                  expands: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: '{"v":1,"record_id":"...","private_key":"..."}',
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            if (_processing) const LinearProgressIndicator(),
-            FilledButton(
-              onPressed: _processing ? null : _importEnrollment,
-              child: const Text('Import and connect'),
-            ),
-            if (_error != null) ...[
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+              if (_processing) const LinearProgressIndicator(),
+              FilledButton(
+                onPressed: _processing ? null : _importEnrollment,
+                child: const Text('Import and connect'),
+              ),
+              if (enrollmentError != null) ...[
+                const SizedBox(height: 16),
+                Text(enrollmentError!, style: const TextStyle(color: Colors.red)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

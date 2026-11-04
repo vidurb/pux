@@ -61,11 +61,30 @@ class RecordStore {
     _validateEnrollmentPayload(payload);
     final effectiveServer = enrollmentServer(payload);
 
-    await _storage.write(key: _recordIdKey, value: payload['record_id'] as String);
-    await _storage.write(key: _privateKeyKey, value: payload['private_key'] as String);
-    await _storage.write(key: _publicKeyKey, value: payload['public_key'] as String);
-    await _storage.write(key: _inboxKey, value: payload['inbox'] as String);
-    await _storage.write(key: _serverKey, value: effectiveServer);
+    // The record ID goes last: isEnrolled needs it, so a partial save can never
+    // look enrolled, even if the cleanup below fails too.
+    final values = {
+      _inboxKey: payload['inbox'] as String,
+      _serverKey: effectiveServer,
+      _publicKeyKey: payload['public_key'] as String,
+      _privateKeyKey: payload['private_key'] as String,
+      _recordIdKey: payload['record_id'] as String,
+    };
+
+    try {
+      for (final MapEntry(:key, :value) in values.entries) {
+        await _storage.write(key: key, value: value);
+      }
+    } catch (_) {
+      for (final key in values.keys) {
+        try {
+          await _storage.delete(key: key);
+        } catch (deleteError) {
+          debugPrint('Could not clean up a partial enrollment: $deleteError');
+        }
+      }
+      rethrow;
+    }
     serverUrl = effectiveServer;
   }
 
