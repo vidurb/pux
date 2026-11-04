@@ -16,6 +16,7 @@ class RecordStore {
   static const _serverKey = 'server_url';
   static const _desktopDeviceIdKey = 'desktop_device_id';
   static const _deviceIdKey = 'device_id';
+  static const _dismissedRestrictionPromptsKey = 'dismissed_restriction_prompts';
 
   static const _cleartextHosts = {'localhost', '127.0.0.1', '10.0.2.2'};
   static final _uuid = RegExp(
@@ -100,6 +101,17 @@ class RecordStore {
     if (deviceId == null || deviceId.isEmpty) return;
     await _storage.write(key: _deviceIdKey, value: deviceId);
   }
+
+  /// Which background restriction prompts the user dismissed. [clear] forgets
+  /// these along with the enrollment, so setting up again asks again.
+  Future<Set<String>> dismissedRestrictionPrompts() async {
+    final stored = await _storage.read(key: _dismissedRestrictionPromptsKey);
+    if (stored == null || stored.isEmpty) return {};
+    return stored.split(',').toSet();
+  }
+
+  Future<void> saveDismissedRestrictionPrompts(Set<String> names) =>
+      _storage.write(key: _dismissedRestrictionPromptsKey, value: names.join(','));
 
   /// The validated server an enrollment payload points at: its `server`, or
   /// the current one when absent. Throws [FormatException] if it is unsafe.

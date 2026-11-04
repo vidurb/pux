@@ -24,6 +24,7 @@ All notable changes to pux are recorded here. The format follows
 
 - `DELETE /api/v1/records/:id` and `DELETE /api/v1/records/:id/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
 - iOS: OTPs arrive as alert pushes that a notification service extension decrypts on the device, so they show even when the app has been force-quit.
+- Android: the home screen, including right after setup, warns when codes could silently stop arriving, either because Android 12+ can hibernate pux after months without use or because its background battery use is restricted, and links to the settings page that fixes it. A warning goes away once the setting changes. If dismissed, it returns only after the setting has been fixed and then undone, or after setting up pux again.
 - Self-hosting with Docker Compose (`deploy/`), and a release workflow that publishes versioned server images and app builds.
 
 ### Changed

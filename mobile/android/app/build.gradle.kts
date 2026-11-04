@@ -84,6 +84,10 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // PackageManagerCompat and IntentCompat, for app hibernation. Plugins already
+    // bring in this version; ListenableFuture is its status call's return type.
+    implementation("androidx.core:core:1.13.1")
+    implementation("com.google.guava:listenablefuture:1.0")
 }
 
 if (file("google-services.json").exists()) {
