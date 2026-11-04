@@ -16,7 +16,7 @@ COPY priv priv
 RUN mix deps.compile
 RUN mix release
 
-FROM alpine:3.21.9
+FROM alpine:3.24.3
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
