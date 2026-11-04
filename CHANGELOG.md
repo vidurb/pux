@@ -30,6 +30,7 @@ All notable changes to pux are recorded here. The format follows
 - Payloads include `verified` and `sender_domain`, and unverified senders are shown as "OTP from <domain> (unverified)".
 - Phoenix 1.8, Phoenix LiveView 1.2, Hammer 7, Oban 2.24.
 - iOS requires 15.0 or later, and the iOS build uses Swift Package Manager instead of CocoaPods.
+- The server image is built and run on Alpine 3.24 (OpenSSL 3.5, libsodium 1.0.22).
 
 ### Fixed
 

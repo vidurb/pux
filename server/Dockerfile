@@ -1,4 +1,4 @@
-FROM hexpm/elixir:1.18.4-erlang-27.3.4.16-alpine-3.21.7 AS build
+FROM hexpm/elixir:1.18.4-erlang-27.3.4.16-alpine-3.24.1 AS build
 
 RUN apk add --no-cache build-base git libsodium-dev
 
@@ -16,7 +16,9 @@ COPY priv priv
 RUN mix deps.compile
 RUN mix release
 
-FROM alpine:3.21.9
+# Same Alpine release as the build stage: the release links against its libsodium,
+# OpenSSL and ncurses. Move the two stages together.
+FROM alpine:3.24.1
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
