@@ -41,6 +41,13 @@ config :pux, :record_rate_limit,
   limit: 120,
   scale_ms: 60_000
 
+# Per-IP limit on well-formed tokens that match no record. Successes don't count, but while
+# an IP is over the limit nothing from it is looked up, so a carrier NAT's users share the
+# bucket: this has to stay far above what clients with a deleted relay can add up to.
+config :pux, :auth_failure_rate_limit,
+  limit: 300,
+  scale_ms: 60_000
+
 config :pux, :records, max_devices: 10
 
 # Retention. See "Data retention" in README.md, and keep any published copy in step.

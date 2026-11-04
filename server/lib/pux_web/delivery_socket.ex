@@ -5,6 +5,7 @@ defmodule PuxWeb.DeliverySocket do
   @behaviour Phoenix.Socket.Transport
 
   alias Pux.Push
+  alias PuxWeb.Plugs.{RateLimit, RecordAuth}
 
   @impl true
   def child_spec(_opts) do
@@ -17,12 +18,21 @@ defmodule PuxWeb.DeliverySocket do
   @impl true
   def connect(transport) do
     with token when is_binary(token) <- header_token(transport),
-         true <- valid_uuid?(token),
-         %Pux.Records.Record{} <- Pux.Records.get_record(token) do
-      {:ok, %{record_id: token}}
+         # The stored ID, not the token: topics are matched exactly, so a UUID in another
+         # case would subscribe to a topic nothing is ever sent to.
+         {:ok, record_id} <- RecordAuth.authenticate(token, client_ip(transport)) do
+      {:ok, %{record_id: record_id}}
     else
+      {:error, :rate_limited} -> {:error, :rate_limited}
       _ -> :error
     end
+  end
+
+  @doc "Answers a refused handshake. Phoenix calls it for the `{:error, reason}` from `connect/1`."
+  def handle_error(conn, :rate_limited) do
+    conn
+    |> Plug.Conn.put_status(:too_many_requests)
+    |> Phoenix.Controller.json(%{error: "rate_limit_exceeded"})
   end
 
   defp header_token(%{connect_info: %{x_headers: headers}}) do
@@ -30,6 +40,12 @@ defmodule PuxWeb.DeliverySocket do
   end
 
   defp header_token(_transport), do: nil
+
+  # Sockets dispatch before any plug, so the peer here is what `conn.remote_ip` is for a
+  # REST request, and `x_headers` keeps every X-Forwarded-For line in order.
+  defp client_ip(%{connect_info: %{peer_data: %{address: address}, x_headers: headers}}) do
+    RateLimit.client_ip(address, for({"x-forwarded-for", value} <- headers, do: value))
+  end
 
   @impl true
   def init(%{record_id: record_id}) do
@@ -71,14 +87,4 @@ defmodule PuxWeb.DeliverySocket do
 
   @impl true
   def terminate(_reason, _state), do: :ok
-
-  defp valid_uuid?(value) do
-    match?(
-      <<_::128>>,
-      case Ecto.UUID.dump(value) do
-        {:ok, bin} -> bin
-        :error -> <<>>
-      end
-    )
-  end
 end

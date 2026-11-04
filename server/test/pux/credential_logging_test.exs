@@ -256,6 +256,31 @@ defmodule Pux.CredentialLoggingTest do
       refute_credentials(log, e)
     end
 
+    test "the failed authentication limit logs neither the token nor the IP", %{enrollment: e} do
+      failure_limit(1)
+      unknown = Ecto.UUID.generate()
+
+      log =
+        capture_log(fn ->
+          assert %{status: 401} = api(%{record_id: unknown}, :get, "/deliveries")
+
+          for token <- [unknown, Ecto.UUID.generate(), e.record_id] do
+            assert %{status: 429, body: ~s({"error":"rate_limit_exceeded"})} =
+                     api(%{record_id: token}, :get, "/deliveries")
+          end
+
+          assert %{status: 401} = api(%{record_id: "malformed-credential"}, :get, "/deliveries")
+        end)
+
+      assert log =~ "Failed authentication rate limit exceeded"
+      assert log =~ "Sent 429"
+      refute log =~ unknown
+      refute log =~ "malformed-credential"
+      refute_credentials(log, e)
+      # The privacy policy only has an IP reaching the logs for the relay creation limit.
+      refute log =~ "127.0.0.1"
+    end
+
     test "a 500 doesn't log the credential", %{enrollment: e} do
       on_insert("devices", "RAISE EXCEPTION 'database failure';")
 
@@ -323,11 +348,56 @@ defmodule Pux.CredentialLoggingTest do
       refute_credentials(log, e)
     end
 
+    test "the failed authentication limit logs neither the token nor the IP", %{enrollment: e} do
+      failure_limit(1)
+      unknown = Ecto.UUID.generate()
+
+      log =
+        capture_log(fn ->
+          assert ws_upgrade_status(unknown) == "403"
+          assert ws_upgrade_status(unknown) == "429"
+          assert ws_upgrade_status(e.record_id) == "429"
+          assert ws_upgrade_status("malformed-credential") == "403"
+        end)
+
+      assert log =~ "Failed authentication rate limit exceeded"
+      refute log =~ unknown
+      refute log =~ "malformed-credential"
+      refute_credentials(log, e)
+      refute log =~ "127.0.0.1"
+    end
+
+    test "a database failure while connecting doesn't log the token", %{enrollment: e} do
+      # Rolled back with the sandbox transaction.
+      Pux.Repo.query!("ALTER TABLE records RENAME TO records_hidden")
+
+      log =
+        capture_log(fn ->
+          assert ws_upgrade_status(e.record_id) == "500"
+          Process.sleep(200)
+        end)
+
+      assert log =~ "Postgrex.Error"
+      refute_credentials(log, e)
+    end
+
     test "the socket process doesn't hold the record ID", %{enrollment: e} do
       {:ok, state} = PuxWeb.DeliverySocket.init(%{record_id: e.record_id})
 
       refute_credentials(inspect(state), e)
     end
+  end
+
+  defp failure_limit(limit) do
+    config = Application.fetch_env!(:pux, :auth_failure_rate_limit)
+    on_exit(fn -> Application.put_env(:pux, :auth_failure_rate_limit, config) end)
+
+    # A key of its own: every test here shares 127.0.0.1.
+    Application.put_env(:pux, :auth_failure_rate_limit,
+      key: "test_logging:#{System.unique_integer()}",
+      limit: limit,
+      scale_ms: 60_000
+    )
   end
 
   defp refute_credentials(text, enrollment) do
