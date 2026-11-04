@@ -28,7 +28,14 @@ defmodule PuxWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live "/signup", SignupLive, :new
+    get "/privacy", PageController, :privacy
+    get "/terms", PageController, :terms
+    # The landing page used to live here; keep old links working.
+    get "/signup", PageController, :signup
+  end
+
+  scope "/.well-known", PuxWeb do
+    get "/security.txt", WellKnownController, :security_txt
   end
 
   scope "/api/v1", PuxWeb do

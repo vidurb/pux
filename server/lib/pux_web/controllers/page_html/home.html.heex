@@ -1,0 +1,315 @@
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div class="hero__copy">
+      <h1>Bank OTPs, sealed on the way to your phone.</h1>
+      <p class="lede">
+        pux turns the OTP emails your bank sends into end-to-end encrypted push notifications.
+        Forward the mail to a private inbox address. The server finds the code, seals it with a
+        key only your device can open, and keeps no mail.
+      </p>
+      <div class="actions">
+        <a class="button button--solid" href="https://github.com/vidurb/pux">Read the source</a>
+        <a class="button" href="#how">How it works</a>
+      </div>
+      <p class="status">
+        Early release: not in any app store yet, so for now you <a href="https://github.com/vidurb/pux#mobile">build the apps from source</a>.
+      </p>
+    </div>
+    <figure class="hero__demo">
+      <figcaption>An example of the same code at both ends</figcaption>
+      <div class="demo-panel">
+        <p class="demo-label">Stored briefly by the server</p>
+        <code class="demo-cipher">"ciphertext": "qk3Vd0mZ7uB1xTf9Lw2nYc4RsP8eGh6JtA5oKi…"</code>
+      </div>
+      <div class="demo-panel demo-panel--light">
+        <p class="demo-label">Shown on your device</p>
+        <p class="demo-title">OTP from HDFC Bank</p>
+        <p class="demo-code">482913</p>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="how" class="section">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="section-lede">
+      Five stops between your bank and you. The code is sealed for every hop after the pux server.
+    </p>
+    <ol class="flow">
+      <li class="flow__step">
+        <h3>Your bank</h3>
+        <p>Emails you an OTP, as it does today.</p>
+        <span class="tag">Readable</span>
+      </li>
+      <li class="flow__step">
+        <h3>Your mailbox</h3>
+        <p>A forwarding rule you set up sends those emails to your pux inbox address.</p>
+        <span class="tag">Readable</span>
+      </li>
+      <li class="flow__step flow__step--server">
+        <h3>pux server</h3>
+        <p>
+          Reads the email in memory, finds the code, checks DKIM and seals the result to your public key. The email is then discarded.
+        </p>
+        <span class="tag tag--brief">Briefly readable, in memory</span>
+      </li>
+      <li class="flow__step flow__step--sealed">
+        <h3>Delivery</h3>
+        <p>
+          Firebase Cloud Messaging carries the sealed envelope to phones. Desktops fetch it from the server over a WebSocket.
+        </p>
+        <span class="tag tag--sealed">Sealed</span>
+      </li>
+      <li class="flow__step flow__step--device">
+        <h3>Your device</h3>
+        <p>
+          Opens the envelope with the private key that was generated on it, and shows the code.
+        </p>
+        <span class="tag tag--yours">Readable by you</span>
+      </li>
+    </ol>
+
+    <h3 class="subhead">Setting it up</h3>
+    <ol class="steps">
+      <li>
+        Install the app and tap <strong>Create new relay</strong>. Your keys are generated on the phone.
+      </li>
+      <li>
+        Copy the inbox address it shows and forward your bank's OTP emails there. If Gmail asks you to confirm forwarding, the confirmation code arrives in the app too.
+      </li>
+      <li>Allow notifications. To add a desktop, export the enrollment from your phone.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="security" class="section section--tint">
+  <div class="wrap">
+    <h2>The security model</h2>
+    <p class="section-lede">
+      What pux is built to guarantee, and where those guarantees stop. The
+      <a href="https://github.com/vidurb/pux/blob/main/SECURITY.md">security policy</a>
+      has the full version, and all of this can be checked in the source.
+    </p>
+    <div class="columns">
+      <div>
+        <h3>What pux does</h3>
+        <ul class="points">
+          <li>
+            <strong>Keys stay on your device.</strong>
+            The keypair is generated on your phone and the server only gets the public key. The private key leaves the phone only if you export an enrollment to add another device.
+          </li>
+          <li>
+            <strong>Codes are sealed before they're stored or sent.</strong>
+            Each payload is encrypted with a libsodium sealed box. The server has no key that can open one afterwards.
+          </li>
+          <li>
+            <strong>Mail isn't stored.</strong>
+            Plaintext exists only in memory while a message is parsed. Email without a code is dropped.
+          </li>
+          <li>
+            <strong>No accounts.</strong>
+            No name, email or password. A random record ID is the only credential.
+          </li>
+          <li>
+            <strong>Sender names have to be earned.</strong>
+            A bank's name is shown only when a valid DKIM signature aligns with the From domain. Without one, the message is marked unverified.
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h3>Where it stops</h3>
+        <ul class="points points--limits">
+          <li>
+            <strong>You trust the server for a moment.</strong>
+            It has to read the email to find the code. Code running on it could see that plaintext, which is why the source is open and you can run your own.
+          </li>
+          <li>
+            <strong>Your mail provider still sees your mail.</strong>
+            So does anything else on the path before pux. pux protects the code after that point.
+          </li>
+          <li>
+            <strong>DKIM doesn't stop replays.</strong>
+            A genuinely signed bank email can be sent on to another inbox address and still verify.
+          </li>
+          <li>
+            <strong>Your enrollment is the keys.</strong>
+            Anyone holding the QR code or JSON export has the record ID and private key, and can read that relay's OTPs.
+          </li>
+          <li>
+            <strong>Your device has to be safe.</strong>
+            pux can't protect codes on a rooted, jailbroken or compromised device.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="subhead" id="stored">What the server stores, and for how long</h3>
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="stored">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Form</th>
+            <th scope="col">Kept for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Email contents</th>
+            <td>In memory only, while parsing</td>
+            <td>Never written to disk or the database</td>
+          </tr>
+          <tr>
+            <th scope="row">Push jobs</th>
+            <td>Sealed envelope, in the database</td>
+            <td>Deleted about 10 minutes after the job finishes</td>
+          </tr>
+          <tr>
+            <th scope="row">Desktop deliveries</th>
+            <td>Sealed envelope, in the database. Only if the relay has a desktop</td>
+            <td>Until the desktop confirms it, up to about 15 minutes</td>
+          </tr>
+          <tr>
+            <th scope="row">Relay</th>
+            <td>Record ID, inbox token, public key, last activity</td>
+            <td>Until you delete it, or 90 days without activity</td>
+          </tr>
+          <tr>
+            <th scope="row">Device</th>
+            <td>Push token, platform, last seen</td>
+            <td>Until you remove it, or 30 days without contact</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="banks" class="section">
+  <div class="wrap">
+    <h2>Supported banks</h2>
+    <p class="section-lede">
+      These banks are shown by name when the email's DKIM signature verifies.
+    </p>
+    <ul class="banks">
+      <li :for={bank <- @banks}>{bank}</li>
+    </ul>
+    <p class="note">
+      Other senders aren't blocked. If pux can find a code in the email, it is delivered under the sender's domain, and marked unverified when no DKIM signature aligns. Bank missing?
+      <a href="https://github.com/vidurb/pux/blob/main/CONTRIBUTING.md#adding-a-bank">Adding one</a>
+      is a small change. pux isn't affiliated with or endorsed by any of these banks.
+    </p>
+
+    <h3 class="subhead" id="platforms">Platforms</h3>
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="platforms">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Platform</th>
+            <th scope="col">Delivery</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Android</th>
+            <td>Push through Firebase</td>
+            <td>Create a relay or scan a QR code</td>
+          </tr>
+          <tr>
+            <th scope="row">iOS</th>
+            <td>Push through Firebase and APNs</td>
+            <td>Built, but push hasn't been tested on a real device yet</td>
+          </tr>
+          <tr>
+            <th scope="row">macOS and Linux</th>
+            <td>WebSocket, with polling as a fallback</td>
+            <td>Import an enrollment from your phone</td>
+          </tr>
+          <tr>
+            <th scope="row">Windows</th>
+            <td>None</td>
+            <td>Not supported for now</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="section section--tint">
+  <div class="wrap wrap--narrow">
+    <h2>Questions</h2>
+    <details open>
+      <summary>Can you read my OTPs?</summary>
+      <p>
+        Not once they're sealed, and nothing readable is kept. But the server does have to read each email in memory to find the code, so for that moment the plaintext is on a machine you don't control. The code that does this is public. If that moment is too much trust, run your own server.
+      </p>
+    </details>
+    <details>
+      <summary>Does anything get stored at all?</summary>
+      <p>
+        Yes, but no mail and no readable codes. Sealed envelopes sit in the database for a few minutes while they're delivered, and the server keeps the relay and device details listed in <a href="#stored">the table above</a>.
+      </p>
+    </details>
+    <details>
+      <summary>Does a verified bank name prove the email is genuine?</summary>
+      <p>
+        It proves the bank's domain signed that email. It doesn't prove the email was meant for you, because a signed message can be replayed to another inbox address. Check that a code matches something you just did.
+      </p>
+    </details>
+    <details>
+      <summary>What if someone learns my inbox address?</summary>
+      <p>
+        Addresses are unguessable but not secret. Anyone who has yours can send mail to it, and any code it contains reaches you under that sender's domain. Delivery is limited to 20 codes per relay every 10 minutes and extra mail is dropped, so a flood could delay real codes. You can delete the relay and create a new one.
+      </p>
+    </details>
+    <details>
+      <summary>Can a code get lost?</summary>
+      <p>
+        Yes. Push services can delay messages, undelivered pushes expire after 5 minutes, and rate limits can drop mail. Keep your bank's usual way of getting a code available.
+      </p>
+    </details>
+    <details>
+      <summary>How do I delete my data?</summary>
+      <p>
+        In the app, <strong>Delete relay everywhere</strong>
+        removes the relay, its devices and any pending deliveries from the server.
+        <strong>Remove this device</strong>
+        removes one device. Relays with no activity for 90 days are deleted automatically.
+      </p>
+    </details>
+    <details>
+      <summary>Where do I get the app?</summary>
+      <p>
+        It isn't in any app store yet, and there's no published release. For now, the apps are <a href="https://github.com/vidurb/pux#mobile">built from source</a>.
+      </p>
+    </details>
+  </div>
+</section>
+
+<section id="self-host" class="section">
+  <div class="wrap self-host">
+    <div>
+      <h2>Run your own</h2>
+      <p class="section-lede">
+        The hosted instance is <a href="https://pux.vidur.xyz">pux.vidur.xyz</a>, and you don't have to use it. The whole service is free software under the AGPL-3.0.
+      </p>
+      <p>
+        <a
+          class="button button--solid"
+          href="https://github.com/vidurb/pux/blob/main/deploy/README.md"
+        >Self-hosting guide</a>
+      </p>
+    </div>
+    <ul class="points">
+      <li>The server and PostgreSQL run with Docker Compose.</li>
+      <li>
+        You need a domain, a TLS-terminating reverse proxy and a host that can receive mail on port 25.
+      </li>
+      <li>Desktop apps work against your server with nothing else.</li>
+      <li>Push to phones needs your own Firebase project and your own app build.</li>
+    </ul>
+  </div>
+</section>

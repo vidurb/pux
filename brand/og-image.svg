@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="630" fill="#0E3B32"/>
+  <g fill="#DDF3D6" transform="translate(90 96) scale(.72)">
+    <path fill-rule="evenodd" transform="scale(.6667) translate(-136 -96)" d="M136 96H256A120 120 0 0 1 256 336H208V432H136ZM256 154A42 42 0 0 1 278 232L294 288H218L234 232A42 42 0 0 1 256 154Z"/>
+    <path d="M188 0h48v86a30 30 0 0 0 60 0V0h48v160h-48v-10a78 78 0 0 1-108-64Z"/>
+    <path d="M370 0h56l26 44 26-44h54l-53 80 53 80h-56l-26-43-26 43h-54l53-80Z"/>
+  </g>
+  <text x="90" y="372" fill="#F5F8F1" font-size="68" font-weight="800">Bank OTPs, sealed on</text>
+  <text x="90" y="452" fill="#F5F8F1" font-size="68" font-weight="800">the way to your phone.</text>
+  <text x="90" y="530" fill="#DDF3D6" font-size="30">End-to-end encrypted. No accounts. No stored mail. Open source.</text>
+</svg>

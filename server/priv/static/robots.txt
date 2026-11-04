@@ -1,1 +1,5 @@
-# placeholder for static assets
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /ws/
+Disallow: /health
