@@ -11,6 +11,8 @@ defmodule Pux.Push.FCM do
   require Logger
 
   @fcm_url "https://fcm.googleapis.com/v1/projects"
+  @fcm_error_type "type.googleapis.com/google.firebase.fcm.v1.FcmError"
+  @bad_request_type "type.googleapis.com/google.rpc.BadRequest"
   @ttl_seconds 300
 
   @type result :: :ok | :unregistered | {:error, term()} | {:cancel, term()}
@@ -45,8 +47,25 @@ defmodule Pux.Push.FCM do
 
   @spec deliver(String.t(), map()) :: result()
   def deliver(push_token, envelope) when is_binary(push_token) and is_map(envelope) do
+    send_message(message(push_token, envelope))
+  end
+
+  @doc """
+  Asks FCM whether a token is still valid, with a dry-run send (`validate_only`): nothing
+  reaches the device. The message has the shape of a real one, so that the only thing wrong
+  with it can be the token.
+  """
+  @spec check_token(String.t()) :: result()
+  def check_token(push_token) when is_binary(push_token) do
+    push_token
+    |> message(%{"ciphertext" => ""})
+    |> Map.put(:validate_only, true)
+    |> send_message()
+  end
+
+  defp send_message(body) do
     if enabled?() do
-      do_deliver(config()[:project_id], push_token, envelope)
+      do_send(config()[:project_id], body)
     else
       Logger.debug("FCM disabled; would push")
       :ok
@@ -78,8 +97,8 @@ defmodule Pux.Push.FCM do
     }
   end
 
-  defp do_deliver(project_id, push_token, envelope) do
-    url = "#{@fcm_url}/#{project_id}/messages:send"
+  defp do_send(project_id, body) do
+    url = "#{config()[:base_url] || @fcm_url}/#{project_id}/messages:send"
 
     with {:ok, token} <- fetch_token(),
          {:ok, %Finch.Response{status: status, body: body}} <-
@@ -90,7 +109,7 @@ defmodule Pux.Push.FCM do
                {"authorization", "Bearer #{token.token}"},
                {"content-type", "application/json"}
              ],
-             Jason.encode!(message(push_token, envelope))
+             Jason.encode!(body)
            )
            |> Finch.request(Pux.Finch) do
       classify_response(status, body)
@@ -111,12 +130,31 @@ defmodule Pux.Push.FCM do
   @spec classify_response(non_neg_integer(), binary()) :: result()
   def classify_response(status, _body) when status in 200..299, do: :ok
 
-  def classify_response(404, _body) do
-    Logger.info("FCM token unregistered")
-    :unregistered
+  # Devices are removed on this signal alone and don't come back until the app next starts,
+  # so a 404 that doesn't name the token (a wrong project ID, a proxy) must not count.
+  def classify_response(404 = status, body) do
+    if fcm_error_code(body) == "UNREGISTERED" do
+      Logger.info("FCM token unregistered")
+      :unregistered
+    else
+      Logger.warning("FCM push failed (#{status}): #{error_status(body)}")
+      {:error, {:fcm, status}}
+    end
   end
 
-  def classify_response(status, body) when status in [400, 403] do
+  def classify_response(400 = status, body) do
+    if invalid_token?(body) do
+      Logger.info("FCM token invalid")
+      :unregistered
+    else
+      Logger.error("FCM push rejected (#{status}): #{error_status(body)}")
+      {:cancel, {:fcm, status}}
+    end
+  end
+
+  # Not treated as a dead token even for SENDER_ID_MISMATCH: wrong server credentials look
+  # the same, and would remove every device.
+  def classify_response(403 = status, body) do
     Logger.error("FCM push rejected (#{status}): #{error_status(body)}")
     {:cancel, {:fcm, status}}
   end
@@ -124,6 +162,31 @@ defmodule Pux.Push.FCM do
   def classify_response(status, body) do
     Logger.warning("FCM push failed (#{status}): #{error_status(body)}")
     {:error, {:fcm, status}}
+  end
+
+  defp fcm_error_code(body) do
+    Enum.find_value(error_details(body), fn
+      %{"@type" => @fcm_error_type, "errorCode" => code} -> code
+      _ -> nil
+    end)
+  end
+
+  # INVALID_ARGUMENT also covers a bad payload, so it has to blame the token specifically.
+  defp invalid_token?(body) do
+    Enum.any?(error_details(body), fn
+      %{"@type" => @bad_request_type, "fieldViolations" => violations} when is_list(violations) ->
+        Enum.any?(violations, &match?(%{"field" => "message.token"}, &1))
+
+      _ ->
+        false
+    end)
+  end
+
+  defp error_details(body) do
+    case Jason.decode(body || "") do
+      {:ok, %{"error" => %{"details" => details}}} when is_list(details) -> details
+      _ -> []
+    end
   end
 
   defp error_status(body) do

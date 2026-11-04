@@ -157,7 +157,7 @@ defmodule Pux.SMTP.Session do
       Push.deliver_to_record(record, plaintext)
     else
       {:error, :rate_limited} -> Logger.info("SMTP: inbound rate limit hit; delivery skipped")
-      {:error, :not_found} -> Logger.debug("SMTP: record deleted while mail was in flight")
+      {:error, :no_devices} -> Logger.debug("SMTP: relay is gone or has no devices; mail dropped")
     end
   end
 

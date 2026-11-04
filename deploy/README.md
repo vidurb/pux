@@ -95,3 +95,18 @@ Read the [changelog](../CHANGELOG.md) before upgrading across minor versions. Th
 relays (public keys, inbox tokens), device push tokens and short-lived encrypted deliveries. Losing it
 means users have to create new relays, but no OTPs or emails are ever stored. Back up the `db` volume
 with `docker compose exec db pg_dump -U pux pux > pux.sql` if you'd rather not lose relays.
+
+## Data retention
+
+The [main README](../README.md#data-retention) has the rules, and `:pruner` in `server/config/config.exs`
+has the numbers. Relays and phones are not removed for being quiet, so the tables grow with installs rather
+than with use. What this means when you run the server:
+
+- **Without `FCM_SERVICE_ACCOUNT_JSON`** the server can't learn that a phone has gone, so a relay with an
+  `fcm` device stays until someone deletes it. Desktop devices still age out.
+- **After switching Firebase project,** old tokens get a 403 on every send and are not removed, because wrong
+  credentials look exactly the same and must not delete every device. Apps from the new project register
+  fresh tokens, and the old rows stay until the relay is deleted. Removing them is up to you.
+- **Deletion requests** can be handled from the inbox address alone. Its token is the part before the `@`:
+  `docker compose exec db psql -U pux pux -c "DELETE FROM records WHERE inbox_token = '<token>'"`.
+  Devices and pending deliveries go with the record.

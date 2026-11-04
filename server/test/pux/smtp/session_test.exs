@@ -104,6 +104,41 @@ defmodule Pux.SMTP.SessionTest do
              Session.handle_DATA("sender@bank.com", [e.inbox_address], @otp_mail, state)
   end
 
+  describe "the relay's clock" do
+    defp age_record(record_id) do
+      stale = DateTime.utc_now() |> DateTime.add(-20, :day)
+
+      record_id
+      |> Records.get_record()
+      |> Ecto.Changeset.change(last_active_at: stale)
+      |> Pux.Repo.update!()
+
+      stale
+    end
+
+    test "restarts on mail that has a device to go to", %{enrollment: e} do
+      with_device(e)
+      stale = age_record(e.record_id)
+
+      deliver(session([]), e)
+
+      last_active_at = Records.get_record(e.record_id).last_active_at
+      assert DateTime.compare(last_active_at, stale) == :gt
+    end
+
+    test "doesn't restart on mail to a relay with no devices, so it can still be pruned", %{
+      enrollment: e
+    } do
+      stale = age_record(e.record_id)
+
+      assert %{} = deliver(session([]), e)
+
+      last_active_at = Records.get_record(e.record_id).last_active_at
+      assert DateTime.compare(last_active_at, stale) == :eq
+      refute_enqueued(worker: PushWorker)
+    end
+  end
+
   test "classification has a hard timeout", %{enrollment: e} do
     device = with_device(e)
     key = DKIMSigner.rsa_key()
