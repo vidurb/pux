@@ -4,19 +4,159 @@ defmodule PuxWeb.PageControllerTest do
   @csp "default-src 'none'; style-src 'self'; img-src 'self'; " <>
          "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
-  test "GET / redirects to /signup", %{conn: conn} do
-    assert redirected_to(get(conn, "/")) == "/signup"
+  describe "landing page" do
+    test "renders without scripts and with a strict CSP", %{conn: conn} do
+      conn = get(conn, "/")
+      body = html_response(conn, 200)
+
+      assert body =~ "sealed on the way to your phone"
+      assert body =~ ~s(href="/assets/app.css")
+      refute body =~ "<script"
+      refute body =~ "<style"
+      refute body =~ ~r/\sstyle="/
+      assert get_resp_header(conn, "content-security-policy") == [@csp]
+    end
+
+    test "loads nothing from another origin", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      refute body =~ ~r/<(img|link|source|iframe)[^>]+(src|href)="https?:(?!\/\/localhost)/i
+    end
+
+    test "sets no cookies", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert conn.resp_cookies == %{}
+      assert get_resp_header(conn, "set-cookie") == []
+    end
+
+    test "lists every bank the parser labels", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      assert length(Pux.OtpParser.bank_labels()) == 7
+
+      for bank <- Pux.OtpParser.bank_labels() do
+        assert body =~ "<li>#{bank}</li>"
+      end
+    end
+
+    test "has description, Open Graph and Twitter card tags", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      assert body =~ ~s(<meta name="description")
+      assert body =~ ~s(property="og:title")
+      assert body =~ ~s(property="og:image")
+      assert body =~ "/images/og-image.png"
+      assert body =~ ~s(content="summary_large_image")
+    end
+
+    test "makes no claims the project can't back", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      refute body =~ ~r/never touch/i
+      refute body =~ ~r/google play|app store badge|download on the/i
+      assert body =~ "any app store yet"
+      assert body =~ "hasn't been tested on a real device"
+      assert body =~ "Not supported for now"
+      assert body =~ "a reverse proxy that logs paths would record it"
+    end
   end
 
-  test "GET /signup renders without LiveView JS and with a strict CSP", %{conn: conn} do
-    conn = get(conn, "/signup")
-    body = html_response(conn, 200)
+  # The site states these numbers in words; change the copy along with the config.
+  test "published retention matches the configuration" do
+    # The test config turns Oban's plugins off, so read what production uses.
+    config = Config.Reader.read!("config/config.exs", env: :prod)[:pux]
 
-    assert body =~ "Encrypted OTP relay"
-    assert body =~ ~s(href="/assets/app.css")
-    refute body =~ "app.js"
-    refute body =~ "<style"
-    assert get_resp_header(conn, "content-security-policy") == [@csp]
+    assert config[:pruner][:record_ttl_days] == 90
+    assert config[:pruner][:device_ttl_days] == 30
+    assert config[:pruner][:delivery_ttl_minutes] == 10
+    assert {Oban.Plugins.Pruner, max_age: 600} in config[Oban][:plugins]
+    assert config[:smtp][:inbound_rate_limit] == 20
+    assert config[:smtp][:inbound_rate_scale_ms] == 600_000
+  end
+
+  test "GET /signup redirects permanently to the landing page", %{conn: conn} do
+    conn = get(conn, "/signup")
+
+    assert conn.status == 301
+    assert redirected_to(conn, 301) == "/"
+  end
+
+  describe "legal pages" do
+    test "name the operator and the governing law", %{conn: conn} do
+      for path <- ["/privacy", "/terms"] do
+        body = html_response(get(conn, path), 200)
+
+        assert body =~ "Vidur Butalia"
+        refute body =~ "vidurb."
+        assert body =~ "laws of India"
+        assert body =~ "National Capital Territory of Delhi"
+        assert body =~ "privacy@vidur.xyz"
+        refute body =~ "<script"
+      end
+    end
+
+    test "show no draft markers", %{conn: conn} do
+      for path <- ["/privacy", "/terms"] do
+        body = html_response(get(conn, path), 200)
+
+        refute body =~ "Draft"
+        refute body =~ "To confirm"
+      end
+    end
+
+    test "the privacy policy never asks for credentials", %{conn: conn} do
+      body = html_response(get(conn, "/privacy"), 200)
+
+      assert body =~ "Send your inbox address"
+      assert body =~ "Never send your record ID, enrollment JSON or private key"
+      assert body =~ "We may ask you to confirm the request"
+      assert body =~ "as long as needed to handle your request"
+      assert body =~ "Delete relay everywhere"
+      assert body =~ "at least 18"
+      refute body =~ ~r/ephemeral/i
+      refute body =~ ~r/record ID[^.]*(never|not) (in|appear)/i
+    end
+
+    test "the footer links to them", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      assert body =~ ~s(href="/privacy")
+      assert body =~ ~s(href="/terms")
+    end
+  end
+
+  describe "site basics" do
+    test "security.txt follows RFC 9116", %{conn: conn} do
+      conn = get(conn, "/.well-known/security.txt")
+      body = response(conn, 200)
+
+      assert ["text/plain; charset=utf-8"] = get_resp_header(conn, "content-type")
+      assert body =~ "Contact: https://github.com/vidurb/pux/security/advisories/new\n"
+      assert body =~ "/.well-known/security.txt\n"
+
+      [_, expires] = Regex.run(~r/^Expires: (.+)$/m, body)
+      assert {:ok, at, 0} = DateTime.from_iso8601(expires)
+      assert DateTime.compare(at, DateTime.utc_now()) == :gt
+    end
+
+    test "robots.txt allows the site and keeps crawlers off the API", %{conn: conn} do
+      body = conn |> get("/robots.txt") |> response(200)
+
+      assert body =~ "Allow: /\n"
+      assert body =~ "Disallow: /api/\n"
+    end
+
+    test "favicons and share images are served", %{conn: conn} do
+      for path <- [
+            "/favicon.ico",
+            "/favicon.svg",
+            "/images/apple-touch-icon.png",
+            "/images/og-image.png"
+          ] do
+        assert response(get(conn, path), 200) != ""
+      end
+    end
   end
 
   test "the stylesheet the layout links is served", %{conn: conn} do

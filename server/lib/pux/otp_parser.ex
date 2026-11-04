@@ -39,6 +39,10 @@ defmodule Pux.OtpParser do
   @amount_before ~r/(?:rs\.?|inr|usd|eur|gbp|aed|\$|₹|€|£|amount(?:\s+of)?)\s*$/iu
   @reference_before ~r/(?:ending(?:\s+(?:in|with))?|a\/c(?:\s+no\.?)?|acct|account(?:\s+(?:no\.?|number))?|card(?:\s+no\.?)?|x{2,}|\*{2,}|customer\s+(?:id|code)|ref(?:erence)?(?:\s+no\.?)?|txn\s+id|mobile|phone)\s*[:#]?\s*$/i
 
+  @doc "The banks shown by name when DKIM verifies, in display order."
+  @spec bank_labels() :: [String.t()]
+  def bank_labels, do: Enum.map(@senders, fn {_domains, _parser, label} -> label end)
+
   @spec parse(String.t(), keyword()) :: {:ok, result()} | {:error, :no_otp}
   def parse(body, opts \\ []) when is_binary(body) do
     {parser, label} = sender(Keyword.get(opts, :from) || "")

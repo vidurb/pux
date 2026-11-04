@@ -59,7 +59,7 @@ class NotificationService {
   int _sequence = 0;
 
   Future<void> init() async {
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('@drawable/ic_stat_pux');
     const darwin = DarwinInitializationSettings();
     const linux = LinuxInitializationSettings(defaultActionName: 'Open notification');
     const windows = WindowsInitializationSettings(

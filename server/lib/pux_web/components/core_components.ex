@@ -10,4 +10,21 @@ defmodule PuxWeb.CoreComponents do
     <% end %>
     """
   end
+
+  @doc "The pux wordmark (brand/pux-wordmark.svg), in the current text colour."
+  def wordmark(assigns) do
+    ~H"""
+    <svg class="wordmark" viewBox="0 0 532 224" role="img" aria-label="pux">
+      <g fill="currentColor">
+        <path
+          fill-rule="evenodd"
+          transform="scale(.6667) translate(-136 -96)"
+          d="M136 96H256A120 120 0 0 1 256 336H208V432H136ZM256 154A42 42 0 0 1 278 232L294 288H218L234 232A42 42 0 0 1 256 154Z"
+        />
+        <path d="M188 0h48v86a30 30 0 0 0 60 0V0h48v160h-48v-10a78 78 0 0 1-108-64Z" />
+        <path d="M370 0h56l26 44 26-44h54l-53 80 53 80h-56l-26-43-26 43h-54l53-80Z" />
+      </g>
+    </svg>
+    """
+  end
 end

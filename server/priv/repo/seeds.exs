@@ -1,1 +1,1 @@
-# No seeds — records are created via signup only.
+# No seeds — records are created through the app only.

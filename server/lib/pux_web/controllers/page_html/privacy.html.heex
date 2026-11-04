@@ -1,0 +1,98 @@
+<article class="legal wrap wrap--narrow">
+  <h1>Privacy policy</h1>
+  <p class="legal__date">Last updated 4 November 2026</p>
+
+  <p>
+    This policy covers the hosted pux service at pux.vidur.xyz, this website and the pux apps. It is run by Vidur Butalia. pux is open source, so anyone can run their own server. If you use someone else's server, its operator is responsible for your data, not us.
+  </p>
+
+  <h2>The short version</h2>
+  <p>
+    We don't ask for your name, email address or a password. Bank emails are read in memory to find the code and aren't stored. The code is encrypted for your device before it's stored or sent. While an email is being read, its contents are in the server's memory: that is the one point where the service handles plaintext. Encrypted payloads are short-lived. Relay and device details are kept longer: up to 90 and 30 days after their last activity.
+  </p>
+
+  <h2>What the service handles</h2>
+  <h3>Email sent to your inbox address</h3>
+  <p>
+    The server reads each message in memory to find a code, the sender and any DKIM signature. It doesn't write the message to disk or the database. Messages with no code are dropped. Code, sender name and domain, verification result and time are put in a payload and encrypted with your device's public key.
+  </p>
+  <h3>Encrypted payloads</h3>
+  <p>
+    Encrypted payloads are stored in the database while they are delivered. Push jobs are deleted about 10 minutes after they finish. If your relay has a desktop device, a pending copy is kept until the desktop confirms it, for up to about 15 minutes. We can't decrypt these, because the private key is on your device.
+  </p>
+  <h3>Relay and device details</h3>
+  <ul>
+    <li>
+      <strong>Relay:</strong>
+      a random record ID, inbox token, your public key, and the times it was created and last active. Deleted when you delete the relay, or after 90 days without activity.
+    </li>
+    <li>
+      <strong>Device:</strong>
+      a push token (a generated identifier on desktop), the platform, and the times it was registered and last seen. Deleted when you remove it, when the push service reports the token is no longer valid, or after 30 days without contact.
+    </li>
+  </ul>
+  <h3>IP addresses and logs</h3>
+  <p>
+    IP addresses are used in memory for rate limiting. If you exceed the limit for creating relays, your IP address appears in a server log line. Server logs don't include email contents or codes, and API requests are left out of the request log. The gateway and infrastructure the hosted service runs on can keep their own technical logs, which may include IP addresses and request details. API request paths contain the record ID, so logs of those paths can include it. Any database backups contain what was in the database when they were taken, including encrypted payloads and relay and device details.
+  </p>
+
+  <h2>This website</h2>
+  <p>
+    The website uses no cookies, analytics, trackers, third-party scripts or third-party fonts.
+  </p>
+
+  <h2>The apps</h2>
+  <p>
+    The apps store your keys and record ID in your device's secure storage. They contain no analytics or advertising SDKs. They ask for permission to show notifications and, if you scan an enrollment QR code, to use the camera. Camera images are used on your device to read the code.
+  </p>
+
+  <h2>Who else is involved</h2>
+  <ul>
+    <li>
+      <strong>Google (Firebase Cloud Messaging)</strong>
+      delivers pushes to Android and iOS devices. It handles your device's push token, the encrypted payload and the time of delivery. It can't read the code. Firebase may also process an installation identifier.
+    </li>
+    <li>
+      <strong>Apple (Push Notification service)</strong>
+      carries pushes to iOS devices, with a generic "New code" placeholder that your device replaces after decrypting.
+    </li>
+    <li>
+      <strong>Your email provider</strong>
+      sees your mail and your forwarding rule. Its own privacy policy applies.
+    </li>
+    <li>
+      <strong>Hosting infrastructure</strong>
+      runs the service, and may process technical data such as IP addresses along with the data the service stores.
+    </li>
+  </ul>
+  <p>We don't sell your data or use it for advertising.</p>
+
+  <h2>Your choices</h2>
+  <p>
+    The direct route is in the app: <strong>Delete relay everywhere</strong>
+    deletes your relay, its devices and pending deliveries from the server, and
+    <strong>Remove this device</strong>
+    deletes one device.
+  </p>
+  <p>
+    You can also ask us to delete your relay by emailing <a href="mailto:privacy@vidur.xyz">privacy@vidur.xyz</a>. Send your inbox address so we can identify the relay. Never send your record ID, enrollment JSON or private key: they are credentials, and we don't need them. We may ask you to confirm the request, for example by sending a short code to your inbox address, which you'd see as a notification and send back. When you email us, we receive your email address and your message, and we keep them as long as needed to handle your request.
+  </p>
+
+  <h2>Age</h2>
+  <p>You must be at least 18 to use pux.</p>
+
+  <h2>Governing law</h2>
+  <p>
+    This policy is governed by the laws of India, and the courts of the National Capital Territory of Delhi have jurisdiction.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    We'll post changes on this page and update the date above. The history of this page is public in the source repository.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Privacy requests: <a href="mailto:privacy@vidur.xyz">privacy@vidur.xyz</a>. For security reports, use <a href="https://github.com/vidurb/pux/security/advisories/new">GitHub's private reporting</a>.
+  </p>
+</article>
