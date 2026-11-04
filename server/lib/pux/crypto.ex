@@ -3,7 +3,15 @@ defmodule Pux.Crypto do
   libsodium sealed-box helpers. The server only ever encrypts with the record public key.
   """
 
+  @public_key_bytes 32
+
+  # enacl doesn't check the key size, so a short key would read past the end of the binary.
   @spec seal(binary(), binary()) :: {:ok, binary()} | {:error, term()}
+  def seal(plaintext, public_key)
+      when is_binary(plaintext) and byte_size(public_key) != @public_key_bytes do
+    {:error, :invalid_public_key}
+  end
+
   def seal(plaintext, public_key) when is_binary(plaintext) and is_binary(public_key) do
     try do
       {:ok, :enacl.box_seal(plaintext, public_key)}
@@ -18,7 +26,7 @@ defmodule Pux.Crypto do
   @spec decode_key(String.t()) :: {:ok, binary()} | {:error, :invalid}
   def decode_key(encoded) do
     case Base.url_decode64(encoded, padding: false) do
-      {:ok, key} when byte_size(key) == 32 -> {:ok, key}
+      {:ok, key} when byte_size(key) == @public_key_bytes -> {:ok, key}
       _ -> {:error, :invalid}
     end
   end

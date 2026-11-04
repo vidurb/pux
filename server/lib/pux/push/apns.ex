@@ -7,7 +7,7 @@ defmodule Pux.Push.APNs do
 
   @spec deliver(String.t(), map()) :: :ok
   def deliver(push_token, _envelope) when is_binary(push_token) do
-    Logger.debug("APNs not configured; would push to #{String.slice(push_token, 0, 8)}...")
+    Logger.debug("APNs not configured; would push")
     :ok
   end
 end

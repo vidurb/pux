@@ -6,9 +6,13 @@ config :pux, PuxWeb.Endpoint,
   force_ssl: [
     hsts: true,
     rewrite_on: [:x_forwarded_proto],
-    exclude: [hosts: ["localhost", "127.0.0.1"], paths: ["/health"]]
+    exclude: [hosts: ["localhost", "127.0.0.1"], paths: ["/health"]],
+    # The redirect log line has the request path, which holds the record ID for API calls.
+    log: false
   ]
 
 config :pux, :secure_cookies, true
 
+# Not :debug: Ecto logs query parameters and gen_smtp logs recipient addresses at that level,
+# which would write record IDs and inbox tokens to the logs.
 config :logger, level: :info

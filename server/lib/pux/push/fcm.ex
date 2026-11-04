@@ -33,8 +33,9 @@ defmodule Pux.Push.FCM do
          {:ok, credentials} <- Jason.decode(json) do
       {Goth, name: Pux.Goth, source: {:service_account, credentials}}
     else
-      {:error, reason} ->
-        Logger.error("FCM service account JSON is invalid: #{inspect(reason)}")
+      # The decode error holds the whole input, including the private key.
+      {:error, %Jason.DecodeError{position: position}} ->
+        Logger.error("FCM service account JSON is invalid at byte #{position}")
         nil
 
       _ ->
@@ -47,7 +48,7 @@ defmodule Pux.Push.FCM do
     if enabled?() do
       do_deliver(config()[:project_id], push_token, envelope)
     else
-      Logger.debug("FCM disabled; would push to #{String.slice(push_token, 0, 8)}...")
+      Logger.debug("FCM disabled; would push")
       :ok
     end
   end
