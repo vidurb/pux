@@ -7,7 +7,7 @@ defmodule Pux.Records.Device do
     # `redact` keeps these out of inspect/1, and so out of error logs and crash reports.
     field :push_token, :string, redact: true
     field :record_id, :binary_id, redact: true
-    field :platform, Ecto.Enum, values: [:fcm, :apns, :desktop]
+    field :platform, Ecto.Enum, values: [:fcm, :desktop]
     # Registration or an accepted push. Age limits run from this.
     field :last_seen_at, :utc_datetime_usec
     # The last dry-run check that passed. Says nothing about the device being used, so it

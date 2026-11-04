@@ -61,6 +61,5 @@ defmodule PuxWeb.DeviceController do
 
   defp parse_platform("fcm"), do: {:ok, :fcm}
   defp parse_platform("desktop"), do: {:ok, :desktop}
-  defp parse_platform("apns"), do: {:error, :invalid_platform}
   defp parse_platform(_), do: {:error, :invalid_platform}
 end

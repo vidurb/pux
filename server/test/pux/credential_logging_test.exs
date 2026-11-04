@@ -14,7 +14,7 @@ defmodule Pux.CredentialLoggingTest do
   import ExUnit.CaptureLog
 
   alias Pux.{Fixtures, Push, Records}
-  alias Pux.Push.{APNs, FCM}
+  alias Pux.Push.FCM
   alias Pux.Records.{Device, PendingDelivery, Record}
   alias Pux.SMTP.Session
   alias Pux.Workers.PushWorker
@@ -170,18 +170,16 @@ defmodule Pux.CredentialLoggingTest do
       refute inspect(args) =~ device.push_token
     end
 
-    test "disabled providers don't log any of the push token" do
+    test "disabled FCM doesn't log any of the push token" do
       token = "pushtoken-that-is-long-enough"
 
-      for module <- [FCM, APNs] do
-        Logger.put_module_level(module, :debug)
-        on_exit(fn -> Logger.delete_module_level(module) end)
+      Logger.put_module_level(FCM, :debug)
+      on_exit(fn -> Logger.delete_module_level(FCM) end)
 
-        log = capture_log(fn -> assert :ok = module.deliver(token, %{"ciphertext" => "c"}) end)
+      log = capture_log(fn -> assert :ok = FCM.deliver(token, %{"ciphertext" => "c"}) end)
 
-        assert log =~ "would push"
-        refute log =~ String.slice(token, 0, 8)
-      end
+      assert log =~ "would push"
+      refute log =~ String.slice(token, 0, 8)
     end
   end
 
