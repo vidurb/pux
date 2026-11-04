@@ -7,7 +7,7 @@ config :pux, PuxWeb.Endpoint,
     hsts: true,
     rewrite_on: [:x_forwarded_proto],
     exclude: [hosts: ["localhost", "127.0.0.1"], paths: ["/health"]],
-    # The redirect log line has the request path, which holds the record ID for API calls.
+    # The redirect log line repeats whatever URL a client asked for, and nothing needs it.
     log: false
   ]
 

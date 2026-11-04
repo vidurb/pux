@@ -84,7 +84,7 @@ class ApiClient {
     required String pushToken,
     required String platform,
   }) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId/devices');
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices');
     final response = await _client
         .post(
           uri,
@@ -107,9 +107,7 @@ class ApiClient {
   /// Removes one device from the record. A device or record the server no
   /// longer knows counts as removed.
   Future<void> deleteDevice({required String recordId, required String deviceId}) async {
-    final uri = Uri.parse(
-      '${RecordStore.instance.serverUrl}/api/v1/records/$recordId/devices/$deviceId',
-    );
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices/$deviceId');
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -121,7 +119,7 @@ class ApiClient {
   /// Deletes the record with all its devices and pending deliveries. A record
   /// the server no longer knows counts as deleted.
   Future<void> deleteRecord({required String recordId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId');
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record');
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -131,7 +129,7 @@ class ApiClient {
   }
 
   Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries');
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries');
     final response = await _client
         .get(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -153,15 +151,15 @@ class ApiClient {
     }).toList();
   }
 
+  /// A delivery or record the server no longer knows counts as acknowledged.
+  /// The next poll reports a record that is gone.
   Future<void> ackDelivery({required String recordId, required String deliveryId}) async {
-    final uri = Uri.parse(
-      '${RecordStore.instance.serverUrl}/api/v1/records/$recordId/deliveries/$deliveryId',
-    );
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries/$deliveryId');
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
 
-    if (response.statusCode == 404) return;
+    if (response.statusCode == 401 || response.statusCode == 404) return;
     _check(response, 'Delivery ack');
   }
 

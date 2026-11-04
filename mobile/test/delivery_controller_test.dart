@@ -23,6 +23,11 @@ void main() {
     expect(DeliveryController.instance.status.value.state, DeliveryState.tooManyDevices);
   });
 
+  test('a relay the server does not know is reported as its own, non-retrying state', () {
+    DeliveryController.instance.reportError(const RecordNotFoundException());
+    expect(DeliveryController.instance.status.value.state, DeliveryState.recordUnknown);
+  });
+
   test('rate limiting is reported as a transient retry', () {
     DeliveryController.instance.reportError(const RateLimitedException());
     expect(DeliveryController.instance.status.value.state, DeliveryState.retrying);

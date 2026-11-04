@@ -62,7 +62,7 @@ void main() {
     await settle(tester);
 
     expect(requests.single.method, 'DELETE');
-    expect(requests.single.url.path, '/api/v1/records/$_recordId/devices/dev_1');
+    expect(requests.single.url.path, '/api/v1/record/devices/dev_1');
     expect(find.text('Set up pux'), findsOneWidget);
     expect(await RecordStore.instance.recordId(), isNull);
   });
@@ -115,7 +115,7 @@ void main() {
     await settle(tester);
 
     expect(requests.single.method, 'DELETE');
-    expect(requests.single.url.path, '/api/v1/records/$_recordId');
+    expect(requests.single.url.path, '/api/v1/record');
     expect(find.text('Set up pux'), findsOneWidget);
     expect(await RecordStore.instance.recordId(), isNull);
   });

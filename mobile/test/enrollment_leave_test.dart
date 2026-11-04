@@ -376,7 +376,7 @@ void main() {
       await createWithFailingSave(tester);
 
       final deleted = requests.where((request) => request.method == 'DELETE').single;
-      expect(deleted.url.path, '/api/v1/records/$_recordId');
+      expect(deleted.url.path, '/api/v1/record');
       expect(deleted.headers['authorization'], 'Bearer $_recordId');
       expect(find.textContaining('storage unavailable'), findsOneWidget);
       expectNotEnrolled();

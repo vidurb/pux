@@ -41,7 +41,7 @@ defmodule PuxWeb.RecordControllerTest do
     deleted =
       conn
       |> put_req_header("authorization", "Bearer #{id}")
-      |> delete("/api/v1/records/#{id}")
+      |> delete("/api/v1/record")
 
     assert response(deleted, 204)
     refute Pux.Records.get_record(id)
@@ -52,7 +52,7 @@ defmodule PuxWeb.RecordControllerTest do
   test "rejects unauthenticated record deletion", %{conn: conn} do
     {:ok, enrollment} = Pux.Records.create_record(Fixtures.public_key())
 
-    conn = delete(conn, "/api/v1/records/#{enrollment.record_id}")
+    conn = delete(conn, "/api/v1/record")
     assert json_response(conn, 401)["error"] == "unauthorized"
     assert Pux.Records.get_record(enrollment.record_id)
   end

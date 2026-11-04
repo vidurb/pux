@@ -7,7 +7,7 @@ defmodule PuxWeb.Plugs.RecordRateLimitTest do
   alias PuxWeb.Plugs.RecordRateLimit
 
   defp call(record_id, opts) do
-    conn(:get, "/api/v1/records/#{record_id}/deliveries")
+    conn(:get, "/api/v1/record/deliveries")
     |> assign(:record_id, record_id)
     |> RecordRateLimit.call(RecordRateLimit.init(opts))
   end

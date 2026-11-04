@@ -201,12 +201,65 @@ defmodule Pux.CredentialLoggingTest do
   end
 
   describe "HTTP" do
-    test "API requests aren't logged, even when they fail with a 500", %{enrollment: e} do
-      on_insert("devices", "RAISE EXCEPTION 'database failure';")
+    test "API requests are logged without the credential on every route", %{enrollment: e} do
+      {:ok, device} = add_device(e, :desktop)
+      {:ok, pending} = Pux.Deliveries.create_pending(e.record_id, %{"ciphertext" => "c"})
+      body = ~s({"push_token":"push-token-http","platform":"fcm"})
+
+      log =
+        capture_log(fn ->
+          assert %{status: 201} = api(e, :post, "/devices", body)
+          assert %{status: 200} = api(e, :get, "/deliveries")
+          assert %{status: 204} = api(e, :delete, "/deliveries/#{pending.id}")
+          assert %{status: 204} = api(e, :delete, "/devices/#{device.id}")
+          assert %{status: 204} = api(e, :delete, "")
+        end)
+
+      assert log =~ "POST /api/v1/record/devices"
+      assert log =~ "GET /api/v1/record/deliveries"
+      assert log =~ "DELETE /api/v1/record/deliveries/#{pending.id}"
+      assert log =~ "DELETE /api/v1/record/devices/#{device.id}"
+      assert log =~ "DELETE /api/v1/record\n"
+      refute log =~ "push-token-http"
+      refute_credentials(log, e)
+    end
+
+    test "rejected tokens aren't logged", %{enrollment: e} do
+      unknown = Ecto.UUID.generate()
+
+      log =
+        capture_log(fn ->
+          for token <- [unknown, "malformed-credential", e.record_id <> "x"] do
+            assert %{status: 401} = api(%{record_id: token}, :get, "/deliveries")
+          end
+        end)
+
+      assert log =~ "Sent 401"
+      refute log =~ unknown
+      refute log =~ "malformed-credential"
+      refute_credentials(log, e)
+    end
+
+    test "a rate limited request doesn't log the credential", %{enrollment: e} do
+      config = Application.get_env(:pux, :record_rate_limit)
+      on_exit(fn -> Application.put_env(:pux, :record_rate_limit, config) end)
+      Application.put_env(:pux, :record_rate_limit, limit: 1, scale_ms: 60_000)
 
       log =
         capture_log(fn ->
           assert %{status: 200} = api(e, :get, "/deliveries")
+          assert %{status: 429} = api(e, :get, "/deliveries")
+        end)
+
+      assert log =~ "Record API rate limit exceeded"
+      refute_credentials(log, e)
+    end
+
+    test "a 500 doesn't log the credential", %{enrollment: e} do
+      on_insert("devices", "RAISE EXCEPTION 'database failure';")
+
+      log =
+        capture_log(fn ->
           body = ~s({"push_token":"push-token-http","platform":"fcm"})
           assert %{status: 500} = api(e, :post, "/devices", body)
           # Bandit logs the exception after it has sent the response.
@@ -218,7 +271,21 @@ defmodule Pux.CredentialLoggingTest do
       refute_credentials(log, e)
     end
 
-    test "the HTTPS redirect doesn't log the request path", %{enrollment: e} do
+    test "a database failure while authenticating doesn't log the credential", %{enrollment: e} do
+      # Rolled back with the sandbox transaction.
+      Pux.Repo.query!("ALTER TABLE records RENAME TO records_hidden")
+
+      log =
+        capture_log(fn ->
+          assert %{status: 500} = api(e, :get, "/deliveries")
+          Process.sleep(200)
+        end)
+
+      assert log =~ "Postgrex.Error"
+      refute_credentials(log, e)
+    end
+
+    test "the HTTPS redirect logs nothing and carries no credential", %{enrollment: e} do
       force_ssl =
         "../../config/prod.exs"
         |> Path.expand(__DIR__)
@@ -227,15 +294,20 @@ defmodule Pux.CredentialLoggingTest do
 
       conn =
         :get
-        |> Plug.Test.conn("http://pux.test/api/v1/records/#{e.record_id}/deliveries")
+        |> Plug.Test.conn("http://pux.test/api/v1/record/deliveries")
         |> Plug.Conn.put_req_header("x-forwarded-proto", "http")
+        |> Plug.Conn.put_req_header("authorization", "Bearer #{e.record_id}")
 
       log =
         capture_log(fn ->
-          assert %{status: 301} = Plug.SSL.call(conn, Plug.SSL.init(force_ssl))
+          conn = Plug.SSL.call(conn, Plug.SSL.init(force_ssl))
+          assert conn.status == 301
+
+          assert Plug.Conn.get_resp_header(conn, "location") ==
+                   ["https://pux.test/api/v1/record/deliveries"]
         end)
 
-      refute_credentials(log, e)
+      assert log == ""
     end
   end
 
@@ -287,7 +359,7 @@ defmodule Pux.CredentialLoggingTest do
   defp http_port, do: Application.fetch_env!(:pux, PuxWeb.Endpoint)[:http][:port]
 
   defp api(enrollment, method, path, body \\ nil) do
-    url = "http://127.0.0.1:#{http_port()}/api/v1/records/#{enrollment.record_id}#{path}"
+    url = "http://127.0.0.1:#{http_port()}/api/v1/record#{path}"
 
     headers = [
       {"authorization", "Bearer #{enrollment.record_id}"},

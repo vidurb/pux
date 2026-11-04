@@ -44,11 +44,10 @@ What pux is designed to guarantee, so you can tell a vulnerability from intended
 - **The server cannot read OTPs.** Keypairs are generated on the device. The server stores only the
   public key, seals each payload with a libsodium sealed box and keeps no mail. Plaintext exists on
   the server only in memory, while a message is being parsed.
-- **The record ID is the only credential.** It is a random UUID sent as a bearer token. It is also in
-  the path of authenticated API calls (`/api/v1/records/:id`). The server keeps those paths out of its own
-  logs, but a reverse proxy that logs paths will record it ([#18](https://github.com/vidurb/pux/issues/18)). The delivery WebSocket takes it
-  only in a header. A record ID alone lets someone use the relay's API, including deleting it. Reading its
-  OTPs also needs the private key: anyone holding both (the enrollment QR / JSON) can read that relay's OTPs.
+- **The record ID is the only credential.** It is a random UUID sent only in request headers: as a bearer
+  token to the API, and in `x-pux-token` to the delivery WebSocket. It is never in a URL. A record ID alone
+  lets someone use the relay's API, including deleting it. Reading its OTPs also needs the private key:
+  anyone holding both (the enrollment QR / JSON) can read that relay's OTPs.
 - **Sender names are only shown as verified when DKIM says so.** A bank label is shown only when a valid
   DKIM signature aligns with the From domain; anything else is marked unverified. DKIM doesn't stop a
   genuinely signed message from being replayed to another inbox address.

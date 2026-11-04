@@ -21,7 +21,7 @@ defmodule PuxWeb.DeliveryControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> get("/api/v1/records/#{enrollment.record_id}/deliveries")
+      |> get("/api/v1/record/deliveries")
 
     assert %{"deliveries" => [delivery]} = json_response(conn, 200)
     assert delivery["delivery_id"] == pending.id
@@ -35,14 +35,14 @@ defmodule PuxWeb.DeliveryControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> delete("/api/v1/records/#{enrollment.record_id}/deliveries/#{pending.id}")
+      |> delete("/api/v1/record/deliveries/#{pending.id}")
 
     assert response(conn, 204)
     assert Deliveries.list_pending(enrollment.record_id) == []
   end
 
-  test "rejects unauthenticated request", %{conn: conn, enrollment: enrollment} do
-    conn = get(conn, "/api/v1/records/#{enrollment.record_id}/deliveries")
+  test "rejects unauthenticated request", %{conn: conn} do
+    conn = get(conn, "/api/v1/record/deliveries")
     assert json_response(conn, 401)["error"] == "unauthorized"
   end
 end
