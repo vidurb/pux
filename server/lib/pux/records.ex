@@ -67,9 +67,16 @@ defmodule Pux.Records do
   @spec get_record(Ecto.UUID.t()) :: Record.t() | nil
   def get_record(id), do: Repo.get(Record, id)
 
-  @spec get_record_by_inbox_token(String.t()) :: Record.t() | nil
-  def get_record_by_inbox_token(token) do
-    Repo.get_by(Record, inbox_token: token)
+  @doc """
+  The record behind an inbox token, if mail to it can reach a device. A single query, so that
+  an unknown address and a relay with no devices look the same to a sender, in time as well
+  as in the reply.
+  """
+  @spec get_deliverable_record_by_inbox_token(String.t()) :: Record.t() | nil
+  def get_deliverable_record_by_inbox_token(token) do
+    from(r in Record, as: :record)
+    |> where([r], r.inbox_token == ^token and exists(device_of_record()))
+    |> Repo.one()
   end
 
   @spec touch_record!(Record.t()) :: Record.t()
@@ -81,15 +88,24 @@ defmodule Pux.Records do
     |> Repo.update!()
   end
 
-  @doc "Like `touch_record!/1`, but returns `{:error, :not_found}` if the record is gone."
-  @spec touch_record(Record.t()) :: :ok | {:error, :not_found}
+  @doc """
+  Marks mail as delivered to a record that can still receive it. Returns
+  `{:error, :no_devices}` if the record went away or lost its last device after the
+  recipient was accepted: there is nobody to deliver to, and that mail must not restart the
+  clock of a relay on its way out.
+  """
+  @spec touch_record(Record.t()) :: :ok | {:error, :no_devices}
   def touch_record(%Record{id: id}) do
-    case Repo.update_all(from(r in Record, where: r.id == ^id),
-           set: [last_active_at: DateTime.utc_now()]
-         ) do
+    query = from(r in Record, as: :record, where: r.id == ^id and exists(device_of_record()))
+
+    case Repo.update_all(query, set: [last_active_at: DateTime.utc_now()]) do
       {1, _} -> :ok
-      {0, _} -> {:error, :not_found}
+      {0, _} -> {:error, :no_devices}
     end
+  end
+
+  defp device_of_record do
+    from(d in Device, where: d.record_id == parent_as(:record).id, select: 1)
   end
 
   @doc """
@@ -176,12 +192,28 @@ defmodule Pux.Records do
     |> Repo.update(stale_error_field: :id)
   end
 
+  @doc "Deletes a token the push service reports dead, on every record that has it."
   @spec delete_devices_by_token(String.t()) :: non_neg_integer()
   def delete_devices_by_token(push_token) do
-    {count, _} =
-      Device
-      |> where([d], d.push_token == ^push_token)
-      |> Repo.delete_all()
+    Device
+    |> where([d], d.push_token == ^push_token)
+    |> delete_lost_devices()
+  end
+
+  # The server, not the user, decided these devices are gone, and it can be wrong about one
+  # that is merely switched off or has a new token. Restarting the record's clock gives that
+  # app the full `deviceless_record_ttl_days` to re-register, however quiet the relay was.
+  defp delete_lost_devices(query) do
+    {:ok, count} =
+      Repo.transaction(fn ->
+        {count, record_ids} = query |> select([d], d.record_id) |> Repo.delete_all()
+
+        Repo.update_all(from(r in Record, where: r.id in ^Enum.uniq(record_ids)),
+          set: [last_active_at: DateTime.utc_now()]
+        )
+
+        count
+      end)
 
     count
   end
@@ -222,29 +254,68 @@ defmodule Pux.Records do
   @spec delete_device(Device.t()) :: {:ok, Device.t()} | {:error, term()}
   def delete_device(%Device{} = device), do: Repo.delete(device)
 
-  @spec prune_stale_records(non_neg_integer()) :: non_neg_integer()
-  def prune_stale_records(ttl_days) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-ttl_days * 86_400, :second)
+  @doc "Deletes records with no devices whose `last_active_at` is older than the TTL."
+  @spec prune_deviceless_records(non_neg_integer()) :: non_neg_integer()
+  def prune_deviceless_records(ttl_days) do
+    cutoff = days_ago(ttl_days)
 
     {count, _} =
-      Record
-      |> where([r], r.last_active_at < ^cutoff)
+      from(r in Record, as: :record)
+      |> where([r], r.last_active_at < ^cutoff and not exists(device_of_record()))
       |> Repo.delete_all()
 
     count
   end
 
-  @spec prune_stale_devices(non_neg_integer()) :: non_neg_integer()
-  def prune_stale_devices(ttl_days) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-ttl_days * 86_400, :second)
+  @doc """
+  Deletes devices that haven't registered within the TTL, except FCM devices: FCM reports
+  those itself. Everything else has no such signal.
+  """
+  @spec prune_stale_desktop_devices(non_neg_integer()) :: non_neg_integer()
+  def prune_stale_desktop_devices(ttl_days) do
+    cutoff = days_ago(ttl_days)
 
-    {count, _} =
-      Device
-      |> where([d], d.last_seen_at < ^cutoff)
-      |> Repo.delete_all()
-
-    count
+    Device
+    |> where([d], d.platform != :fcm and d.last_seen_at < ^cutoff)
+    |> delete_lost_devices()
   end
+
+  @doc """
+  Deletes any device with no registration or accepted push within the limit. Unlike FCM's
+  answer, this also covers tokens nothing would ever report, such as an uninstalled iOS app.
+  """
+  @spec prune_long_idle_devices(non_neg_integer()) :: non_neg_integer()
+  def prune_long_idle_devices(max_idle_days) do
+    cutoff = days_ago(max_idle_days)
+
+    Device
+    |> where([d], d.last_seen_at < ^cutoff)
+    |> delete_lost_devices()
+  end
+
+  @doc "IDs of FCM devices with no registration, accepted push or passed check within the days."
+  @spec list_quiet_fcm_device_ids(non_neg_integer()) :: [Ecto.UUID.t()]
+  def list_quiet_fcm_device_ids(days) do
+    cutoff = days_ago(days)
+
+    Device
+    |> where([d], d.platform == :fcm and d.last_seen_at < ^cutoff)
+    |> where([d], is_nil(d.token_checked_at) or d.token_checked_at < ^cutoff)
+    |> select([d], d.id)
+    |> Repo.all()
+  end
+
+  @doc "Records a passed token check. Leaves `last_seen_at`, and so the age limits, alone."
+  @spec mark_token_checked(Device.t()) :: :ok
+  def mark_token_checked(%Device{id: id}) do
+    Repo.update_all(from(d in Device, where: d.id == ^id),
+      set: [token_checked_at: DateTime.utc_now(:microsecond)]
+    )
+
+    :ok
+  end
+
+  defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
   defp build_enrollment(%Record{} = record) do
     mail_domain = Application.get_env(:pux, :smtp)[:mail_domain] || "localhost"

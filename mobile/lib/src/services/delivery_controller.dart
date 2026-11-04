@@ -74,8 +74,9 @@ class DeliveryController {
     _serviceOverride = service;
   }
 
-  /// The server prunes devices that have not registered for 30 days, so
-  /// registration is refreshed on every start and on resume after this long.
+  /// Registration is refreshed on every start and on resume after this long,
+  /// which keeps the push token current and restarts a desktop's age limit on
+  /// the server.
   static const _refreshInterval = Duration(hours: 12);
 
   Timer? _retryTimer;

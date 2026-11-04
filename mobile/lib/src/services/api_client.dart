@@ -12,8 +12,9 @@ class PendingDelivery {
   final Map<String, dynamic> envelope;
 }
 
-/// The server no longer knows this record (pruned after inactivity or never
-/// existed). Retrying will not help; the device has to enroll again.
+/// The server no longer knows this record: it was deleted, pruned after going
+/// 30 days with no devices, or never existed. Retrying will not help; the device
+/// has to enroll again.
 class RecordNotFoundException implements Exception {
   const RecordNotFoundException();
 

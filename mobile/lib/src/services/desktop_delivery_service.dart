@@ -20,10 +20,18 @@ class DesktopDeliveryService implements DeliveryService {
 
   static const _pingInterval = Duration(seconds: 30);
 
+  /// The server deletes desktop devices that have not registered for 90 days,
+  /// and the socket and polls don't count: they identify the record, not the
+  /// device. An app left running for months may never restart or resume, so it
+  /// re-registers on this timer. Without a device the server keeps no pending
+  /// deliveries for it, and codes would be lost with the socket still open.
+  static const _registrationInterval = Duration(hours: 12);
+
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+  Timer? _registrationTimer;
   bool _stopped = true;
   int _attempt = 0;
 
@@ -39,8 +47,27 @@ class DesktopDeliveryService implements DeliveryService {
 
     // Registration and the first poll throw to the caller, which retries.
     await _registerDevice();
+    keepRegistered();
     await _pollPending();
     unawaited(_connectWebSocket());
+  }
+
+  /// Re-registers on a timer until [stop]. A transient failure waits for the
+  /// next tick: the server's limit is many ticks away.
+  @visibleForTesting
+  void keepRegistered({Duration interval = _registrationInterval}) {
+    _registrationTimer?.cancel();
+    _registrationTimer = Timer.periodic(interval, (_) async {
+      try {
+        await _registerDevice();
+      } on RecordNotFoundException catch (error) {
+        DeliveryController.instance.reportError(error);
+      } on TooManyDevicesException catch (error) {
+        DeliveryController.instance.reportError(error);
+      } catch (error) {
+        debugPrint('Desktop device refresh failed: $error');
+      }
+    });
   }
 
   @override
@@ -48,10 +75,12 @@ class DesktopDeliveryService implements DeliveryService {
     _stopped = true;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
+    _registrationTimer?.cancel();
     await _subscription?.cancel();
     await _channel?.sink.close();
     _reconnectTimer = null;
     _pingTimer = null;
+    _registrationTimer = null;
     _subscription = null;
     _channel = null;
   }
