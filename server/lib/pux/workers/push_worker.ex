@@ -1,6 +1,6 @@
 defmodule Pux.Workers.PushWorker do
   @moduledoc """
-  Delivers encrypted push notifications asynchronously via FCM/APNs.
+  Delivers encrypted push notifications asynchronously via FCM.
   OTPs go stale in minutes, so retries are short.
   """
   use Oban.Worker, queue: :push, max_attempts: 4

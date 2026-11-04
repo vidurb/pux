@@ -5,7 +5,7 @@ defmodule Pux.Push do
 
   alias Pux.{Crypto, Deliveries, Records}
   alias Pux.Records.Record
-  alias Pux.Push.{APNs, FCM}
+  alias Pux.Push.FCM
 
   require Logger
 
@@ -63,10 +63,6 @@ defmodule Pux.Push do
   @spec dispatch_device(map(), map()) :: FCM.result()
   def dispatch_device(%{platform: :fcm, push_token: token}, envelope) do
     FCM.deliver(token, envelope)
-  end
-
-  def dispatch_device(%{platform: :apns, push_token: token}, envelope) do
-    APNs.deliver(token, envelope)
   end
 
   def dispatch_device(%{platform: :desktop}, _envelope) do
