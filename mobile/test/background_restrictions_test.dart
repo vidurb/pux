@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pux/src/screens/background_restriction_prompts.dart';
+import 'package:pux/src/screens/delivery_prompts.dart';
 import 'package:pux/src/screens/home_screen.dart';
 import 'package:pux/src/screens/import_enrollment_screen.dart';
 import 'package:pux/src/services/background_restrictions.dart';
@@ -51,6 +52,8 @@ void main() {
 
   setUp(() {
     native = _FakeChannel()..install();
+    // The app does this at startup. The prompts also check notifications on iOS.
+    IOSFlutterLocalNotificationsPlugin.registerWith();
     FlutterSecureStorage.setMockInitialValues({});
     RecordStore.instance.setServerUrlForTesting('https://pux.test');
   });
@@ -64,9 +67,7 @@ void main() {
 
   Future<void> pumpPrompts(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: BackgroundRestrictionPrompts())),
-    );
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: DeliveryPrompts())));
     await tester.pumpAndSettle();
   }
 
@@ -84,11 +85,6 @@ void main() {
     }
     await tester.pumpAndSettle();
   }
-
-  Finder dismissButton(String title) => find.descendant(
-    of: find.ancestor(of: find.text(title), matching: find.byType(Column)).first,
-    matching: find.text('Dismiss'),
-  );
 
   group('hibernation status', () {
     const cases = {
@@ -161,15 +157,16 @@ void main() {
     }, variant: TargetPlatformVariant.only(platform));
   }
 
-  testWidgets('each button opens the page for its own restriction', (tester) async {
+  testWidgets('each prompt opens the page for its own restriction', (tester) async {
     native.hibernation = 'hibernation';
     native.backgroundRestricted = true;
     await pumpPrompts(tester);
 
-    final buttons = find.text('Open settings');
-    expect(buttons, findsNWidgets(2));
-    await tester.tap(buttons.first);
-    await tester.tap(buttons.last);
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dismiss'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open settings'));
     await tester.pumpAndSettle();
 
     expect(native.calls.where((call) => call != 'getStatus'), [
@@ -219,12 +216,15 @@ void main() {
     expect(find.text(_hibernationTitle), findsNothing);
   });
 
-  testWidgets('dismissing one restriction leaves the other showing', (tester) async {
+  testWidgets('shows one restriction at a time, the next after a dismissal', (tester) async {
     native.hibernation = 'hibernation';
     native.backgroundRestricted = true;
     await pumpPrompts(tester);
 
-    await tester.tap(dismissButton(_hibernationTitle));
+    expect(find.text(_hibernationTitle), findsOneWidget);
+    expect(find.text(_backgroundTitle), findsNothing);
+
+    await tester.tap(find.text('Dismiss'));
     await tester.pumpAndSettle();
 
     expect(find.text(_hibernationTitle), findsNothing);
