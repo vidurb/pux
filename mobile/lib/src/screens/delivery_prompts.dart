@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../platform.dart';
 import '../services/background_restrictions.dart';
 import '../services/notification_permissions.dart';
 import '../services/record_store.dart';
@@ -13,18 +14,18 @@ import '../services/record_store.dart';
 /// as soon as the user changes the setting.
 ///
 /// Only one prompt shows at a time, so the screen stays usable: notifications
-/// first, because without them every code is lost, then the restrictions, which
-/// wait until the one before is fixed or dismissed.
+/// first, because without them no code gets through, then the restrictions,
+/// which wait until the one before is fixed or dismissed.
 ///
 /// Dismissing a restriction silences it until it has been lifted and comes back,
 /// or until the relay is set up again: then it's a new problem, not the one the
 /// user already chose to ignore.
 ///
 /// The notification prompt can't be dismissed. A restriction is a risk to codes
-/// in the future; this is a certainty now, and the app has no other way to show
-/// a code, so a dismissed prompt would only hide that the app has stopped
-/// working. It costs little to keep: it shows only here, and nothing else on the
-/// screen is blocked.
+/// in the future; this is a certainty now. On a phone the app has no other way to
+/// show a code, and on a desktop codes wait on this screen and expire unseen, so
+/// a dismissed prompt would only hide that the app has stopped working. It costs
+/// little to keep: it shows only here, and nothing else on the screen is blocked.
 class DeliveryPrompts extends StatefulWidget {
   const DeliveryPrompts({super.key});
 
@@ -126,6 +127,12 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
         "pux's notifications are set to arrive quietly, with no banner or alert, "
             'so you could miss a code before it expires. Open settings and turn '
             'on alerts for pux.',
+      ),
+      _ when isDesktopPlatform => (
+        'Notifications are off',
+        "New codes wait on this screen until you allow notifications, or until "
+            'they expire, up to 15 minutes after arriving. Open settings and '
+            'allow notifications for pux.',
       ),
       _ => (
         'Notifications are off',

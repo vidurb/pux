@@ -43,10 +43,15 @@ class NotificationPermissions {
   final ValueNotifier<NotificationAccess> access = ValueNotifier(NotificationAccess.allowed);
 
   /// Reads the state again. Never throws.
-  Future<void> refresh() async {
+  Future<void> refresh() => check();
+
+  /// Reads the state again and returns it, or null if it couldn't be determined
+  /// within [timeout]. Never throws.
+  Future<NotificationAccess?> check({Duration? timeout}) async {
     final check = ++_latestCheck;
-    final current = await _read();
+    final current = await _read(timeout);
     if (current != null && check == _latestCheck) access.value = current;
+    return current;
   }
 
   /// Runs a permission request, then reads what the OS actually decided. The
@@ -93,30 +98,35 @@ class NotificationPermissions {
   }
 
   /// The current state, or null if it couldn't be determined.
-  Future<NotificationAccess?> _read() async {
-    if (kIsWeb) return NotificationAccess.allowed;
-
+  Future<NotificationAccess?> _read(Duration? timeout) async {
     try {
-      return switch (defaultTargetPlatform) {
-        TargetPlatform.android => await _readAndroid(),
-        TargetPlatform.iOS => _fromAppleOptions(
-          await _plugin
-              .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-              ?.checkPermissions(),
-        ),
-        TargetPlatform.macOS => _fromAppleOptions(
-          await _plugin
-              .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
-              ?.checkPermissions(),
-        ),
-        _ => NotificationAccess.allowed,
-      };
+      final read = _readPlatform();
+      return await (timeout == null ? read : read.timeout(timeout));
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (error) {
+    } catch (error) {
       debugPrint('Could not read notification settings: $error');
       return null;
     }
+  }
+
+  Future<NotificationAccess?> _readPlatform() async {
+    if (kIsWeb) return NotificationAccess.allowed;
+
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => await _readAndroid(),
+      TargetPlatform.iOS => _fromAppleOptions(
+        await _plugin
+            .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+            ?.checkPermissions(),
+      ),
+      TargetPlatform.macOS => _fromAppleOptions(
+        await _plugin
+            .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+            ?.checkPermissions(),
+      ),
+      _ => NotificationAccess.allowed,
+    };
   }
 
   Future<NotificationAccess?> _readAndroid() async {

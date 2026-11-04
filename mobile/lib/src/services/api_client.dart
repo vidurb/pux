@@ -129,6 +129,10 @@ class ApiClient {
     _check(response, 'Relay deletion');
   }
 
+  /// The server returns at most this many pending deliveries per request, oldest
+  /// first, so a full page may have left newer ones out.
+  static const pendingPageSize = 50;
+
   Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
     final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries');
     final response = await _client
