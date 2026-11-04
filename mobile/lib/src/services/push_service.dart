@@ -9,6 +9,7 @@ import '../push_display.dart';
 import 'api_client.dart';
 import 'delivery_controller.dart';
 import 'delivery_service.dart';
+import 'notification_permissions.dart';
 import 'notification_service.dart';
 import 'record_store.dart';
 
@@ -27,7 +28,9 @@ class PushService implements DeliveryService {
     }
 
     final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission();
+    // Registration goes ahead whatever the answer: the server keeps this device
+    // alive, and codes reach it as soon as the user allows notifications.
+    await NotificationPermissions.instance.request(messaging.requestPermission);
     await messaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,

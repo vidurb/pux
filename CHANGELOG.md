@@ -30,6 +30,7 @@ All notable changes to pux are recorded here. The format follows
 - `DELETE /api/v1/record` and `DELETE /api/v1/record/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
 - iOS: OTPs arrive as alert pushes that a notification service extension decrypts on the device, so they show even when the app has been force-quit.
 - Android: the home screen, including right after setup, warns when codes could silently stop arriving, either because Android 12+ can hibernate pux after months without use or because its background battery use is restricted, and links to the settings page that fixes it. A warning goes away once the setting changes. If dismissed, it returns only after the setting has been fixed and then undone, or after setting up pux again.
+- Apps: on Android, iOS and macOS, the home screen warns when notifications are off, when the Android "OTP codes" category is off, or when iOS or macOS delivers them without an alert, and links to the settings page that fixes it. It goes away once the setting changes and can't be dismissed while the problem lasts, because without notifications codes are lost. The home screen now shows one setup prompt at a time, with this one first.
 - Self-hosting with Docker Compose (`deploy/`), and a release workflow that publishes versioned server images and app builds.
 
 ### Changed
@@ -46,4 +47,5 @@ All notable changes to pux are recorded here. The format follows
 - An SMTP session no longer crashes if its relay is deleted while mail is being delivered.
 - Acknowledging a desktop delivery no longer races with a concurrent acknowledgement.
 - Apps: leaving an enrollment screen while its request is running can no longer lose the result. Back is disabled until the request finishes, the app reaches the home screen and starts delivery without a restart, and failures are always shown. A new relay that can't be saved on the device is deleted from the server.
+- Apps: a failed notification permission request no longer shows as a connection failure or stops the device from registering.
 - Inbox addresses are generated without modulo bias.

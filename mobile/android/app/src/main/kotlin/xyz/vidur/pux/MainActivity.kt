@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.PersistableBundle
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.content.PackageManagerCompat
@@ -54,6 +55,49 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_PERMISSIONS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getStatus" -> result.success(notificationStatus())
+                    "openNotificationSettings" -> result.success(openNotificationSettings())
+                    "openChannelSettings" -> result.success(openNotificationSettings(OTP_NOTIFICATION_CHANNEL))
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun notificationStatus(): Map<String, Boolean?> {
+        val notifications = NotificationManagerCompat.from(this)
+        return mapOf(
+            // Covers the Android 13+ permission and the per-app switch on every version.
+            "appEnabled" to notifications.areNotificationsEnabled(),
+            // Null before Android 8, and until the first code creates the channel.
+            "channelEnabled" to
+                notifications.getNotificationChannelCompat(OTP_NOTIFICATION_CHANNEL)?.let {
+                    it.importance != NotificationManagerCompat.IMPORTANCE_NONE
+                },
+        )
+    }
+
+    // The channel page is only useful once the app's own notifications are on, so
+    // Dart asks for it only then. Android before 8 has neither page.
+    private fun openNotificationSettings(channel: String? = null): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return openAppSettings()
+
+        val action =
+            if (channel == null) {
+                Settings.ACTION_APP_NOTIFICATION_SETTINGS
+            } else {
+                Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+            }
+        val intent = Intent(action).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        if (channel != null) intent.putExtra(Settings.EXTRA_CHANNEL_ID, channel)
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            openAppSettings()
+        }
     }
 
     private fun reportBackgroundRestrictions(result: MethodChannel.Result) {
@@ -174,6 +218,10 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val CLIPBOARD_CHANNEL = "xyz.vidur.pux/clipboard"
         const val BACKGROUND_RESTRICTIONS_CHANNEL = "xyz.vidur.pux/background_restrictions"
+        const val NOTIFICATION_PERMISSIONS_CHANNEL = "xyz.vidur.pux/notification_permissions"
+
+        // The channel NotificationService posts codes to.
+        const val OTP_NOTIFICATION_CHANNEL = "pux_otp"
         const val MANAGE_UNUSED_APP_RESTRICTIONS_REQUEST = 0x7078
     }
 }

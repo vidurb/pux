@@ -13,6 +13,10 @@ enum DeliveryState {
   /// Not enrolled, or not started yet.
   idle,
   connecting,
+
+  /// This device is registered and codes can reach it. That says nothing about
+  /// whether it can show them: see NotificationPermissions, which can change at
+  /// any time without delivery changing.
   ready,
 
   /// A transient failure; another attempt is scheduled.

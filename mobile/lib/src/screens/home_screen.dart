@@ -11,7 +11,7 @@ import '../services/api_client.dart';
 import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
 import '../services/sensitive_clipboard.dart';
-import 'background_restriction_prompts.dart';
+import 'delivery_prompts.dart';
 import 'enroll_chooser_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -228,12 +228,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (_removing) const LinearProgressIndicator(),
+          const DeliveryPrompts(),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
             builder: (context, status, _) =>
                 _DeliveryBanner(status: status, onForget: _forgetLocally),
           ),
-          const BackgroundRestrictionPrompts(),
           const Text(
             'Forward bank OTP emails to your inbox address. Codes arrive as encrypted push notifications.',
           ),
