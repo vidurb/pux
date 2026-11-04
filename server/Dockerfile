@@ -1,7 +1,7 @@
 # Not Alpine 3.24: OTP 27.3.4.19 and earlier give the VM a fixed 8192-byte signal stack,
 # which musl 1.2.6 rejects on Intel AMX hosts (it wants 12976), so the VM aborts on every
 # start there. Stay on musl 1.2.5 until OTP has erlang/otp#11810. CI checks this.
-FROM hexpm/elixir:1.18.4-erlang-27.3.4.16-alpine-3.21.7 AS build
+FROM hexpm/elixir:1.18.4-erlang-27.3.4.16-alpine-3.23.5 AS build
 
 RUN apk add --no-cache build-base git libsodium-dev
 
@@ -21,7 +21,7 @@ RUN mix release
 
 # Same Alpine release as the build stage: the release links against its libsodium,
 # OpenSSL and ncurses. Move the two stages together.
-FROM alpine:3.21.9
+FROM alpine:3.23.7
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
