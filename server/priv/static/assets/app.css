@@ -555,23 +555,6 @@ details p {
   color: var(--muted);
 }
 
-.draft {
-  margin-bottom: 2rem;
-  padding: 0.875rem 1rem;
-  border: 1px solid var(--amber);
-  border-radius: 0.75rem;
-  background: var(--amber-bg);
-  color: var(--amber);
-}
-
-.todo {
-  padding: 0.0625rem 0.25rem;
-  border-radius: 0.25rem;
-  background: var(--amber-bg);
-  color: var(--amber);
-  font-weight: 600;
-}
-
 /* Footer */
 .site-footer {
   padding-block: 2rem;

@@ -133,6 +133,10 @@
             A genuinely signed bank email can be sent on to another inbox address and still verify.
           </li>
           <li>
+            <strong>The record ID appears in API paths.</strong>
+            The server keeps those paths out of its own logs, but a reverse proxy that logs paths would record it. On its own, a record ID lets someone use the relay's API, including deleting the relay, but not read its OTPs.
+          </li>
+          <li>
             <strong>Your enrollment is the keys.</strong>
             Anyone holding the QR code or JSON export has the record ID and private key, and can read that relay's OTPs.
           </li>
@@ -277,7 +281,9 @@
         In the app, <strong>Delete relay everywhere</strong>
         removes the relay, its devices and any pending deliveries from the server.
         <strong>Remove this device</strong>
-        removes one device. Relays with no activity for 90 days are deleted automatically.
+        removes one device. You can also email
+        <a href="mailto:privacy@vidur.xyz">privacy@vidur.xyz</a>
+        with your inbox address, but never send your record ID, enrollment JSON or private key. Relays with no activity for 90 days are deleted automatically.
       </p>
     </details>
     <details>
@@ -308,6 +314,7 @@
       <li>
         You need a domain, a TLS-terminating reverse proxy and a host that can receive mail on port 25.
       </li>
+      <li>Turn off proxy access logs for API paths, because they contain the record ID.</li>
       <li>Desktop apps work against your server with nothing else.</li>
       <li>Push to phones needs your own Firebase project and your own app build.</li>
     </ul>

@@ -24,7 +24,7 @@ All notable changes to pux are recorded here. The format follows
 
 - A logo and identity (`brand/`), used for the website, favicons and app icons. The name is written `pux`, lowercase, everywhere.
 - Website: a new landing page at `/` covering how pux works, the security model and its limits, supported banks, an FAQ and self-hosting. `/signup` now redirects there. The page sets no cookies and loads no scripts.
-- Website: draft `/privacy` and `/terms` pages, Open Graph and Twitter cards, favicons and `/.well-known/security.txt`.
+- Website: `/privacy` and `/terms` pages, Open Graph and Twitter cards, favicons and `/.well-known/security.txt`.
 - Apps: new icons on Android (adaptive, themed and notification), iOS and macOS, plus a splash screen.
 - `DELETE /api/v1/records/:id` and `DELETE /api/v1/records/:id/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
 - iOS: OTPs arrive as alert pushes that a notification service extension decrypts on the device, so they show even when the app has been force-quit.

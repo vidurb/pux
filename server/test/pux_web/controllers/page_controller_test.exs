@@ -58,6 +58,7 @@ defmodule PuxWeb.PageControllerTest do
       assert body =~ "any app store yet"
       assert body =~ "hasn't been tested on a real device"
       assert body =~ "Not supported for now"
+      assert body =~ "a reverse proxy that logs paths would record it"
     end
   end
 
@@ -82,14 +83,37 @@ defmodule PuxWeb.PageControllerTest do
   end
 
   describe "legal pages" do
-    test "are flagged as unreviewed drafts", %{conn: conn} do
+    test "name the operator and the governing law", %{conn: conn} do
       for path <- ["/privacy", "/terms"] do
         body = html_response(get(conn, path), 200)
 
-        assert body =~ "Draft, not yet reviewed"
+        assert body =~ "Vidur Butalia"
+        refute body =~ "vidurb."
+        assert body =~ "laws of India"
+        assert body =~ "National Capital Territory of Delhi"
         assert body =~ "privacy@vidur.xyz"
         refute body =~ "<script"
       end
+    end
+
+    test "show no draft markers", %{conn: conn} do
+      for path <- ["/privacy", "/terms"] do
+        body = html_response(get(conn, path), 200)
+
+        refute body =~ "Draft"
+        refute body =~ "To confirm"
+      end
+    end
+
+    test "the privacy policy never asks for credentials", %{conn: conn} do
+      body = html_response(get(conn, "/privacy"), 200)
+
+      assert body =~ "Send your inbox address"
+      assert body =~ "Never send your record ID, enrollment JSON or private key"
+      assert body =~ "Delete relay everywhere"
+      assert body =~ "at least 18"
+      refute body =~ ~r/ephemeral/i
+      refute body =~ ~r/record ID[^.]*(never|not) (in|appear)/i
     end
 
     test "the footer links to them", %{conn: conn} do
