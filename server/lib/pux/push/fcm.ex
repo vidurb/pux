@@ -1,11 +1,17 @@
 defmodule Pux.Push.FCM do
   @moduledoc """
-  Firebase Cloud Messaging HTTP v1 data messages. Payload is already E2E encrypted.
+  Firebase Cloud Messaging HTTP v1 messages. Payload is already E2E encrypted.
+
+  Android gets a data-only message that the app decrypts and shows. iOS gets an
+  alert with a generic placeholder and `mutable-content`, which the app's
+  Notification Service Extension replaces with the decrypted content. FCM
+  delivers the `data` keys to iOS as top-level keys of the APNs payload.
   """
 
   require Logger
 
   @fcm_url "https://fcm.googleapis.com/v1/projects"
+  @ttl_seconds 300
 
   @type result :: :ok | :unregistered | {:error, term()} | {:cancel, term()}
 
@@ -52,7 +58,21 @@ defmodule Pux.Push.FCM do
       message: %{
         token: push_token,
         data: %{"ciphertext" => envelope["ciphertext"] || envelope[:ciphertext]},
-        android: %{priority: "HIGH", ttl: "300s"}
+        android: %{priority: "HIGH", ttl: "#{@ttl_seconds}s"},
+        apns: %{
+          headers: %{
+            "apns-push-type" => "alert",
+            "apns-priority" => "10",
+            "apns-expiration" => Integer.to_string(System.os_time(:second) + @ttl_seconds)
+          },
+          payload: %{
+            aps: %{
+              alert: %{title: "New code", body: "Open pux to view"},
+              "mutable-content": 1,
+              sound: "default"
+            }
+          }
+        }
       }
     }
   end

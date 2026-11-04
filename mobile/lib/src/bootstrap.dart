@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'firebase_options.dart';
 import 'firebase_status.dart';
 import 'platform.dart';
+import 'push_display.dart';
 import 'services/crypto_service.dart';
 import 'services/notification_service.dart';
 import 'services/record_store.dart';
@@ -16,6 +17,7 @@ const _defaultServerUrl = String.fromEnvironment(
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (!showsPushNotificationsLocally) return;
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _initLocalServices();
   await NotificationService.instance.handleEncryptedMessage(message.data);

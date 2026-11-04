@@ -35,6 +35,27 @@ defmodule Pux.Push.FCMTest do
              FCM.message("tok", %{"ciphertext" => "c"})
   end
 
+  test "ios messages are mutable alerts that expire with the android TTL" do
+    now = System.os_time(:second)
+    %{message: message} = FCM.message("tok", %{"ciphertext" => "c"})
+
+    assert %{
+             headers: %{"apns-push-type" => "alert", "apns-priority" => "10"} = headers,
+             payload: %{
+               aps: %{
+                 alert: %{title: "New code", body: "Open pux to view"},
+                 "mutable-content": 1,
+                 sound: "default"
+               }
+             }
+           } = message.apns
+
+    expiration = String.to_integer(headers["apns-expiration"])
+    assert expiration in (now + 299)..(now + 301)
+    refute Map.has_key?(message, :notification)
+    assert message.data == %{"ciphertext" => "c"}
+  end
+
   test "maps FCM responses to job outcomes" do
     capture_log(fn ->
       assert :ok = FCM.classify_response(200, "{}")
