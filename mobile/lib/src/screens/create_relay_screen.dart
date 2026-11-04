@@ -1,14 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app.dart';
 import '../services/api_client.dart';
 import '../services/crypto_service.dart';
-import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
-import 'home_screen.dart';
+import 'enrollment_commit.dart';
 
 class CreateRelayScreen extends ConsumerStatefulWidget {
   const CreateRelayScreen({super.key});
@@ -17,69 +13,67 @@ class CreateRelayScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateRelayScreen> createState() => _CreateRelayScreenState();
 }
 
-class _CreateRelayScreenState extends ConsumerState<CreateRelayScreen> {
-  bool _processing = false;
-  String? _error;
-
+class _CreateRelayScreenState extends ConsumerState<CreateRelayScreen>
+    with EnrollmentCommit<CreateRelayScreen> {
   Future<void> _createRelay() async {
-    if (_processing) return;
-    setState(() {
-      _processing = true;
-      _error = null;
-    });
-
-    try {
+    if (committing) return;
+    await commitEnrollment(() async {
       final keys = await CryptoService.instance.generateKeyPair();
       final record = await ApiClient.instance.createRecord(publicKey: keys['public_key']!);
 
-      await RecordStore.instance.saveEnrollment({
-        'record_id': record['record_id'],
-        'private_key': keys['private_key'],
-        'public_key': keys['public_key'],
-        'inbox': record['inbox_address'],
-        'server': RecordStore.instance.serverUrl,
-      });
+      try {
+        await RecordStore.instance.saveEnrollment({
+          'record_id': record['record_id'],
+          'private_key': keys['private_key'],
+          'public_key': keys['public_key'],
+          'inbox': record['inbox_address'],
+          'server': RecordStore.instance.serverUrl,
+        });
+      } catch (_) {
+        await _deleteUnsavedRelay(record['record_id']!);
+        rethrow;
+      }
+    });
+  }
 
-      // Push registration runs in the background; the home screen shows
-      // its progress and any failure.
-      unawaited(DeliveryController.instance.start());
-      ref.invalidate(enrollmentProvider);
-
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _processing = false);
+  /// This device was the only holder of the new relay's ID, so without the save
+  /// nobody could ever use the relay. If the delete fails too, the server
+  /// prunes it once it has gone unused for long enough.
+  Future<void> _deleteUnsavedRelay(String recordId) async {
+    try {
+      await ApiClient.instance.deleteRecord(recordId: recordId);
+    } catch (_) {
+      // Not logged: the error can include the URL, and the record ID is a credential.
+      debugPrint('Could not delete a relay that was not saved on this device');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create relay')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'A new encryption keypair will be generated on this device. '
-              'Only the public key is sent to the server.',
-            ),
-            const SizedBox(height: 24),
-            if (_processing) const LinearProgressIndicator(),
-            FilledButton(
-              onPressed: _processing ? null : _createRelay,
-              child: const Text('Generate keys and create relay'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+    return enrollmentPopScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Create relay'), automaticallyImplyLeading: !committing),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'A new encryption keypair will be generated on this device. '
+                'Only the public key is sent to the server.',
+              ),
+              const SizedBox(height: 24),
+              if (committing) const LinearProgressIndicator(),
+              FilledButton(
+                onPressed: committing ? null : _createRelay,
+                child: const Text('Generate keys and create relay'),
+              ),
+              if (enrollmentError != null) ...[
+                const SizedBox(height: 16),
+                Text(enrollmentError!, style: const TextStyle(color: Colors.red)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

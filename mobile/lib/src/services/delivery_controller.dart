@@ -65,7 +65,14 @@ class DeliveryController {
     const DeliveryStatus(DeliveryState.idle),
   );
 
-  DeliveryService get _service => deliveryServiceForPlatform();
+  DeliveryService? _serviceOverride;
+
+  DeliveryService get _service => _serviceOverride ?? deliveryServiceForPlatform();
+
+  @visibleForTesting
+  void setServiceForTesting(DeliveryService? service) {
+    _serviceOverride = service;
+  }
 
   /// The server prunes devices that have not registered for 30 days, so
   /// registration is refreshed on every start and on resume after this long.
