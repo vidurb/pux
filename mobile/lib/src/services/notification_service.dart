@@ -76,7 +76,7 @@ class NotificationService {
       windows: windows,
     );
 
-    await _plugin.initialize(settings, onDidReceiveNotificationResponse: _onResponse);
+    await _plugin.initialize(settings: settings, onDidReceiveNotificationResponse: _onResponse);
 
     // Not available in the FCM background isolate on every platform.
     try {
@@ -143,10 +143,10 @@ class NotificationService {
     const windowsDetails = WindowsNotificationDetails();
 
     await _plugin.show(
-      _nextId(),
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: _nextId(),
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: androidDetails,
         iOS: darwinDetails,
         macOS: darwinDetails,
