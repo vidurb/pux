@@ -86,6 +86,20 @@ defmodule Pux.Integration.SmtpListenerTest do
              send_mail("#{e.inbox_token}@other.example", "Subject: x\r\n\r\nOTP 123456\r\n")
   end
 
+  test "a relay with no devices bounces exactly like an unknown inbox" do
+    {:ok, deviceless} = Records.create_record(Fixtures.public_key())
+    body = "Subject: x\r\n\r\nYour OTP is 123456\r\n"
+
+    assert {:error, :send, {:permanent_failure, _, deviceless_reply}} =
+             send_mail(deviceless.inbox_address, body)
+
+    assert {:error, :send, {:permanent_failure, _, unknown_reply}} =
+             send_mail("unknowninbox1234@pux.test", body)
+
+    assert "550 5.1.1" <> _ = deviceless_reply
+    assert deviceless_reply == unknown_reply
+  end
+
   test "rejects an unknown inbox" do
     assert {:error, :send, {:permanent_failure, _, "550" <> _}} =
              send_mail("unknowninbox1234@pux.test", "Subject: x\r\n\r\nOTP 123456\r\n")

@@ -158,9 +158,18 @@ defmodule Pux.Workers.PruneWorkerTest do
         assert :ok = perform_job(TokenCheckWorker, %{"device_id" => device.id})
       end)
 
-      refreshed = Records.get_device(device.id)
-      assert DateTime.compare(refreshed.last_seen_at, days_ago(1)) == :gt
+      assert Records.get_device(device.id)
       assert Records.list_quiet_fcm_device_ids(30) == []
+    end
+
+    test "a token is checked again once the last check is old" do
+      device = relay() |> add_device(:fcm) |> age_device(100)
+
+      device
+      |> Ecto.Changeset.change(token_checked_at: days_ago(31))
+      |> Repo.update!()
+
+      assert Records.list_quiet_fcm_device_ids(30) == [device.id]
     end
 
     test "a failed check doesn't remove the device" do
@@ -189,6 +198,94 @@ defmodule Pux.Workers.PruneWorkerTest do
       capture_log(fn -> Oban.drain_queue(queue: :push) end)
 
       assert {:ok, _} = Records.register_device(record_id, new_phone)
+    end
+  end
+
+  describe "the hard limit for every device" do
+    test "removes a phone past it, and keeps one short of it" do
+      record_id = relay()
+      past = record_id |> add_device(:fcm) |> age_device(731)
+      within = record_id |> add_device(:fcm) |> age_device(729)
+
+      prune()
+
+      refute Records.get_device(past.id)
+      assert Records.get_device(within.id)
+    end
+
+    test "is in the production config at two years" do
+      config = Config.Reader.read!("config/config.exs", env: :prod)[:pux]
+      assert config[:pruner][:device_max_idle_days] == 730
+    end
+
+    test "isn't held off by checks that keep passing" do
+      FCMStub.start()
+      device = relay() |> add_device(:fcm) |> age_device(731)
+
+      capture_log(fn ->
+        assert :ok = perform_job(TokenCheckWorker, %{"device_id" => device.id})
+      end)
+
+      assert DateTime.compare(Records.get_device(device.id).last_seen_at, days_ago(730)) == :lt
+
+      prune()
+      refute Records.get_device(device.id)
+    end
+
+    test "restarts on registration" do
+      record_id = relay()
+      device = record_id |> add_device(:fcm) |> age_device(731)
+
+      {:ok, _} =
+        Records.register_device(record_id, %{push_token: device.push_token, platform: :fcm})
+
+      prune()
+      assert Records.get_device(device.id)
+    end
+
+    test "restarts on an accepted push" do
+      FCMStub.start()
+      device = relay() |> add_device(:fcm) |> age_device(731)
+
+      capture_log(fn ->
+        assert :ok =
+                 perform_job(PushWorker, %{
+                   "device_id" => device.id,
+                   "envelope" => %{"ciphertext" => "c"}
+                 })
+      end)
+
+      prune()
+      assert Records.get_device(device.id)
+    end
+
+    test "doesn't restart on a push FCM refuses" do
+      device = relay() |> add_device(:fcm) |> age_device(731)
+      FCMStub.start(%{device.push_token => {503, "{}"}})
+
+      capture_log(fn ->
+        assert {:error, _} =
+                 perform_job(PushWorker, %{
+                   "device_id" => device.id,
+                   "envelope" => %{"ciphertext" => "c"}
+                 })
+      end)
+
+      prune()
+      refute Records.get_device(device.id)
+    end
+
+    test "leaves the relay its grace period, then the relay goes" do
+      record_id = relay()
+      record_id |> add_device(:fcm) |> age_device(731)
+      age_record(record_id, 731)
+
+      prune()
+      assert Records.get_record(record_id)
+
+      age_record(record_id, 31)
+      prune()
+      refute Records.get_record(record_id)
     end
   end
 

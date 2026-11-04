@@ -61,7 +61,7 @@ defmodule Pux.SMTP.Session do
   def handle_RCPT(to, state) do
     without_crashing(state, fn ->
       with {:ok, token} <- extract_inbox_token(to, state.mail_domain),
-           %Records.Record{} = record <- Records.get_record_by_inbox_token(token) do
+           %Records.Record{} = record <- Records.get_deliverable_record_by_inbox_token(token) do
         cond do
           Enum.any?(state.recipients, &(&1.id == record.id)) ->
             {:ok, state}
@@ -156,8 +156,11 @@ defmodule Pux.SMTP.Session do
          :ok <- Records.touch_record(record) do
       Push.deliver_to_record(record, plaintext)
     else
-      {:error, :rate_limited} -> Logger.info("SMTP: inbound rate limit hit; delivery skipped")
-      {:error, :no_devices} -> Logger.debug("SMTP: relay is gone or has no devices; mail dropped")
+      {:error, :rate_limited} ->
+        Logger.info("SMTP: inbound rate limit hit; delivery skipped")
+
+      {:error, :no_devices} ->
+        Logger.debug("SMTP: relay lost its last device while mail was in flight")
     end
   end
 

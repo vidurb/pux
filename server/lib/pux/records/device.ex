@@ -8,7 +8,11 @@ defmodule Pux.Records.Device do
     field :push_token, :string, redact: true
     field :record_id, :binary_id, redact: true
     field :platform, Ecto.Enum, values: [:fcm, :apns, :desktop]
+    # Registration or an accepted push. Age limits run from this.
     field :last_seen_at, :utc_datetime_usec
+    # The last dry-run check that passed. Says nothing about the device being used, so it
+    # only spaces out checks and never extends an age limit.
+    field :token_checked_at, :utc_datetime_usec
 
     belongs_to :record, Pux.Records.Record, define_field: false
 

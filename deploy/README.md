@@ -99,14 +99,15 @@ with `docker compose exec db pg_dump -U pux pux > pux.sql` if you'd rather not l
 ## Data retention
 
 The [main README](../README.md#data-retention) has the rules, and `:pruner` in `server/config/config.exs`
-has the numbers. Relays and phones are not removed for being quiet, so the tables grow with installs rather
-than with use. What this means when you run the server:
+has the numbers. Relays and phones aren't removed for being quiet until `device_max_idle_days` (2 years), so
+the tables grow with installs rather than with use. What this means when you run the server:
 
-- **Without `FCM_SERVICE_ACCOUNT_JSON`** the server can't learn that a phone has gone, so a relay with an
-  `fcm` device stays until someone deletes it. Desktop devices still age out.
+- **Without `FCM_SERVICE_ACCOUNT_JSON`** the server can't learn that a phone has gone, so an `fcm` device stays
+  until the 2-year limit or until someone deletes the relay. Desktop devices still age out after 90 days.
+- **Keep `device_max_idle_days` and your published retention text in step** if you change it.
 - **After switching Firebase project,** old tokens get a 403 on every send and are not removed, because wrong
   credentials look exactly the same and must not delete every device. Apps from the new project register
-  fresh tokens, and the old rows stay until the relay is deleted. Removing them is up to you.
+  fresh tokens, and the old rows stay until the 2-year limit or until the relay is deleted.
 - **Deletion requests** can be handled from the inbox address alone. Its token is the part before the `@`:
   `docker compose exec db psql -U pux pux -c "DELETE FROM records WHERE inbox_token = '<token>'"`.
   Devices and pending deliveries go with the record.
