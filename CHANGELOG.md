@@ -12,7 +12,7 @@ All notable changes to pux are recorded here. The format follows
 - Server: the OTP parser caps its input and runs in linear time, and classification has a 5 s timeout, so a single large or hostile email can no longer pin a CPU.
 - Server: per-inbox delivery rate limit (`SMTP_INBOUND_RATE_LIMIT`), per-relay API rate limit (`RECORD_API_RATE_LIMIT`) and a device cap per relay (`MAX_DEVICES_PER_RECORD`).
 - Server: optional `SMTP_REQUIRE_TLS` to refuse mail before STARTTLS, and a boot warning when no SMTP TLS certificate is configured.
-- Server: the delivery WebSocket only accepts the record ID in the `x-pux-token` header; the `?token=` query parameter is no longer accepted, so the credential stays out of URLs and proxy logs.
+- Server: the delivery WebSocket only accepts the record ID in the `x-pux-token` header; the `?token=` query parameter is no longer accepted, so the credential stays out of that URL. REST API paths still contain it.
 - Server: record IDs, inbox tokens, push tokens and email contents no longer reach the logs, including through delivery error messages, the HTTPS redirect line and crash reports. A malformed `FCM_SERVICE_ACCOUNT_JSON` is no longer echoed in the error either. When the database fails during inbound SMTP, the server now replies `451` so the sender retries, instead of dropping the connection.
 - Server: updated Bandit, jose, plug_crypto and decimal to clear 24 published advisories. Added a strict Content-Security-Policy.
 - Apps: OTP notifications are hidden on a secure Android lock screen. Copied codes and enrollment JSON are marked sensitive and cleared from the clipboard after a minute (except on iOS).

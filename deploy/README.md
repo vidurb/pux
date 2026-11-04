@@ -37,6 +37,8 @@ to terminate TLS for `PHX_HOST`. The proxy must forward WebSocket upgrades for `
 `X-Forwarded-Proto: https` and `X-Forwarded-For`. The server redirects plain-HTTP requests to HTTPS and
 trusts the last `X-Forwarded-For` hop only from private addresses.
 
+**Don't log API paths at the proxy.** The record ID, a relay's only credential, is in the path of authenticated API calls (`/api/v1/records/:id`; [#18](https://github.com/vidurb/pux/issues/18) tracks removing it). The server leaves these paths out of its own logs, but anyone with your proxy's access logs could use a relay's API, including deleting it. Turn off access logging for `/api/v1/records/*`, or strip the path. Caddy doesn't log requests unless you add a `log` directive; nginx logs them by default.
+
 Caddy example:
 
 ```
