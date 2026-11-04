@@ -29,6 +29,7 @@ All notable changes to pux are recorded here. The format follows
 - Apps: new icons on Android (adaptive, themed and notification), iOS and macOS, plus a splash screen.
 - `DELETE /api/v1/record` and `DELETE /api/v1/record/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
 - iOS: OTPs arrive as alert pushes that a notification service extension decrypts on the device, so they show even when the app has been force-quit.
+- Android: the home screen, including right after setup, warns when codes could silently stop arriving, either because Android 12+ can hibernate pux after months without use or because its background battery use is restricted, and links to the settings page that fixes it. A warning goes away once the setting changes. If dismissed, it returns only after the setting has been fixed and then undone, or after setting up pux again.
 - Self-hosting with Docker Compose (`deploy/`), and a release workflow that publishes versioned server images and app builds.
 
 ### Changed
