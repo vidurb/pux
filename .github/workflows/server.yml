@@ -88,6 +88,20 @@ jobs:
           context: server
           load: true
           tags: pux-server:ci
+      # Booting can't catch this: musl 1.2.6 makes OTP 27 abort on every start on Intel
+      # AMX hosts and never elsewhere, and only about 1 runner in 10 has AMX. So check the
+      # version instead. Remove this once the image's OTP includes erlang/otp#11810.
+      - name: Both stages use a musl that OTP 27 can start on, on any CPU
+        run: |
+          grep -m1 'model name' /proc/cpuinfo
+          LD_SHOW_AUXV=1 /bin/true | grep AT_MINSIGSTKSZ
+          docker buildx build --target build --load -t pux-server:ci-build server
+          for image in pux-server:ci-build pux-server:ci; do
+            version=$(docker run --rm --entrypoint sh "$image" -c '/lib/ld-musl-*.so.1 2>&1 || true' | sed -n 's/^Version //p')
+            echo "$image: musl $version"
+            test -n "$version"
+            test "$(printf '%s\n1.2.6\n' "$version" | sort -V | head -n 1)" != 1.2.6
+          done
       - name: Release boots as non-root on a read-only filesystem
         run: |
           docker run --rm --read-only --tmpfs /tmp \
