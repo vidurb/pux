@@ -30,7 +30,7 @@ class RelayNotification {
           body: [
             if (from != null) 'Forwarding from $from',
             if (code != null) 'Code: $code',
-            if (url != null) url,
+            ?url,
             if (from == null) 'From $sender',
           ].join('\n'),
           code: code,
