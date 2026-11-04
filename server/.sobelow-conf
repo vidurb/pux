@@ -1,0 +1,8 @@
+# Reviewed false positives.
+#
+# Config.CSP: PuxWeb.Endpoint sets a strict content-security-policy on every response
+# before the router runs, and put_secure_browser_headers keeps an existing header.
+[
+  exit: "medium",
+  ignore: ["Config.CSP"]
+]

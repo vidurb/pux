@@ -26,9 +26,9 @@ defmodule Pux.MixProject do
 
   defp deps do
     [
-      {:phoenix, "~> 1.7.21"},
+      {:phoenix, "~> 1.8"},
       {:phoenix_ecto, "~> 4.6"},
-      {:phoenix_live_view, "~> 1.0.9"},
+      {:phoenix_live_view, "~> 1.2"},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:telemetry_metrics, "~> 1.1"},
@@ -36,13 +36,14 @@ defmodule Pux.MixProject do
       {:jason, "~> 1.4"},
       {:enacl, github: "aeternity/enacl", ref: "4eb7ec70084ba7c87b1af8797c4c4e90c84f95a2"},
       {:gen_smtp, "~> 1.2"},
-      {:eqrcode, "~> 0.2.1"},
       {:goth, "~> 1.4"},
       {:finch, "~> 0.19"},
-      {:oban, "~> 2.19"},
+      {:oban, "~> 2.24"},
       {:mail, "~> 0.5"},
-      {:bandit, "~> 1.6"},
-      {:hammer, "~> 6.2"}
+      {:bandit, "~> 1.14"},
+      {:hammer, "~> 7.5"},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false}
     ]
   end
 

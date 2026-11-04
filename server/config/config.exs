@@ -23,19 +23,25 @@ config :pux, :smtp,
   port: 2525,
   domain: "localhost",
   mail_domain: "localhost",
-  max_message_size: 1_048_576
+  max_message_size: 1_048_576,
+  require_tls: false,
+  classify_timeout_ms: 5_000,
+  inbound_rate_limit: 20,
+  inbound_rate_scale_ms: 600_000
+
+config :pux, :dkim, resolver: Pux.DKIMResolver
 
 config :pux, :rate_limit,
   record_create_scale_ms: 60_000,
   record_create_limit: 10
 
-config :hammer,
-  backend:
-    {Hammer.Backend.ETS,
-     [
-       expiry_ms: 60_000 * 60 * 4,
-       cleanup_interval_ms: 60_000 * 10
-     ]}
+# Per-record limit on authenticated API calls. Clients register on start and on resume
+# (every 12 h) and desktops poll + ack on reconnect, so this is far above normal use.
+config :pux, :record_rate_limit,
+  limit: 120,
+  scale_ms: 60_000
+
+config :pux, :records, max_devices: 10
 
 config :pux, :pruner,
   record_ttl_days: 90,

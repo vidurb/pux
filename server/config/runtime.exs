@@ -1,30 +1,33 @@
 import Config
 
 if config_env() == :prod do
+  # Empty values (e.g. `SMTP_TLS_CERTFILE=` in a Compose .env) count as unset.
+  env = fn name -> if (value = System.get_env(name)) not in [nil, ""], do: value end
+
   database_url =
-    System.get_env("DATABASE_URL") ||
+    env.("DATABASE_URL") ||
       raise "DATABASE_URL is required"
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+  maybe_ipv6 = if env.("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :pux, Pux.Repo,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    pool_size: String.to_integer(env.("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
   secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
+    env.("SECRET_KEY_BASE") ||
       raise "SECRET_KEY_BASE is required"
 
-  host = System.get_env("PHX_HOST") || "pux.vidur.xyz"
-  port = String.to_integer(System.get_env("PORT") || "4000")
+  host = env.("PHX_HOST") || "pux.vidur.xyz"
+  port = String.to_integer(env.("PORT") || "4000")
 
   live_view_signing_salt =
-    System.get_env("LIVE_VIEW_SIGNING_SALT") ||
+    env.("LIVE_VIEW_SIGNING_SALT") ||
       raise "LIVE_VIEW_SIGNING_SALT is required in production"
 
   cookie_signing_salt =
-    System.get_env("COOKIE_SIGNING_SALT") ||
+    env.("COOKIE_SIGNING_SALT") ||
       raise "COOKIE_SIGNING_SALT is required in production"
 
   config :pux, PuxWeb.Endpoint,
@@ -35,25 +38,43 @@ if config_env() == :prod do
     check_origin: ["https://#{host}"],
     live_view: [signing_salt: live_view_signing_salt]
 
-  smtp_port = String.to_integer(System.get_env("SMTP_PORT") || "2525")
-  mail_domain = System.get_env("MAIL_DOMAIN") || host
-  smtp_max_message_size = String.to_integer(System.get_env("SMTP_MAX_MESSAGE_SIZE") || "1048576")
+  smtp_port = String.to_integer(env.("SMTP_PORT") || "2525")
+  mail_domain = env.("MAIL_DOMAIN") || host
+  smtp_max_message_size = String.to_integer(env.("SMTP_MAX_MESSAGE_SIZE") || "1048576")
 
-  smtp_tls_certfile = System.get_env("SMTP_TLS_CERTFILE")
-  smtp_tls_keyfile = System.get_env("SMTP_TLS_KEYFILE")
+  smtp_tls_certfile = env.("SMTP_TLS_CERTFILE")
+  smtp_tls_keyfile = env.("SMTP_TLS_KEYFILE")
 
   config :pux, :smtp,
     port: smtp_port,
     domain: mail_domain,
     mail_domain: mail_domain,
     max_message_size: smtp_max_message_size,
-    max_connections: String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS") || "100"),
-    max_connections_per_ip:
-      String.to_integer(System.get_env("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
+    max_connections: String.to_integer(env.("SMTP_MAX_CONNECTIONS") || "100"),
+    max_connections_per_ip: String.to_integer(env.("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
     tls_certfile: smtp_tls_certfile,
-    tls_keyfile: smtp_tls_keyfile
+    tls_keyfile: smtp_tls_keyfile,
+    require_tls: env.("SMTP_REQUIRE_TLS") in ~w(true 1),
+    inbound_rate_limit: String.to_integer(env.("SMTP_INBOUND_RATE_LIMIT") || "20"),
+    inbound_rate_scale_ms: String.to_integer(env.("SMTP_INBOUND_RATE_SCALE_MS") || "600000")
 
-  if fcm_json = System.get_env("FCM_SERVICE_ACCOUNT_JSON") do
+  unless smtp_tls_certfile && smtp_tls_keyfile do
+    IO.warn(
+      "SMTP_TLS_CERTFILE/SMTP_TLS_KEYFILE not set; inbound SMTP is plaintext only" <>
+        if(env.("SMTP_REQUIRE_TLS") in ~w(true 1),
+          do: " and SMTP_REQUIRE_TLS has no effect",
+          else: ""
+        )
+    )
+  end
+
+  config :pux, :records, max_devices: String.to_integer(env.("MAX_DEVICES_PER_RECORD") || "10")
+
+  config :pux, :record_rate_limit,
+    limit: String.to_integer(env.("RECORD_API_RATE_LIMIT") || "120"),
+    scale_ms: 60_000
+
+  if fcm_json = env.("FCM_SERVICE_ACCOUNT_JSON") do
     case Jason.decode(fcm_json) do
       {:ok, %{"project_id" => project_id}} when is_binary(project_id) ->
         config :pux, :fcm,
@@ -69,7 +90,7 @@ if config_env() == :prod do
     end
   end
 
-  if System.get_env("PHX_SERVER") do
+  if env.("PHX_SERVER") do
     config :pux, PuxWeb.Endpoint, server: true
   end
 end

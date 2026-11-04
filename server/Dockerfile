@@ -1,4 +1,4 @@
-FROM hexpm/elixir:1.18.4-erlang-27.3.4-alpine-3.21.3 AS build
+FROM hexpm/elixir:1.18.4-erlang-27.3.4.16-alpine-3.21.7 AS build
 
 RUN apk add --no-cache build-base git libsodium-dev
 
@@ -14,10 +14,9 @@ COPY config/config.exs config/prod.exs config/runtime.exs config/
 COPY lib lib
 COPY priv priv
 RUN mix deps.compile
-RUN mix phx.digest
 RUN mix release
 
-FROM alpine:3.21.3
+FROM alpine:3.21.9
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 

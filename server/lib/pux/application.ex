@@ -9,6 +9,8 @@ defmodule Pux.Application do
         Pux.Repo,
         {Phoenix.PubSub, name: Pux.PubSub},
         {Finch, name: Pux.Finch},
+        {PuxWeb.Plugs.RateLimit.Limiter,
+         clean_period: :timer.minutes(10), key_older_than: :timer.hours(4)},
         {Oban, Application.fetch_env!(:pux, Oban)},
         PuxWeb.Endpoint,
         Pux.SMTP.Supervisor

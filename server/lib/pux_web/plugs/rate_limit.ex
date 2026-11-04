@@ -6,6 +6,11 @@ defmodule PuxWeb.Plugs.RateLimit do
 
   require Logger
 
+  defmodule Limiter do
+    @moduledoc false
+    use Hammer, backend: :ets
+  end
+
   def init(opts), do: opts
 
   def call(conn, opts) do
@@ -18,7 +23,7 @@ defmodule PuxWeb.Plugs.RateLimit do
     limit = Keyword.get(opts, :limit, Keyword.get(rate_config, :record_create_limit, 10))
     client_key = "#{key}:#{client_ip(conn)}"
 
-    case Hammer.check_rate(client_key, scale_ms, limit) do
+    case Limiter.hit(client_key, scale_ms, limit) do
       {:allow, _count} ->
         conn
 
@@ -39,7 +44,7 @@ defmodule PuxWeb.Plugs.RateLimit do
     limit = Keyword.get(opts, :limit, 10)
     full_key = "#{key}:#{client_key}"
 
-    case Hammer.check_rate(full_key, scale_ms, limit) do
+    case Limiter.hit(full_key, scale_ms, limit) do
       {:allow, _count} -> :ok
       {:deny, _retry_after} -> {:error, :rate_limited}
     end

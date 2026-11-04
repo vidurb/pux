@@ -1,9 +1,7 @@
 defmodule PuxWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :pux
 
-  socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]],
-    longpoll: [connect_info: [:peer_data, session: {__MODULE__, :user_session, []}]]
+  # No LiveView socket: pages are served as static HTML without LiveView JS.
 
   # Served at /ws/delivery itself (Phoenix appends "/websocket" by default).
   socket "/ws/delivery", PuxWeb.DeliverySocket,
@@ -31,6 +29,7 @@ defmodule PuxWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
+  plug :put_content_security_policy
   plug :session
   plug PuxWeb.Router
 
@@ -40,7 +39,14 @@ defmodule PuxWeb.Endpoint do
   def log_level(%{path_info: ["health"]}), do: false
   def log_level(_conn), do: :info
 
-  def user_session(_conn), do: session_options()
+  # The site is static HTML with one same-origin stylesheet. Set before the router so
+  # put_secure_browser_headers keeps it instead of its permissive default.
+  @content_security_policy "default-src 'none'; style-src 'self'; img-src 'self'; " <>
+                             "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+  def put_content_security_policy(conn, _opts) do
+    Plug.Conn.put_resp_header(conn, "content-security-policy", @content_security_policy)
+  end
 
   def session(conn, _opts) do
     Plug.Session.call(conn, Plug.Session.init(session_options()))
