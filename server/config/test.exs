@@ -21,6 +21,7 @@ config :pux, :smtp,
   max_connections_per_ip: 50
 
 config :pux, :record_rate_limit, limit: 1_000_000
+config :pux, :auth_failure_rate_limit, limit: 1_000_000
 
 config :pux, :dkim, resolver: Pux.DKIMTestResolver
 

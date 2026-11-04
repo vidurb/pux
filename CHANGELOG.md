@@ -11,6 +11,7 @@ All notable changes to pux are recorded here. The format follows
 - Server: DKIM verification of inbound mail (rsa-sha256 and ed25519-sha256). A bank's name is shown only when a signature aligned with the From domain verifies; other senders are marked unverified. Gmail forwarding confirmations are only relayed when Google's signature verifies.
 - Server: the OTP parser caps its input and runs in linear time, and classification has a 5 s timeout, so a single large or hostile email can no longer pin a CPU.
 - Server: per-inbox delivery rate limit (`SMTP_INBOUND_RATE_LIMIT`), per-relay API rate limit (`RECORD_API_RATE_LIMIT`) and a device cap per relay (`MAX_DEVICES_PER_RECORD`).
+- Server: a per-IP limit on failed authentication for the API and the delivery WebSocket (`AUTH_FAILURE_RATE_LIMIT`), so unknown tokens can't cause unlimited database lookups. Over the limit, an IP gets 429 without a lookup until the minute ends. Malformed tokens never reach the database and don't count.
 - Server: optional `SMTP_REQUIRE_TLS` to refuse mail before STARTTLS, and a boot warning when no SMTP TLS certificate is configured.
 - Server: the delivery WebSocket only accepts the record ID in the `x-pux-token` header; the `?token=` query parameter is no longer accepted, so the credential stays out of that URL.
 - Server: the REST API identifies a relay from the `Authorization` header alone, so the record ID no longer appears in any URL and a reverse proxy that logs paths doesn't capture it. Authenticated routes moved from `/api/v1/records/:id/...` to `/api/v1/record/...`, with no compatibility period. A token that matches no record now gets 401 on every route, and these requests now appear in the server's request log.
@@ -47,3 +48,4 @@ All notable changes to pux are recorded here. The format follows
 - Acknowledging a desktop delivery no longer races with a concurrent acknowledgement.
 - Apps: leaving an enrollment screen while its request is running can no longer lose the result. Back is disabled until the request finishes, the app reaches the home screen and starts delivery without a restart, and failures are always shown. A new relay that can't be saved on the device is deleted from the server.
 - Inbox addresses are generated without modulo bias.
+- A delivery WebSocket connected with an uppercase record ID now receives its deliveries.

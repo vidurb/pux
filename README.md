@@ -91,7 +91,7 @@ Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /
 
 ### HTTP API
 
-All under `/api/v1`. Every endpoint except `POST /records` works on the relay named by `Authorization: Bearer <record_id>`; the record ID, its only credential, is never in a URL. A missing or malformed token, or one that matches no record, gets 401 `{"error":"unauthorized"}`. These endpoints may also return 429 `{"error":"rate_limit_exceeded"}` (per record, `RECORD_API_RATE_LIMIT` per minute).
+All under `/api/v1`. Every endpoint except `POST /records` works on the relay named by `Authorization: Bearer <record_id>`; the record ID, its only credential, is never in a URL. A missing or malformed token, or one that matches no record, gets 401 `{"error":"unauthorized"}`. These endpoints may also return 429 `{"error":"rate_limit_exceeded"}`: per record (`RECORD_API_RATE_LIMIT` per minute), or per IP once `AUTH_FAILURE_RATE_LIMIT` well-formed tokens that match no record have failed in a minute. An IP over that second limit gets 429 for any well-formed token, valid or not, until the minute ends, because nothing is looked up. `WS /ws/delivery` shares the limit and answers the same 429 instead of upgrading; other refused handshakes get an empty 403.
 
 | Endpoint | Success | Notes |
 |----------|---------|-------|
@@ -130,6 +130,7 @@ Decrypted push payloads are JSON with a `type`:
 | `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set (a warning is logged at boot when unset) |
 | `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10) |
 | `RECORD_API_RATE_LIMIT` | no | Authenticated API requests per record per minute (default 120) |
+| `AUTH_FAILURE_RATE_LIMIT` | no | Failed authentications per client IP per minute, across the API and the delivery WebSocket, before that IP gets 429 for the rest of the minute (default 300). Mobile carrier NAT can put many users on one IP, so keep it generous |
 | `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
 | `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
 | `FCM_SERVICE_ACCOUNT_JSON` | no | Firebase service account JSON for push |

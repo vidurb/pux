@@ -74,6 +74,10 @@ if config_env() == :prod do
     limit: String.to_integer(env.("RECORD_API_RATE_LIMIT") || "120"),
     scale_ms: 60_000
 
+  config :pux, :auth_failure_rate_limit,
+    limit: String.to_integer(env.("AUTH_FAILURE_RATE_LIMIT") || "300"),
+    scale_ms: 60_000
+
   if fcm_json = env.("FCM_SERVICE_ACCOUNT_JSON") do
     case Jason.decode(fcm_json) do
       {:ok, %{"project_id" => project_id}} when is_binary(project_id) ->

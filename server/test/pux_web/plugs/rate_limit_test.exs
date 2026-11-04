@@ -29,6 +29,49 @@ defmodule PuxWeb.Plugs.RateLimitTest do
     assert RateLimit.client_ip(conn_from({10, 0, 0, 1}, nil)) == "10.0.0.1"
   end
 
+  describe "client_ip/2" do
+    test "gives the same answer as client_ip/1" do
+      for {peer, xff} <- [
+            {{10, 244, 0, 5}, "1.1.1.1, 203.0.113.7"},
+            {{198, 51, 100, 2}, "1.1.1.1"},
+            {{0, 0, 0, 0, 0, 0xFFFF, 0x0AF4, 0x0005}, "203.0.113.9"},
+            {{0, 0, 0, 0, 0, 0xFFFF, 0xC633, 0x6402}, "203.0.113.9"},
+            {{10, 0, 0, 1}, nil},
+            {{10, 0, 0, 1}, " , "}
+          ] do
+        headers = if xff, do: [xff], else: []
+
+        assert RateLimit.client_ip(peer, headers) == RateLimit.client_ip(conn_from(peer, xff))
+      end
+    end
+
+    test "uses the last hop of the last header line" do
+      assert RateLimit.client_ip({10, 0, 0, 1}, ["1.1.1.1, 2.2.2.2", "203.0.113.7"]) ==
+               "203.0.113.7"
+    end
+  end
+
+  describe "limit_reached?/2" do
+    test "doesn't count against the limit" do
+      opts = [key: "test_peek:#{System.unique_integer()}", limit: 1, scale_ms: 60_000]
+
+      for _ <- 1..3, do: refute(RateLimit.limit_reached?("client", opts))
+
+      assert RateLimit.allow?("client", opts) == :ok
+      assert RateLimit.limit_reached?("client", opts)
+      refute RateLimit.limit_reached?("other", opts)
+    end
+
+    test "clears in a new window" do
+      opts = [key: "test_peek_window:#{System.unique_integer()}", limit: 1, scale_ms: 50]
+
+      assert RateLimit.allow?("client", opts) == :ok
+      assert RateLimit.limit_reached?("client", opts)
+      Process.sleep(110)
+      refute RateLimit.limit_reached?("client", opts)
+    end
+  end
+
   describe "allow?/2" do
     test "allows up to the limit, then rate limits" do
       key = "test_allow:#{System.unique_integer()}"

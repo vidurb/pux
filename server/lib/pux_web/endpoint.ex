@@ -5,7 +5,12 @@ defmodule PuxWeb.Endpoint do
 
   # Served at /ws/delivery itself (Phoenix appends "/websocket" by default).
   socket "/ws/delivery", PuxWeb.DeliverySocket,
-    websocket: [path: "", connect_info: [:x_headers], timeout: 90_000],
+    websocket: [
+      path: "",
+      connect_info: [:peer_data, :x_headers],
+      error_handler: {PuxWeb.DeliverySocket, :handle_error, []},
+      timeout: 90_000
+    ],
     longpoll: false
 
   plug Plug.Static,

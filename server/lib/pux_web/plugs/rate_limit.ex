@@ -1,6 +1,7 @@
 defmodule PuxWeb.Plugs.RateLimit do
   @moduledoc """
-  IP-based rate limiting for record creation endpoints.
+  IP-based rate limiting for record creation endpoints, plus the shared helpers the other
+  limits use.
   """
   import Plug.Conn
 
@@ -51,22 +52,43 @@ defmodule PuxWeb.Plugs.RateLimit do
   end
 
   @doc """
+  Whether `client_key` has used up its limit, without counting this check against it as
+  `allow?/2` would. Takes the same options as `allow?/2`.
+  """
+  @spec limit_reached?(String.t(), keyword()) :: boolean()
+  def limit_reached?(client_key, opts \\ []) do
+    key = Keyword.get(opts, :key, "default")
+    scale_ms = Keyword.get(opts, :scale_ms, 60_000)
+    limit = Keyword.get(opts, :limit, 10)
+
+    Limiter.get("#{key}:#{client_key}", scale_ms) >= limit
+  end
+
+  @doc """
   Client IP for rate limiting. Only the rightmost `X-Forwarded-For` hop (appended
   by the gateway) is trusted, and only when the peer is a private address.
   """
   @spec client_ip(Plug.Conn.t()) :: String.t()
   def client_ip(conn) do
-    peer = normalize_ip(conn.remote_ip)
+    client_ip(conn.remote_ip, get_req_header(conn, "x-forwarded-for"))
+  end
 
-    case {private_ip?(peer), forwarded_for(conn)} do
+  @doc """
+  The same, for callers with no conn: a peer address and the `X-Forwarded-For` header
+  values, such as a WebSocket's `connect_info`.
+  """
+  @spec client_ip(:inet.ip_address(), [String.t()]) :: String.t()
+  def client_ip(peer_address, forwarded_for_headers) do
+    peer = normalize_ip(peer_address)
+
+    case {private_ip?(peer), forwarded_for(forwarded_for_headers)} do
       {true, [_ | _] = hops} -> List.last(hops)
       _ -> peer |> :inet.ntoa() |> to_string()
     end
   end
 
-  defp forwarded_for(conn) do
-    conn
-    |> get_req_header("x-forwarded-for")
+  defp forwarded_for(headers) do
+    headers
     |> Enum.flat_map(&String.split(&1, ","))
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
