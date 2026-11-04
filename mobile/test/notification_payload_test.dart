@@ -20,6 +20,33 @@ void main() {
       expect(n.code, '123456');
     });
 
+    test('marks unverified senders', () {
+      final n = RelayNotification.fromPayload({
+        'type': 'otp',
+        'otp': '482913',
+        'sender': 'hdfcbank.example',
+        'sender_domain': 'hdfcbank.example',
+        'verified': false,
+      });
+      expect(n.title, 'OTP from hdfcbank.example (unverified)');
+      expect(n.code, '482913');
+    });
+
+    test('verified senders carry no marker', () {
+      final n = RelayNotification.fromPayload({
+        'type': 'otp',
+        'otp': '482913',
+        'sender': 'HDFC Bank',
+        'verified': true,
+      });
+      expect(n.title, 'OTP from HDFC Bank');
+    });
+
+    test('payloads without verified (older servers) carry no marker', () {
+      final n = RelayNotification.fromPayload({'type': 'otp', 'otp': '1', 'sender': 'ICICI'});
+      expect(n.title, 'OTP from ICICI');
+    });
+
     test('renders a forwarding confirmation', () {
       final n = RelayNotification.fromPayload({
         'type': 'forward_confirm',

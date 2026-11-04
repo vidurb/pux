@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app.dart';
 import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
+import 'confirm_server_dialog.dart';
 import 'home_screen.dart';
 
 class ImportEnrollmentScreen extends ConsumerStatefulWidget {
@@ -36,6 +37,8 @@ class _ImportEnrollmentScreenState extends ConsumerState<ImportEnrollmentScreen>
 
     try {
       final payload = RecordStore.instance.parseQr(_controller.text.trim());
+      final server = RecordStore.instance.enrollmentServer(payload);
+      if (!mounted || !await confirmEnrollmentServer(context, server)) return;
       await RecordStore.instance.saveEnrollment(payload);
       unawaited(DeliveryController.instance.start());
       ref.invalidate(enrollmentProvider);

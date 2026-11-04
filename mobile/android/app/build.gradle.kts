@@ -9,9 +9,15 @@ plugins {
 
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(keystorePropertiesFile.inputStream())
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
+
+fun keystoreProperty(name: String): String =
+    requireNotNull(keystoreProperties.getProperty(name)) {
+        "android/key.properties is missing $name (see key.properties.example)"
+    }
 
 android {
     namespace = "xyz.vidur.pux"
@@ -31,12 +37,12 @@ android {
     }
 
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (hasReleaseKeystore) {
             create("release") {
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperty("keyAlias")
+                keyPassword = keystoreProperty("keyPassword")
+                storeFile = file(keystoreProperty("storeFile"))
+                storePassword = keystoreProperty("storePassword")
             }
         }
     }
@@ -51,12 +57,24 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            // Never fall back to the debug key: a debug-signed release cannot be
+            // updated by a properly signed one later.
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
+    }
+}
+
+// Debug builds (CI) work without key.properties; release builds fail before
+// any task runs.
+gradle.taskGraph.whenReady {
+    if (!hasReleaseKeystore && allTasks.any { it.project == project && it.name == "preReleaseBuild" }) {
+        throw GradleException(
+            "Release builds need a release keystore: copy android/key.properties.example " +
+                "to android/key.properties and point it at your keystore. " +
+                "Use `flutter build apk --debug` for test builds.",
+        )
     }
 }
 

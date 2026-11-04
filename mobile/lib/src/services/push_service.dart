@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../firebase_status.dart';
+import '../push_display.dart';
 import 'api_client.dart';
 import 'delivery_controller.dart';
 import 'delivery_service.dart';
@@ -33,9 +34,11 @@ class PushService implements DeliveryService {
       sound: true,
     );
 
-    // Data-only messages: shown by us, in the foreground here and in the
-    // background by firebaseMessagingBackgroundHandler.
+    // Android gets data-only messages: shown by us, in the foreground here and
+    // in the background by firebaseMessagingBackgroundHandler. iOS displays its
+    // alert pushes itself, decrypted by the notification service extension.
     _messages ??= FirebaseMessaging.onMessage.listen((message) async {
+      if (!showsPushNotificationsLocally) return;
       try {
         await NotificationService.instance.handleEncryptedMessage(message.data);
       } catch (error, stackTrace) {
@@ -70,6 +73,11 @@ class PushService implements DeliveryService {
     final recordId = await RecordStore.instance.recordId();
     if (recordId == null) return;
 
-    await ApiClient.instance.registerDevice(recordId: recordId, pushToken: token, platform: 'fcm');
+    final deviceId = await ApiClient.instance.registerDevice(
+      recordId: recordId,
+      pushToken: token,
+      platform: 'fcm',
+    );
+    await RecordStore.instance.saveDeviceId(deviceId);
   }
 }

@@ -23,6 +23,10 @@ enum DeliveryState {
 
   /// The server does not know this relay any more; the user must reset.
   recordUnknown,
+
+  /// The relay already has the maximum number of devices; one has to be
+  /// removed before this one can register.
+  tooManyDevices,
 }
 
 @immutable
@@ -54,6 +58,9 @@ class DeliveryController {
   static const _minBackoff = Duration(seconds: 2);
   static const _maxBackoff = Duration(minutes: 5);
 
+  /// A rate-limited retry waits at least as long as this backoff attempt (~30s).
+  static const _rateLimitedAttempt = 4;
+
   final ValueNotifier<DeliveryStatus> status = ValueNotifier(
     const DeliveryStatus(DeliveryState.idle),
   );
@@ -82,7 +89,7 @@ class DeliveryController {
     final last = _lastRegistered;
     final stale = last == null || DateTime.now().difference(last) > _refreshInterval;
     final state = status.value.state;
-    if (stale || state == DeliveryState.retrying) {
+    if (stale || state == DeliveryState.retrying || state == DeliveryState.tooManyDevices) {
       await start();
     }
   }
@@ -102,6 +109,8 @@ class DeliveryController {
     if (error is RecordNotFoundException) {
       _set(DeliveryState.recordUnknown, message: error.toString());
       unawaited(_service.stop());
+    } else if (error is TooManyDevicesException) {
+      _set(DeliveryState.tooManyDevices, message: error.toString());
     } else {
       _set(DeliveryState.retrying, message: error.toString());
     }
@@ -133,9 +142,14 @@ class DeliveryController {
       _set(DeliveryState.firebaseUnconfigured, message: error.toString());
     } on RecordNotFoundException catch (error) {
       _set(DeliveryState.recordUnknown, message: error.toString());
+    } on TooManyDevicesException catch (error) {
+      _set(DeliveryState.tooManyDevices, message: error.toString());
     } catch (error, stackTrace) {
       debugPrint('Delivery start failed: $error\n$stackTrace');
-      final delay = backoff(_attempt++);
+      final attempt = _attempt++;
+      final delay = backoff(
+        error is RateLimitedException ? max(attempt, _rateLimitedAttempt) : attempt,
+      );
       _set(DeliveryState.retrying, message: '$error (retrying in ${delay.inSeconds}s)');
       _retryTimer = Timer(delay, _tryStart);
     } finally {

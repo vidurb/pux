@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'crypto_service.dart';
+import 'sensitive_clipboard.dart';
 
 const _copyActionId = 'copy_code';
 
 /// What a decrypted payload asks us to show. The server sends
-/// `{"type": "otp", "otp", "sender"}` or
+/// `{"type": "otp", "otp", "sender", "verified"}` or
 /// `{"type": "forward_confirm", "code", "url", "sender", "forwarding_from"}`
 /// (code, url and forwarding_from may be null); payloads without a
-/// `type` predate the field and are OTPs.
+/// `type` predate the field and are OTPs. `verified: false` means the
+/// sender could not be authenticated (no aligned DKIM signature); payloads
+/// without the key come from older servers and carry no marker.
 @immutable
 class RelayNotification {
   const RelayNotification({required this.title, required this.body, this.code});
@@ -36,7 +38,8 @@ class RelayNotification {
       case 'otp':
       default:
         final otp = payload['otp'] as String? ?? '??????';
-        return RelayNotification(title: 'OTP from $sender', body: otp, code: otp);
+        final marker = payload['verified'] == false ? ' (unverified)' : '';
+        return RelayNotification(title: 'OTP from $sender$marker', body: otp, code: otp);
     }
   }
 
@@ -127,6 +130,9 @@ class NotificationService {
       channelDescription: 'Decrypted OTP notifications from pux',
       importance: Importance.max,
       priority: Priority.high,
+      // On a secure lock screen Android shows only "pux" with the contents
+      // hidden. flutter_local_notifications cannot set a custom public version.
+      visibility: NotificationVisibility.private,
       actions: [
         if (notification.code != null)
           const AndroidNotificationAction(_copyActionId, 'Copy code', showsUserInterface: true),
@@ -158,7 +164,7 @@ class NotificationService {
   Future<void> _onResponse(NotificationResponse response) async {
     final code = response.payload;
     if (response.actionId == _copyActionId && code != null && code.isNotEmpty) {
-      await Clipboard.setData(ClipboardData(text: code));
+      await SensitiveClipboard.instance.copy(code);
     }
   }
 }

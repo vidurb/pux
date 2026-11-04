@@ -21,6 +21,23 @@ class RecordNotFoundException implements Exception {
   String toString() => 'Relay not found on the server';
 }
 
+/// The record already has the maximum number of devices. Retrying will not
+/// help until a device is removed from the relay.
+class TooManyDevicesException implements Exception {
+  const TooManyDevicesException();
+
+  @override
+  String toString() => 'This relay already has the maximum number of devices';
+}
+
+/// The server rate-limited the request (429). Transient; retry later.
+class RateLimitedException implements Exception {
+  const RateLimitedException();
+
+  @override
+  String toString() => 'The server is rate limiting requests';
+}
+
 class ApiClient {
   ApiClient._({http.Client? client}) : _client = client ?? http.Client();
 
@@ -49,10 +66,7 @@ class ApiClient {
         )
         .timeout(_timeout);
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = response.body.isEmpty ? '(empty body)' : response.body;
-      throw Exception('Record creation failed (${response.statusCode}): $body');
-    }
+    _check(response, 'Record creation');
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final recordId = decoded['record_id'] as String?;
@@ -64,7 +78,8 @@ class ApiClient {
     return {'record_id': recordId, 'inbox_address': inboxAddress};
   }
 
-  Future<void> registerDevice({
+  /// Returns the server's device ID, used to remove this device later.
+  Future<String?> registerDevice({
     required String recordId,
     required String pushToken,
     required String platform,
@@ -81,10 +96,38 @@ class ApiClient {
     if (response.statusCode == 401 || response.statusCode == 404) {
       throw const RecordNotFoundException();
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = response.body.isEmpty ? '(empty body)' : response.body;
-      throw Exception('Device registration failed (${response.statusCode}): $body');
+    if (response.statusCode == 422 && _errorCode(response) == 'too_many_devices') {
+      throw const TooManyDevicesException();
     }
+    _check(response, 'Device registration');
+
+    return _decodeObject(response)?['device_id'] as String?;
+  }
+
+  /// Removes one device from the record. A device or record the server no
+  /// longer knows counts as removed.
+  Future<void> deleteDevice({required String recordId, required String deviceId}) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/records/$recordId/devices/$deviceId',
+    );
+    final response = await _client
+        .delete(uri, headers: {'authorization': 'Bearer $recordId'})
+        .timeout(_timeout);
+
+    if (response.statusCode == 401 || response.statusCode == 404) return;
+    _check(response, 'Device removal');
+  }
+
+  /// Deletes the record with all its devices and pending deliveries. A record
+  /// the server no longer knows counts as deleted.
+  Future<void> deleteRecord({required String recordId}) async {
+    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/records/$recordId');
+    final response = await _client
+        .delete(uri, headers: {'authorization': 'Bearer $recordId'})
+        .timeout(_timeout);
+
+    if (response.statusCode == 401 || response.statusCode == 404) return;
+    _check(response, 'Relay deletion');
   }
 
   Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
@@ -96,10 +139,7 @@ class ApiClient {
     if (response.statusCode == 401 || response.statusCode == 404) {
       throw const RecordNotFoundException();
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = response.body.isEmpty ? '(empty body)' : response.body;
-      throw Exception('Delivery poll failed (${response.statusCode}): $body');
-    }
+    _check(response, 'Delivery poll');
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final deliveries = decoded['deliveries'] as List<dynamic>? ?? const [];
@@ -121,15 +161,13 @@ class ApiClient {
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
 
-    if (response.statusCode != 204 && response.statusCode != 404) {
-      final body = response.body.isEmpty ? '(empty body)' : response.body;
-      throw Exception('Delivery ack failed (${response.statusCode}): $body');
-    }
+    if (response.statusCode == 404) return;
+    _check(response, 'Delivery ack');
   }
 
-  /// The record ID is also sent as the `x-pux-token` header; the query
-  /// parameter is kept for servers that only read it from there.
-  String deliveryWebSocketUrl(String recordId) {
+  /// The record ID goes in the `x-pux-token` header, never the URL, so it
+  /// stays out of proxy logs.
+  String deliveryWebSocketUrl() {
     final base = Uri.parse(RecordStore.instance.serverUrl);
     final scheme = base.scheme == 'https' ? 'wss' : 'ws';
     return Uri(
@@ -137,7 +175,25 @@ class ApiClient {
       host: base.host,
       port: base.hasPort ? base.port : null,
       path: '/ws/delivery',
-      queryParameters: {'token': recordId},
     ).toString();
+  }
+
+  void _check(http.Response response, String action) {
+    if (response.statusCode == 429) throw const RateLimitedException();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = response.body.isEmpty ? '(empty body)' : response.body;
+      throw Exception('$action failed (${response.statusCode}): $body');
+    }
+  }
+
+  String? _errorCode(http.Response response) => _decodeObject(response)?['error'] as String?;
+
+  Map<String, dynamic>? _decodeObject(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
   }
 }

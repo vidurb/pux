@@ -110,11 +110,102 @@ void main() {
     );
   });
 
-  test('deliveryWebSocketUrl targets /ws/delivery over wss', () {
-    final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl('rec_123'));
+  test('registerDevice returns the device_id', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient(
+        (_) async => http.Response(jsonEncode({'device_id': 'dev_1', 'platform': 'fcm'}), 201),
+      ),
+    );
+
+    expect(
+      await client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      'dev_1',
+    );
+  });
+
+  test('registerDevice maps 422 too_many_devices to TooManyDevicesException', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('{"error":"too_many_devices"}', 422)),
+    );
+
+    expect(
+      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      throwsA(isA<TooManyDevicesException>()),
+    );
+  });
+
+  test('429 responses surface as RateLimitedException', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('{"error":"rate_limit_exceeded"}', 429)),
+    );
+
+    expect(
+      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      throwsA(isA<RateLimitedException>()),
+    );
+    expect(
+      () => client.listPendingDeliveries(recordId: 'rec_123'),
+      throwsA(isA<RateLimitedException>()),
+    );
+    expect(() => client.deleteRecord(recordId: 'rec_123'), throwsA(isA<RateLimitedException>()));
+  });
+
+  test('deleteDevice sends DELETE for the device', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((request) async {
+        expect(request.method, 'DELETE');
+        expect(request.url.path, '/api/v1/records/rec_123/devices/dev_1');
+        expect(request.headers['authorization'], 'Bearer rec_123');
+        return http.Response('', 204);
+      }),
+    );
+
+    await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
+  });
+
+  test('deleteRecord sends DELETE for the record', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((request) async {
+        expect(request.method, 'DELETE');
+        expect(request.url.path, '/api/v1/records/rec_123');
+        expect(request.headers['authorization'], 'Bearer rec_123');
+        return http.Response('', 204);
+      }),
+    );
+
+    await client.deleteRecord(recordId: 'rec_123');
+  });
+
+  test('deletes treat 404 as already gone', () async {
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('{"error":"not_found"}', 404)),
+    );
+
+    await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
+    await client.deleteRecord(recordId: 'rec_123');
+  });
+
+  test('deletes surface server errors', () async {
+    final client = ApiClient.forTesting(client: MockClient((_) async => http.Response('', 500)));
+
+    expect(
+      () => client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1'),
+      throwsA(isA<Exception>()),
+    );
+    expect(() => client.deleteRecord(recordId: 'rec_123'), throwsA(isA<Exception>()));
+  });
+
+  test('deliveryWebSocketUrl targets /ws/delivery over wss without the record ID', () {
+    final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl());
     expect(url.scheme, 'wss');
     expect(url.host, 'pux.test');
     expect(url.path, '/ws/delivery');
-    expect(url.queryParameters['token'], 'rec_123');
+    expect(url.hasQuery, isFalse);
+  });
+
+  test('deliveryWebSocketUrl uses ws for http servers and keeps the port', () {
+    RecordStore.instance.setServerUrlForTesting('http://localhost:4000');
+    final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl());
+    expect(url.toString(), 'ws://localhost:4000/ws/delivery');
   });
 }

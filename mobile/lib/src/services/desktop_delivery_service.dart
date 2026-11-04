@@ -60,11 +60,12 @@ class DesktopDeliveryService implements DeliveryService {
     final recordId = await RecordStore.instance.recordId();
     if (recordId == null) return;
 
-    await ApiClient.instance.registerDevice(
+    final deviceId = await ApiClient.instance.registerDevice(
       recordId: recordId,
       pushToken: await RecordStore.instance.desktopDeviceId(),
       platform: 'desktop',
     );
+    await RecordStore.instance.saveDeviceId(deviceId);
   }
 
   Future<void> _pollPending() async {
@@ -89,7 +90,7 @@ class DesktopDeliveryService implements DeliveryService {
 
     try {
       final channel = IOWebSocketChannel.connect(
-        Uri.parse(ApiClient.instance.deliveryWebSocketUrl(recordId)),
+        Uri.parse(ApiClient.instance.deliveryWebSocketUrl()),
         headers: {'x-pux-token': recordId},
         connectTimeout: const Duration(seconds: 15),
       );

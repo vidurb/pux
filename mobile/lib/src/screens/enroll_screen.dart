@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../app.dart';
 import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
+import 'confirm_server_dialog.dart';
 import 'home_screen.dart';
 
 class EnrollScreen extends ConsumerStatefulWidget {
@@ -37,9 +38,15 @@ class _EnrollScreenState extends ConsumerState<EnrollScreen> {
 
     try {
       final payload = RecordStore.instance.parseQr(raw);
+      final server = RecordStore.instance.enrollmentServer(payload);
+      await _scannerController.stop();
+      if (!mounted) return;
+      if (!await confirmEnrollmentServer(context, server)) {
+        await _scannerController.start();
+        return;
+      }
       await RecordStore.instance.saveEnrollment(payload);
       _enrolled = true;
-      await _scannerController.stop();
       unawaited(DeliveryController.instance.start());
       ref.invalidate(enrollmentProvider);
 

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pux/src/services/api_client.dart';
 import 'package:pux/src/services/delivery_controller.dart';
 
 void main() {
@@ -15,5 +16,15 @@ void main() {
       expect(delay, lessThanOrEqualTo(const Duration(minutes: 5)));
     }
     expect(delays.last, const Duration(minutes: 5));
+  });
+
+  test('too many devices is reported as its own, non-retrying state', () {
+    DeliveryController.instance.reportError(const TooManyDevicesException());
+    expect(DeliveryController.instance.status.value.state, DeliveryState.tooManyDevices);
+  });
+
+  test('rate limiting is reported as a transient retry', () {
+    DeliveryController.instance.reportError(const RateLimitedException());
+    expect(DeliveryController.instance.status.value.state, DeliveryState.retrying);
   });
 }

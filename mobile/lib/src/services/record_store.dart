@@ -15,9 +15,22 @@ class RecordStore {
   static const _inboxKey = 'inbox';
   static const _serverKey = 'server_url';
   static const _desktopDeviceIdKey = 'desktop_device_id';
+  static const _deviceIdKey = 'device_id';
 
+  static const _cleartextHosts = {'localhost', '127.0.0.1', '10.0.2.2'};
+  static final _uuid = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
+
+  // iOS: items land in the shared keychain group (the first entry of
+  // keychain-access-groups in Runner.entitlements), so the notification
+  // service extension can decrypt pushes, including while the phone is locked.
+  // AppDelegate moves items written by older builds into that group.
+  // Android: v10 migrates EncryptedSharedPreferences data to its own ciphers.
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
   );
 
   late String _defaultServerUrl;
@@ -46,9 +59,7 @@ class RecordStore {
 
   Future<void> saveEnrollment(Map<String, dynamic> payload) async {
     _validateEnrollmentPayload(payload);
-
-    final server = payload['server'] as String?;
-    final effectiveServer = (server != null && server.isNotEmpty) ? server : serverUrl;
+    final effectiveServer = enrollmentServer(payload);
 
     await _storage.write(key: _recordIdKey, value: payload['record_id'] as String);
     await _storage.write(key: _privateKeyKey, value: payload['private_key'] as String);
@@ -62,6 +73,45 @@ class RecordStore {
   Future<String?> privateKey() => _storage.read(key: _privateKeyKey);
   Future<String?> publicKey() => _storage.read(key: _publicKeyKey);
   Future<String?> inbox() => _storage.read(key: _inboxKey);
+
+  /// The server's ID for this device's registration, for removing it later.
+  Future<String?> deviceId() => _storage.read(key: _deviceIdKey);
+
+  Future<void> saveDeviceId(String? deviceId) async {
+    if (deviceId == null || deviceId.isEmpty) return;
+    await _storage.write(key: _deviceIdKey, value: deviceId);
+  }
+
+  /// The validated server an enrollment payload points at: its `server`, or
+  /// the current one when absent. Throws [FormatException] if it is unsafe.
+  String enrollmentServer(Map<String, dynamic> payload) {
+    final server = payload['server'];
+    if (server == null || (server is String && server.isEmpty)) return serverUrl;
+    if (server is! String) throw const FormatException('Invalid server in enrollment');
+    // The build's own default is trusted, so development builds can point anywhere.
+    if (server == _defaultServerUrl) return server;
+    return validateServerUrl(server);
+  }
+
+  /// Accepts https URLs, and plain http only for local development hosts.
+  /// Returns the URL without a trailing slash.
+  static String validateServerUrl(String raw) {
+    final uri = Uri.tryParse(raw.trim());
+    if (uri == null || uri.host.isEmpty) {
+      throw const FormatException('Invalid server URL in enrollment');
+    }
+    final secure = uri.scheme == 'https';
+    final local = uri.scheme == 'http' && _cleartextHosts.contains(uri.host);
+    if (!secure && !local) {
+      throw FormatException(
+        'Refusing insecure server ${uri.scheme}://${uri.host}: https is required',
+      );
+    }
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment || uri.path.length > 1) {
+      throw const FormatException('Server URL must not have a path, query or credentials');
+    }
+    return uri.replace(path: '').toString();
+  }
 
   Future<String> desktopDeviceId() async {
     final existing = await _storage.read(key: _desktopDeviceIdKey);
@@ -113,11 +163,20 @@ class RecordStore {
   }
 
   void _validateEnrollmentPayload(Map<String, dynamic> payload) {
-    _decodeKey(payload['private_key'] as String, field: 'private_key');
-    _decodeKey(payload['public_key'] as String, field: 'public_key');
+    final recordId = payload['record_id'];
+    if (recordId is! String || !_uuid.hasMatch(recordId)) {
+      throw const FormatException('Invalid record_id in enrollment');
+    }
+    if (payload['inbox'] is! String) {
+      throw const FormatException('Invalid inbox in enrollment');
+    }
+    _decodeKey(payload['private_key'], field: 'private_key');
+    _decodeKey(payload['public_key'], field: 'public_key');
+    enrollmentServer(payload);
   }
 
-  Uint8List _decodeKey(String value, {required String field}) {
+  Uint8List _decodeKey(Object? value, {required String field}) {
+    if (value is! String) throw FormatException('Missing $field');
     try {
       final decoded = base64Url.decode(_pad(value));
       if (decoded.length != 32) {

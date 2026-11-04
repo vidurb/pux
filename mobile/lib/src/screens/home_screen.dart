@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../app.dart';
+import '../services/api_client.dart';
 import '../services/delivery_controller.dart';
 import '../services/record_store.dart';
+import '../services/sensitive_clipboard.dart';
 import 'enroll_chooser_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _inbox;
   bool _showQr = false;
   String? _enrollmentJson;
+  bool _removing = false;
 
   @override
   void initState() {
@@ -63,21 +66,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     if (confirmed != true) return;
 
-    await Clipboard.setData(ClipboardData(text: json));
+    await SensitiveClipboard.instance.copy(json);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Enrollment JSON copied')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Enrollment JSON copied. It is cleared from the clipboard in a minute.'),
+      ),
+    );
   }
 
-  Future<void> _confirmReset() async {
+  Future<void> _confirmRemoveDevice() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset this device?'),
+        title: const Text('Remove this device?'),
         content: const Text(
-          'This deletes the keys and relay from this device. Other enrolled '
-          'devices keep working. You will need to create or import a relay again.',
+          'This device stops receiving codes and its keys are deleted from it. '
+          'Other devices on this relay keep working. To use pux here again you '
+          'will need to create or import a relay.',
         ),
         actions: [
           TextButton(
@@ -86,15 +92,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Reset'),
+            child: const Text('Remove'),
           ),
         ],
       ),
     );
-    if (confirmed == true) await _reset();
+    if (confirmed != true) return;
+
+    await _removeWith(
+      failureTitle: "Couldn't remove this device from the server",
+      forgetWarning:
+          'If you forget it locally, the server keeps this registration until '
+          'it expires after 30 days without use.',
+      serverCall: () async {
+        final recordId = await RecordStore.instance.recordId();
+        final deviceId = await RecordStore.instance.deviceId();
+        // Never registered with a server that returns device IDs: nothing to remove.
+        if (recordId == null || deviceId == null) return;
+        await ApiClient.instance.deleteDevice(recordId: recordId, deviceId: deviceId);
+      },
+    );
   }
 
-  Future<void> _reset() async {
+  Future<void> _confirmDeleteRelay() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => const _DeleteRelayDialog(),
+    );
+    if (confirmed != true) return;
+
+    await _removeWith(
+      failureTitle: "Couldn't delete the relay",
+      forgetWarning:
+          'If you forget it locally, the relay keeps running on the server and '
+          'your other devices keep receiving codes.',
+      serverCall: () async {
+        final recordId = await RecordStore.instance.recordId();
+        if (recordId == null) return;
+        await ApiClient.instance.deleteRecord(recordId: recordId);
+      },
+    );
+  }
+
+  /// Stops delivery, runs [serverCall], then forgets the relay locally. If
+  /// the server call fails the user can retry, cancel (delivery restarts) or
+  /// forget locally anyway.
+  Future<void> _removeWith({
+    required String failureTitle,
+    required String forgetWarning,
+    required Future<void> Function() serverCall,
+  }) async {
+    setState(() => _removing = true);
+    await DeliveryController.instance.stop();
+
+    while (true) {
+      try {
+        await serverCall();
+        break;
+      } catch (error) {
+        if (!mounted) return;
+        final choice = await showDialog<_RemovalFailureChoice>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(failureTitle),
+            content: Text('The server could not be reached or refused: $error\n\n$forgetWarning'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.cancel),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.retry),
+                child: const Text('Try again'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.forget),
+                child: const Text('Forget locally anyway'),
+              ),
+            ],
+          ),
+        );
+        if (choice == _RemovalFailureChoice.retry) continue;
+        if (choice == _RemovalFailureChoice.forget) break;
+
+        if (mounted) setState(() => _removing = false);
+        unawaited(DeliveryController.instance.start());
+        return;
+      }
+    }
+
+    await _forgetLocally();
+  }
+
+  Future<void> _forgetLocally() async {
     await DeliveryController.instance.stop();
     await RecordStore.instance.clear();
     ref.invalidate(enrollmentProvider);
@@ -117,11 +207,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: const Icon(Icons.qr_code),
           ),
           PopupMenuButton<String>(
+            enabled: !_removing,
             onSelected: (value) {
-              if (value == 'reset') _confirmReset();
+              switch (value) {
+                case 'remove_device':
+                  _confirmRemoveDevice();
+                case 'delete_relay':
+                  _confirmDeleteRelay();
+              }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'reset', child: Text('Reset this device')),
+              PopupMenuItem(value: 'remove_device', child: Text('Remove this device')),
+              PopupMenuItem(value: 'delete_relay', child: Text('Delete relay everywhere')),
             ],
           ),
         ],
@@ -129,9 +226,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_removing) const LinearProgressIndicator(),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
-            builder: (context, status, _) => _DeliveryBanner(status: status, onReset: _reset),
+            builder: (context, status, _) =>
+                _DeliveryBanner(status: status, onForget: _forgetLocally),
           ),
           const Text(
             'Forward bank OTP emails to your inbox address. Codes arrive as encrypted push notifications.',
@@ -179,10 +278,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _DeliveryBanner extends StatelessWidget {
-  const _DeliveryBanner({required this.status, required this.onReset});
+  const _DeliveryBanner({required this.status, required this.onForget});
 
   final DeliveryStatus status;
-  final Future<void> Function() onReset;
+  final Future<void> Function() onForget;
 
   @override
   Widget build(BuildContext context) {
@@ -212,9 +311,20 @@ class _DeliveryBanner extends StatelessWidget {
       DeliveryState.recordUnknown => (
         Colors.red,
         'The server no longer knows this relay. It may have expired after a '
-            'long period without use. Reset this device and create a new relay '
-            '(then update your email forwarding).',
-        [FilledButton(onPressed: onReset, child: const Text('Reset'))],
+            'long period without use. Forget it on this device and create a new '
+            'relay (then update your email forwarding).',
+        [FilledButton(onPressed: onForget, child: const Text('Forget relay'))],
+      ),
+      DeliveryState.tooManyDevices => (
+        Colors.red,
+        'This relay already has the maximum number of devices. On a device you '
+            'no longer use, choose "Remove this device", then retry here.',
+        [
+          TextButton(
+            onPressed: () => unawaited(DeliveryController.instance.start()),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
     };
 
@@ -241,6 +351,65 @@ class _DeliveryBanner extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+enum _RemovalFailureChoice { cancel, retry, forget }
+
+/// Deleting the relay stops every device and the inbox address, so it asks
+/// the user to type a word rather than tap once.
+class _DeleteRelayDialog extends StatefulWidget {
+  const _DeleteRelayDialog();
+
+  static const confirmationWord = 'delete';
+
+  @override
+  State<_DeleteRelayDialog> createState() => _DeleteRelayDialogState();
+}
+
+class _DeleteRelayDialogState extends State<_DeleteRelayDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = _controller.text.trim().toLowerCase() == _DeleteRelayDialog.confirmationWord;
+
+    return AlertDialog(
+      title: const Text('Delete relay everywhere?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'This deletes the relay from the server. Every device on it stops '
+            'receiving codes, the inbox address stops working and pending codes '
+            'are discarded. This cannot be undone.',
+          ),
+          const SizedBox(height: 16),
+          const Text('Type "${_DeleteRelayDialog.confirmationWord}" to confirm.'),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            autocorrect: false,
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+          onPressed: confirmed ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('Delete everywhere'),
+        ),
+      ],
     );
   }
 }
