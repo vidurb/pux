@@ -33,6 +33,11 @@ updates:
     directory: /server
     schedule:
       interval: weekly
-    groups:
-      docker:
-        patterns: ["*"]
+    ignore:
+      # hexpm/elixir has about a million tags, so listing them times out (504) and
+      # fails every job. Skip the lookup and bump this image by hand.
+      - dependency-name: hexpm/elixir
+      # A new Alpine release has to move with the hexpm/elixir build stage, so
+      # Dependabot only gets patch updates within the current release.
+      - dependency-name: alpine
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
