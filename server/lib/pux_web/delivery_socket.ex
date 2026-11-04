@@ -32,10 +32,11 @@ defmodule PuxWeb.DeliverySocket do
   defp header_token(_transport), do: nil
 
   @impl true
-  def init(%{record_id: record_id} = state) do
+  def init(%{record_id: record_id}) do
     topic = Push.delivery_topic(record_id)
     Phoenix.PubSub.subscribe(Pux.PubSub, topic)
-    {:ok, state}
+    # Nothing needs the record ID from here on, so it can't turn up in a crash report.
+    {:ok, %{}}
   end
 
   @impl true

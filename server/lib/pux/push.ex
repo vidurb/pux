@@ -35,19 +35,27 @@ defmodule Pux.Push do
               )
 
             {:error, reason} ->
-              Logger.error(
-                "Pending delivery persistence failed for record #{record.id}: #{inspect(reason)}"
-              )
+              Logger.error("Pending delivery persistence failed: #{failure_reason(reason)}")
           end
         end
 
         :ok
 
       {:error, reason} ->
-        Logger.error("Push encryption failed for record #{record.id}: #{inspect(reason)}")
+        Logger.error("Push encryption failed: #{failure_reason(reason)}")
         :ok
     end
   end
+
+  # The record ID is a credential, and inspecting a changeset or an unknown term could print
+  # it, so log only what can't carry it: field names, validation messages and exception types.
+  defp failure_reason(%Ecto.Changeset{errors: errors}) do
+    Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
+  end
+
+  defp failure_reason(%{__exception__: true, __struct__: type}), do: inspect(type)
+  defp failure_reason(reason) when is_atom(reason), do: inspect(reason)
+  defp failure_reason(_reason), do: "unexpected error"
 
   @spec delivery_topic(Ecto.UUID.t()) :: String.t()
   def delivery_topic(record_id), do: "delivery:#{record_id}"

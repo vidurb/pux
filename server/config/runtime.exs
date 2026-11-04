@@ -85,8 +85,9 @@ if config_env() == :prod do
       {:ok, _} ->
         IO.warn("FCM_SERVICE_ACCOUNT_JSON is missing project_id; FCM disabled")
 
-      {:error, reason} ->
-        IO.warn("FCM_SERVICE_ACCOUNT_JSON is invalid (#{inspect(reason)}); FCM disabled")
+      # The decode error holds the whole input, including the private key.
+      {:error, %Jason.DecodeError{position: position}} ->
+        IO.warn("FCM_SERVICE_ACCOUNT_JSON is invalid at byte #{position}; FCM disabled")
     end
   end
 

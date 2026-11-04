@@ -59,21 +59,23 @@ defmodule Pux.SMTP.Session do
 
   @impl true
   def handle_RCPT(to, state) do
-    with {:ok, token} <- extract_inbox_token(to, state.mail_domain),
-         %Records.Record{} = record <- Records.get_record_by_inbox_token(token) do
-      cond do
-        Enum.any?(state.recipients, &(&1.id == record.id)) ->
-          {:ok, state}
+    without_crashing(state, fn ->
+      with {:ok, token} <- extract_inbox_token(to, state.mail_domain),
+           %Records.Record{} = record <- Records.get_record_by_inbox_token(token) do
+        cond do
+          Enum.any?(state.recipients, &(&1.id == record.id)) ->
+            {:ok, state}
 
-        length(state.recipients) >= state.max_recipients ->
-          {:error, "452 4.5.3 Too many recipients", state}
+          length(state.recipients) >= state.max_recipients ->
+            {:error, "452 4.5.3 Too many recipients", state}
 
-        true ->
-          {:ok, %{state | recipients: [record | state.recipients]}}
+          true ->
+            {:ok, %{state | recipients: [record | state.recipients]}}
+        end
+      else
+        _ -> {:error, "550 5.1.1 Recipient rejected", state}
       end
-    else
-      _ -> {:error, "550 5.1.1 Recipient rejected", state}
-    end
+    end)
   end
 
   @impl true
@@ -81,28 +83,48 @@ defmodule Pux.SMTP.Session do
 
   @impl true
   def handle_DATA(_from, _to, data, state) do
-    case classify(data, state) do
-      {:ok, payload} ->
-        plaintext = Jason.encode!(payload)
-        Enum.each(state.recipients, &deliver(&1, plaintext, state))
+    without_crashing(state, fn ->
+      case classify(data, state) do
+        {:ok, payload} ->
+          plaintext = Jason.encode!(payload)
+          Enum.each(state.recipients, &deliver(&1, plaintext, state))
 
-      :ignore ->
-        Logger.debug("SMTP: no OTP found in message")
-    end
+        :ignore ->
+          Logger.debug("SMTP: no OTP found in message")
+      end
 
-    {:ok, "250 OK", %{state | recipients: [], from: nil}}
+      {:ok, "250 OK", %{state | recipients: [], from: nil}}
+    end)
   end
 
-  # Runs off the session process with a hard timeout. Exit reasons can carry
-  # message content, so they are never logged.
-  defp classify(data, state) do
+  # A crash report for this process prints its last message: the raw email or RCPT line,
+  # with the OTP and inbox token. So the callbacks that can raise (database, JSON encoding)
+  # reply with a temporary failure instead, and the sender retries.
+  defp without_crashing(state, callback) do
+    callback.()
+  rescue
+    e -> temporary_failure(inspect(e.__struct__), state)
+  catch
+    kind, _reason -> temporary_failure(inspect(kind), state)
+  end
+
+  defp temporary_failure(kind, state) do
+    Logger.error("SMTP: command failed (#{kind}); replied with a temporary failure")
+    {:error, "451 4.3.0 Temporary failure, try again later", state}
+  end
+
+  # Runs off the session process with a hard timeout. A task's crash report prints its
+  # arguments and exit reasons can carry message content, so failures are caught inside the
+  # task and only the exception type is logged.
+  defp classify(data, %{from: from} = state) do
     task =
-      Task.Supervisor.async_nolink(Pux.SMTP.TaskSupervisor, Inbound, :classify, [
-        data,
-        state.from
-      ])
+      Task.Supervisor.async_nolink(Pux.SMTP.TaskSupervisor, fn -> try_classify(data, from) end)
 
     case Task.yield(task, state.classify_timeout_ms) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {:failed, kind}} ->
+        Logger.warning("SMTP: classification failed (#{kind}); message ignored")
+        :ignore
+
       {:ok, result} ->
         result
 
@@ -114,6 +136,14 @@ defmodule Pux.SMTP.Session do
         Logger.warning("SMTP: classification timed out; message ignored")
         :ignore
     end
+  end
+
+  defp try_classify(data, from) do
+    Inbound.classify(data, from)
+  rescue
+    e -> {:failed, inspect(e.__struct__)}
+  catch
+    kind, _reason -> {:failed, inspect(kind)}
   end
 
   defp deliver(record, plaintext, state) do
