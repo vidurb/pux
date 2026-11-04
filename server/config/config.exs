@@ -43,9 +43,22 @@ config :pux, :record_rate_limit,
 
 config :pux, :records, max_devices: 10
 
+# Retention. See "Data retention" in README.md, and keep any published copy in step.
+# - An FCM device stays until FCM reports its token dead: an app that is installed but rarely
+#   opened is the normal case. `fcm_token_check_days` is how long a token can stay quiet
+#   before a dry-run send asks FCM about it, which delivers nothing and removes only on
+#   FCM's say-so.
+# - `device_max_idle_days` is the hard limit for every device, because FCM can't report some
+#   dead tokens (an uninstalled iOS app on a relay with no mail). Only a registration or an
+#   accepted push restarts it, not a dry-run check.
+# - Desktop devices have no such signal, so they age out. A running app re-registers every
+#   12 h, and one that has been switched off re-registers when it starts.
+# - A record lasts as long as it has a device, then `deviceless_record_ttl_days` more.
 config :pux, :pruner,
-  record_ttl_days: 90,
-  device_ttl_days: 30,
+  device_max_idle_days: 730,
+  desktop_device_ttl_days: 90,
+  deviceless_record_ttl_days: 30,
+  fcm_token_check_days: 30,
   delivery_ttl_minutes: 10
 
 config :pux, Oban,

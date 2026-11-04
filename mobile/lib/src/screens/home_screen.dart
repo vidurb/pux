@@ -104,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       failureTitle: "Couldn't remove this device from the server",
       forgetWarning:
           'If you forget it locally, the server keeps this registration until '
-          'it expires after 30 days without use.',
+          'it expires, which can take up to 2 years.',
       serverCall: () async {
         final recordId = await RecordStore.instance.recordId();
         final deviceId = await RecordStore.instance.deviceId();
@@ -312,9 +312,9 @@ class _DeliveryBanner extends StatelessWidget {
       ),
       DeliveryState.recordUnknown => (
         Colors.red,
-        'The server no longer knows this relay. It may have expired after a '
-            'long period without use. Forget it on this device and create a new '
-            'relay (then update your email forwarding).',
+        'The server no longer knows this relay. It may have expired after going '
+            'a long time with no registered devices. Forget it on this device and '
+            'create a new relay (then update your email forwarding).',
         [FilledButton(onPressed: onForget, child: const Text('Forget relay'))],
       ),
       DeliveryState.tooManyDevices => (

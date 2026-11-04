@@ -18,6 +18,7 @@ defmodule Pux.SMTP.SessionTest do
   end
 
   test "accepts a known inbox on the configured mail domain", %{state: state, enrollment: e} do
+    with_device(e)
     assert {:ok, %{recipients: [record]}} = Session.handle_RCPT(e.inbox_address, state)
     assert record.id == e.record_id
   end
@@ -32,6 +33,7 @@ defmodule Pux.SMTP.SessionTest do
   end
 
   test "deduplicates repeated recipients", %{state: state, enrollment: e} do
+    with_device(e)
     {:ok, state} = Session.handle_RCPT(e.inbox_address, state)
     assert {:ok, %{recipients: [_]}} = Session.handle_RCPT(String.upcase(e.inbox_address), state)
   end
@@ -96,12 +98,142 @@ defmodule Pux.SMTP.SessionTest do
   end
 
   test "a record deleted while mail is in flight doesn't crash the session", %{enrollment: e} do
+    with_device(e)
     state = session([])
     {:ok, state} = Session.handle_RCPT(e.inbox_address, state)
     Pux.Repo.delete!(Records.get_record(e.record_id))
 
     assert {:ok, "250 OK", _} =
              Session.handle_DATA("sender@bank.com", [e.inbox_address], @otp_mail, state)
+  end
+
+  describe "a relay with no devices" do
+    @rejected "550 5.1.1 Recipient rejected"
+
+    defp new_relay do
+      {:ok, enrollment} = Records.create_record(Fixtures.public_key())
+      enrollment
+    end
+
+    defp age_record(record_id) do
+      stale = DateTime.utc_now() |> DateTime.add(-20, :day)
+
+      record_id
+      |> Records.get_record()
+      |> Ecto.Changeset.change(last_active_at: stale)
+      |> Pux.Repo.update!()
+
+      stale
+    end
+
+    test "gets the same permanent reply as an unknown address", %{state: state, enrollment: e} do
+      assert {:error, @rejected, ^state} = Session.handle_RCPT(e.inbox_address, state)
+
+      assert {:error, @rejected, ^state} =
+               Session.handle_RCPT("abcdefgh12345678@pux.test", state)
+    end
+
+    test "is rejected but kept during its grace period", %{state: state, enrollment: e} do
+      device = with_device(e)
+      assert {:ok, _} = Session.handle_RCPT(e.inbox_address, state)
+
+      assert Records.delete_devices_by_token(device.push_token) == 1
+
+      assert {:error, @rejected, _} = Session.handle_RCPT(e.inbox_address, state)
+      assert Records.get_record(e.record_id)
+    end
+
+    test "takes mail again as soon as a device re-registers", %{state: state, enrollment: e} do
+      device = with_device(e)
+      Records.delete_devices_by_token(device.push_token)
+      assert {:error, @rejected, _} = Session.handle_RCPT(e.inbox_address, state)
+
+      {:ok, back} =
+        Records.register_device(e.record_id, %{push_token: device.push_token, platform: :fcm})
+
+      deliver(session([]), e)
+      assert_enqueued(worker: PushWorker, args: %{"device_id" => back.id})
+    end
+
+    test "a rejection doesn't restart its clock", %{state: state, enrollment: e} do
+      stale = age_record(e.record_id)
+
+      assert {:error, @rejected, _} = Session.handle_RCPT(e.inbox_address, state)
+
+      last_active_at = Records.get_record(e.record_id).last_active_at
+      assert DateTime.compare(last_active_at, stale) == :eq
+    end
+
+    test "losing the last device after RCPT drops the mail without restarting the clock", %{
+      state: state,
+      enrollment: e
+    } do
+      device = with_device(e)
+      {:ok, state} = Session.handle_RCPT(e.inbox_address, state)
+      Records.delete_devices_by_token(device.push_token)
+      stale = age_record(e.record_id)
+
+      assert {:ok, "250 OK", _} =
+               Session.handle_DATA("sender@bank.com", [e.inbox_address], @otp_mail, state)
+
+      last_active_at = Records.get_record(e.record_id).last_active_at
+      assert DateTime.compare(last_active_at, stale) == :eq
+      refute_enqueued(worker: PushWorker)
+    end
+
+    test "in a multi-recipient message only that recipient is refused", %{
+      state: state,
+      enrollment: e
+    } do
+      device = with_device(e)
+      deviceless = new_relay()
+
+      {:ok, state} = Session.handle_RCPT(e.inbox_address, state)
+      assert {:error, @rejected, state} = Session.handle_RCPT(deviceless.inbox_address, state)
+      assert [%{id: id}] = state.recipients
+      assert id == e.record_id
+
+      assert {:ok, "250 OK", _} =
+               Session.handle_DATA("sender@bank.com", [e.inbox_address], @otp_mail, state)
+
+      assert [_] = all_enqueued(worker: PushWorker, args: %{"device_id" => device.id})
+    end
+
+    test "doesn't use up the recipient limit", %{enrollment: e} do
+      with_device(e)
+      deviceless = new_relay()
+
+      {:ok, _banner, state} =
+        Session.init("pux.test", 0, {127, 0, 0, 1}, mail_domain: "pux.test", max_recipients: 1)
+
+      {:ok, state} = Session.handle_MAIL("sender@bank.com", state)
+
+      assert {:error, @rejected, state} = Session.handle_RCPT(deviceless.inbox_address, state)
+      assert {:ok, %{recipients: [_]}} = Session.handle_RCPT(e.inbox_address, state)
+    end
+
+    test "is refused whatever the rate limit says, and doesn't spend it", %{enrollment: e} do
+      state = session(inbound_rate_limit: 1, inbound_rate_scale_ms: 60_000)
+      {:ok, state} = Session.handle_MAIL("sender@bank.com", state)
+
+      for _ <- 1..3 do
+        assert {:error, @rejected, _} = Session.handle_RCPT(e.inbox_address, state)
+      end
+
+      device = with_device(e)
+      deliver(session(inbound_rate_limit: 1, inbound_rate_scale_ms: 60_000), e)
+      assert [_] = all_enqueued(worker: PushWorker, args: %{"device_id" => device.id})
+    end
+  end
+
+  test "mail with a device to go to restarts the relay's clock", %{enrollment: e} do
+    with_device(e)
+    stale = age_record(e.record_id)
+
+    deliver(session([]), e)
+
+    last_active_at = Records.get_record(e.record_id).last_active_at
+    assert DateTime.compare(last_active_at, stale) == :gt
   end
 
   test "classification has a hard timeout", %{enrollment: e} do

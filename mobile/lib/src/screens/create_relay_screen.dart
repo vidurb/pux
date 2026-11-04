@@ -38,7 +38,7 @@ class _CreateRelayScreenState extends ConsumerState<CreateRelayScreen>
 
   /// This device was the only holder of the new relay's ID, so without the save
   /// nobody could ever use the relay. If the delete fails too, the server
-  /// prunes it once it has gone unused for long enough.
+  /// prunes it, since no device ever registered on it.
   Future<void> _deleteUnsavedRelay(String recordId) async {
     try {
       await ApiClient.instance.deleteRecord(recordId: recordId);

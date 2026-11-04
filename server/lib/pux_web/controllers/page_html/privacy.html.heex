@@ -8,13 +8,13 @@
 
   <h2>The short version</h2>
   <p>
-    We don't ask for your name, email address or a password. Bank emails are read in memory to find the code and aren't stored. The code is encrypted for your device before it's stored or sent. While an email is being read, its contents are in the server's memory: that is the one point where the service handles plaintext. Encrypted payloads are short-lived. Relay and device details are kept longer: up to 90 and 30 days after their last activity.
+    We don't ask for your name, email address or a password. Bank emails are read in memory to find the code and aren't stored. The code is encrypted for your device before it's stored or sent. While an email is being read, its contents are in the server's memory: that is the one point where the service handles plaintext. Encrypted payloads are short-lived. Relay and device details are kept longer: for as long as the app stays installed, up to about 2 years after it was last opened or last delivered a code.
   </p>
 
   <h2>What the service handles</h2>
   <h3>Email sent to your inbox address</h3>
   <p>
-    The server reads each message in memory to find a code, the sender and any DKIM signature. It doesn't write the message to disk or the database. Messages with no code are dropped. Code, sender name and domain, verification result and time are put in a payload and encrypted with your device's public key.
+    The server reads each message in memory to find a code, the sender and any DKIM signature. It doesn't write the message to disk or the database. Messages with no code are dropped. Code, sender name and domain, verification result and time are put in a payload and encrypted with your device's public key. Mail to a relay with no registered devices is refused before it is read, so the sender gets a bounce.
   </p>
   <h3>Encrypted payloads</h3>
   <p>
@@ -24,11 +24,11 @@
   <ul>
     <li>
       <strong>Relay:</strong>
-      a random record ID, inbox token, your public key, and the times it was created and last active. Deleted when you delete the relay, or after 90 days without activity.
+      a random record ID, inbox token, your public key, and the times it was created and last active. Deleted when you delete the relay, or 30 days after it loses its last device. That means we keep it for as long as an app stays installed, even if you never receive a code, up to the 2-year limit below. If you uninstall the app from an iPhone and the relay gets no more mail, we may not find out, so it stays until that limit unless you ask us to delete it.
     </li>
     <li>
       <strong>Device:</strong>
-      a push token (a generated identifier on desktop), the platform, and the times it was registered and last seen. Deleted when you remove it, when the push service reports the token is no longer valid, or after 30 days without contact.
+      a push token (a generated identifier on desktop), the platform, and the times it was registered, last seen and last checked. Deleted when you remove it, when the push service reports the token is no longer valid, or after 2 years with no app open and no code delivered. Desktop devices are also deleted after 90 days without registering. We periodically ask Firebase whether long-quiet push tokens are still valid. This sends nothing to your device.
     </li>
   </ul>
   <h3>IP addresses and logs</h3>

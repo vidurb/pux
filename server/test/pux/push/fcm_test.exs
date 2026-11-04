@@ -59,10 +59,62 @@ defmodule Pux.Push.FCMTest do
   test "maps FCM responses to job outcomes" do
     capture_log(fn ->
       assert :ok = FCM.classify_response(200, "{}")
-      assert :unregistered = FCM.classify_response(404, ~s({"error":{"status":"NOT_FOUND"}}))
       assert {:cancel, _} = FCM.classify_response(400, "{}")
+      assert {:cancel, _} = FCM.classify_response(403, "{}")
       assert {:error, _} = FCM.classify_response(429, "")
       assert {:error, _} = FCM.classify_response(503, "")
     end)
+  end
+
+  describe "what counts as a dead token" do
+    @fcm_error "type.googleapis.com/google.firebase.fcm.v1.FcmError"
+    @bad_request "type.googleapis.com/google.rpc.BadRequest"
+
+    defp error_body(status, details) do
+      Jason.encode!(%{"error" => %{"status" => status, "details" => details}})
+    end
+
+    test "a 404 naming UNREGISTERED" do
+      body =
+        error_body("NOT_FOUND", [%{"@type" => @fcm_error, "errorCode" => "UNREGISTERED"}])
+
+      capture_log(fn -> assert :unregistered = FCM.classify_response(404, body) end)
+    end
+
+    test "not any other 404: it could be a wrong project ID or a proxy" do
+      capture_log(fn ->
+        assert {:error, {:fcm, 404}} = FCM.classify_response(404, error_body("NOT_FOUND", []))
+        assert {:error, {:fcm, 404}} = FCM.classify_response(404, "<html>nope</html>")
+      end)
+    end
+
+    test "a 400 that blames the token field" do
+      body =
+        error_body("INVALID_ARGUMENT", [
+          %{"@type" => @fcm_error, "errorCode" => "INVALID_ARGUMENT"},
+          %{"@type" => @bad_request, "fieldViolations" => [%{"field" => "message.token"}]}
+        ])
+
+      capture_log(fn -> assert :unregistered = FCM.classify_response(400, body) end)
+    end
+
+    test "not a 400 about the payload, which every token would get" do
+      body =
+        error_body("INVALID_ARGUMENT", [
+          %{"@type" => @fcm_error, "errorCode" => "INVALID_ARGUMENT"},
+          %{"@type" => @bad_request, "fieldViolations" => [%{"field" => "message.data"}]}
+        ])
+
+      capture_log(fn -> assert {:cancel, _} = FCM.classify_response(400, body) end)
+    end
+
+    test "not a 403, which wrong server credentials would also cause" do
+      body =
+        error_body("PERMISSION_DENIED", [
+          %{"@type" => @fcm_error, "errorCode" => "SENDER_ID_MISMATCH"}
+        ])
+
+      capture_log(fn -> assert {:cancel, _} = FCM.classify_response(403, body) end)
+    end
   end
 end

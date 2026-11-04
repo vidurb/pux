@@ -31,6 +31,34 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 - Inbound SMTP validates recipient domains and caps message size.
 - Push delivery is asynchronous (Oban) so SMTP responds immediately.
 
+## Data retention
+
+| What the server holds | Kept until |
+|-----------------------|------------|
+| Email contents | Never stored: in memory only, while parsing |
+| Sealed envelope in a push job | About 10 minutes after the job finishes |
+| Sealed envelope pending for a desktop | The desktop acknowledges it, or about 15 minutes |
+| Phone: push token, platform, timestamps | You remove it, FCM reports the token dead, or 2 years with no registration and no accepted push |
+| Desktop: generated ID, platform, timestamps | You remove it, or it hasn't registered for 90 days. A running app registers every 12 hours |
+| Relay: record ID, inbox token, public key, timestamps | You delete it, or 30 days after it loses its last device |
+
+OTPs can be months apart and the app may never be opened in between, so quietness says nothing about whether a phone still works. **The trade-off is that the server keeps a relay's inbox token, public key and push tokens for as long as the app stays installed**, whether or not any mail arrives, up to 2 years without the app being opened or a code being delivered, plus the relay's 30 days. Delete them at any time with **Delete relay everywhere**, or for the hosted instance by emailing your inbox address to the operator.
+
+Keeping the registration doesn't guarantee delivery on the phone itself. **Android hibernates an app that hasn't been used for a few months**, and a hibernated app [can't receive pushes](https://developer.android.com/topic/performance/app-hibernation), even high-priority ones, until it is next opened. FCM still accepts those sends, so the server can't tell. Reading a notification doesn't count as use, though tapping one does. The app's home screen warns about this and links to the setting, **Pause app activity if unused**; turn it off to rely on pux for rare codes.
+
+Mail to a relay with no devices is refused at `RCPT` with the same `550 5.1.1` an unknown address gets, so the sender's bounce shows that something is wrong without revealing which addresses exist. It takes effect as soon as a device registers again, and a refused message doesn't restart the 30 days. Some mail providers stop forwarding to an address that keeps bouncing, so after re-registering, check that your forwarding is still on. The mail that first discovers a dead token is still accepted and lost, because the push happens after the SMTP reply; later mail bounces. When the server removes a relay's device itself, the 30 days start at that moment, so an app that merely had its token replaced can come back. Removing the last device yourself starts no new period.
+
+**After an uninstall** the app can't delete anything, and the server only learns about it from FCM:
+
+- If mail still arrives, the next push gets FCM's answer: the device goes, and the relay follows 30 days later.
+- If mail never arrives, a daily job asks FCM about tokens that have been quiet for 30 days, with a dry run that delivers nothing. FCM expires an Android device's token after 270 days without contact, so an Android relay should be gone within about 11 months at most, and sooner if FCM already knows of the uninstall.
+- **iOS has no such expiry.** FCM relies on APNs there, and APNs reports a dead token in reply to a real push, which a dry run doesn't send. An uninstalled iOS app on a relay that never gets mail again stays until the 2-year limit, so about 2 years and a month in all, unless someone deletes the relay sooner.
+- A server without `FCM_SERVICE_ACCOUNT_JSON` can't ask at all, so the same applies to any `fcm` device registered on it.
+
+The cost of that limit: a phone that gets no code and never opens the app for 2 years is removed even if it still works. Opening the app once restarts the 2 years.
+
+Dead tokens count towards `MAX_DEVICES_PER_RECORD` until they're found. If a new phone hits the cap and the relay's other devices are dead, send any OTP-shaped mail to the inbox address (`Your OTP is 123456`) to clear them, then tap **Retry**.
+
 ## Local development
 
 ### Server
@@ -128,7 +156,7 @@ Decrypted push payloads are JSON with a `type`:
 | `SMTP_MAX_CONNECTIONS` | no | Max concurrent SMTP connections (default 100) |
 | `SMTP_MAX_CONNECTIONS_PER_IP` | no | Max concurrent SMTP connections per client IP (default 5) |
 | `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set (a warning is logged at boot when unset) |
-| `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10) |
+| `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10). Dead push tokens count until found; see [Data retention](#data-retention) |
 | `RECORD_API_RATE_LIMIT` | no | Authenticated API requests per record per minute (default 120) |
 | `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
 | `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
