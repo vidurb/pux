@@ -24,7 +24,7 @@ class PuxApp extends ConsumerWidget {
     return MaterialApp(
       title: 'pux',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1F6FEB)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0E3B32)),
         useMaterial3: true,
       ),
       home: enrollment.when(
