@@ -19,7 +19,7 @@ defmodule PuxWeb.DeviceControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> post("/api/v1/records/#{enrollment.record_id}/devices", %{
+      |> post("/api/v1/record/devices", %{
         "push_token" => "token-abc",
         "platform" => "fcm"
       })
@@ -31,7 +31,7 @@ defmodule PuxWeb.DeviceControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> post("/api/v1/records/#{enrollment.record_id}/devices", %{
+      |> post("/api/v1/record/devices", %{
         "push_token" => "desktop-client-abc",
         "platform" => "desktop"
       })
@@ -43,7 +43,7 @@ defmodule PuxWeb.DeviceControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> post("/api/v1/records/#{enrollment.record_id}/devices", %{
+      |> post("/api/v1/record/devices", %{
         "push_token" => "token-abc",
         "platform" => "apns"
       })
@@ -51,9 +51,9 @@ defmodule PuxWeb.DeviceControllerTest do
     assert %{"error" => "platform must be fcm or desktop"} = json_response(conn, 422)
   end
 
-  test "rejects unauthenticated request", %{conn: conn, enrollment: enrollment} do
+  test "rejects unauthenticated request", %{conn: conn} do
     conn =
-      post(conn, "/api/v1/records/#{enrollment.record_id}/devices", %{
+      post(conn, "/api/v1/record/devices", %{
         "push_token" => "token-abc",
         "platform" => "fcm"
       })
@@ -64,7 +64,7 @@ defmodule PuxWeb.DeviceControllerTest do
   defp register(conn, record_id, push_token, platform \\ "fcm") do
     conn
     |> auth_conn(record_id)
-    |> post("/api/v1/records/#{record_id}/devices", %{
+    |> post("/api/v1/record/devices", %{
       "push_token" => push_token,
       "platform" => platform
     })
@@ -101,7 +101,7 @@ defmodule PuxWeb.DeviceControllerTest do
     %{"device_id" => device_id} =
       json_response(register(conn, enrollment.record_id, "token-abc"), 201)
 
-    path = "/api/v1/records/#{enrollment.record_id}/devices/#{device_id}"
+    path = "/api/v1/record/devices/#{device_id}"
 
     assert response(conn |> auth_conn(enrollment.record_id) |> delete(path), 204)
     assert Records.list_devices(enrollment.record_id) == []
@@ -122,7 +122,7 @@ defmodule PuxWeb.DeviceControllerTest do
     conn =
       conn
       |> auth_conn(other.record_id)
-      |> delete("/api/v1/records/#{other.record_id}/devices/#{device_id}")
+      |> delete("/api/v1/record/devices/#{device_id}")
 
     assert %{"error" => "not_found"} = json_response(conn, 404)
     assert [_] = Records.list_devices(enrollment.record_id)
@@ -132,7 +132,7 @@ defmodule PuxWeb.DeviceControllerTest do
     conn =
       conn
       |> auth_conn(enrollment.record_id)
-      |> delete("/api/v1/records/#{enrollment.record_id}/devices/not-a-uuid")
+      |> delete("/api/v1/record/devices/not-a-uuid")
 
     assert %{"error" => "not_found"} = json_response(conn, 404)
   end

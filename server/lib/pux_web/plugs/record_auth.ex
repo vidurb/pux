@@ -1,16 +1,24 @@
 defmodule PuxWeb.Plugs.RecordAuth do
   @moduledoc """
-  Authorizes requests using the record UUID as a bearer token.
+  Identifies the relay from the bearer token, which is its record ID.
+
+  A missing or malformed token and the ID of a record that doesn't exist all get the same
+  401, so a response never says whether a record exists. The only timing difference is
+  that a malformed token skips the lookup, which says nothing about any record.
   """
   import Plug.Conn
+
+  alias Pux.Records
+  alias Pux.Records.Record
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          true <- valid_uuid?(token),
-         record_id when is_binary(record_id) <- conn.path_params["id"],
-         true <- secure_compare(token, record_id) do
+         %Record{id: record_id} <- Records.get_record(token) do
+      # The stored ID, not the token: a UUID in another case finds the same record, and
+      # must not get its own rate limit bucket.
       assign(conn, :record_id, record_id)
     else
       _ ->
@@ -29,9 +37,5 @@ defmodule PuxWeb.Plugs.RecordAuth do
         :error -> <<>>
       end
     )
-  end
-
-  defp secure_compare(a, b) when is_binary(a) and is_binary(b) do
-    byte_size(a) == byte_size(b) and :crypto.hash_equals(a, b)
   end
 end

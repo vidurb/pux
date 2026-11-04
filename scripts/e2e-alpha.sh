@@ -30,21 +30,21 @@ echo "Record: $RECORD_ID"
 echo "Inbox:  $INBOX"
 
 echo "==> Register device (mock FCM token)"
-curl -fsS -X POST "${BASE_URL}/api/v1/records/${RECORD_ID}/devices" \
+curl -fsS -X POST "${BASE_URL}/api/v1/record/devices" \
   -H "authorization: Bearer ${RECORD_ID}" \
   -H 'content-type: application/json' \
   -d '{"push_token":"test-fcm-token","platform":"fcm"}'
 
 echo
 echo "==> Register desktop client"
-curl -fsS -X POST "${BASE_URL}/api/v1/records/${RECORD_ID}/devices" \
+curl -fsS -X POST "${BASE_URL}/api/v1/record/devices" \
   -H "authorization: Bearer ${RECORD_ID}" \
   -H 'content-type: application/json' \
   -d '{"push_token":"desktop-client-test","platform":"desktop"}'
 
 echo
 echo "==> Poll pending deliveries (empty initially)"
-curl -fsS "${BASE_URL}/api/v1/records/${RECORD_ID}/deliveries" \
+curl -fsS "${BASE_URL}/api/v1/record/deliveries" \
   -H "authorization: Bearer ${RECORD_ID}"
 
 echo
@@ -55,10 +55,10 @@ Manual SMTP test (dev port 2525):
   swaks --to ${INBOX} --from bank@example.com --server localhost:2525 --body 'Your OTP is 123456'
 
 After sending mail, poll desktop deliveries:
-  curl -fsS -H "authorization: Bearer ${RECORD_ID}" ${BASE_URL}/api/v1/records/${RECORD_ID}/deliveries
+  curl -fsS -H "authorization: Bearer ${RECORD_ID}" ${BASE_URL}/api/v1/record/deliveries
 
-WebSocket delivery endpoint:
-  ws://localhost:4000/ws/delivery?token=${RECORD_ID}
+WebSocket delivery endpoint (the record ID goes in a header, not the URL):
+  ws://localhost:4000/ws/delivery with header x-pux-token: ${RECORD_ID}
 
 Decrypt verification uses the client-generated private key:
   private_key=${PRIVATE_KEY}

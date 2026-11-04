@@ -33,9 +33,7 @@ defmodule PuxWeb.Endpoint do
   plug :session
   plug PuxWeb.Router
 
-  # Record IDs in /api/v1/records/:id are bearer credentials; keep them out of request logs.
   # Health probes would otherwise drown everything else.
-  def log_level(%{path_info: ["api", "v1", "records", _ | _]}), do: false
   def log_level(%{path_info: ["health"]}), do: false
   def log_level(_conn), do: :info
 

@@ -31,7 +31,7 @@ void main() {
 
   test('registerDevice makes correct request', () async {
     final mockClient = MockClient((request) async {
-      expect(request.url.path, '/api/v1/records/rec_123/devices');
+      expect(request.url.path, '/api/v1/record/devices');
       expect(request.method, 'POST');
       expect(request.headers['authorization'], 'Bearer rec_123');
       final body = jsonDecode(request.body);
@@ -49,7 +49,7 @@ void main() {
 
   test('listPendingDeliveries returns parsed deliveries', () async {
     final mockClient = MockClient((request) async {
-      expect(request.url.path, '/api/v1/records/rec_123/deliveries');
+      expect(request.url.path, '/api/v1/record/deliveries');
       expect(request.method, 'GET');
       expect(request.headers['authorization'], 'Bearer rec_123');
 
@@ -77,7 +77,7 @@ void main() {
 
   test('ackDelivery makes correct request', () async {
     final mockClient = MockClient((request) async {
-      expect(request.url.path, '/api/v1/records/rec_123/deliveries/del_1');
+      expect(request.url.path, '/api/v1/record/deliveries/del_1');
       expect(request.method, 'DELETE');
       expect(request.headers['authorization'], 'Bearer rec_123');
 
@@ -99,6 +99,64 @@ void main() {
       () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
       throwsA(isA<RecordNotFoundException>()),
     );
+  });
+
+  test(
+    'an unknown relay (401 or 404) is RecordNotFoundException when registering or polling',
+    () async {
+      for (final response in [
+        http.Response('{"error":"unauthorized"}', 401),
+        http.Response('{"error":"not_found"}', 404),
+      ]) {
+        final client = ApiClient.forTesting(client: MockClient((_) async => response));
+
+        await expectLater(
+          client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+          throwsA(isA<RecordNotFoundException>()),
+        );
+        await expectLater(
+          client.listPendingDeliveries(recordId: 'rec_123'),
+          throwsA(isA<RecordNotFoundException>()),
+        );
+      }
+    },
+  );
+
+  test('deletes and acks treat an unknown relay (401 or 404) as already gone', () async {
+    for (final response in [
+      http.Response('{"error":"unauthorized"}', 401),
+      http.Response('{"error":"not_found"}', 404),
+    ]) {
+      final client = ApiClient.forTesting(client: MockClient((_) async => response));
+
+      await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
+      await client.deleteRecord(recordId: 'rec_123');
+      await client.ackDelivery(recordId: 'rec_123', deliveryId: 'del_1');
+    }
+  });
+
+  test('the record ID is only ever sent in the authorization header', () async {
+    const recordId = '3f0c9a52-7a44-4d1e-9b1a-1c2d3e4f5a6b';
+    final requests = <http.Request>[];
+    final client = ApiClient.forTesting(
+      client: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"deliveries":[]}', 200);
+      }),
+    );
+
+    await client.registerDevice(recordId: recordId, pushToken: 't', platform: 'fcm');
+    await client.deleteDevice(recordId: recordId, deviceId: 'dev_1');
+    await client.deleteRecord(recordId: recordId);
+    await client.listPendingDeliveries(recordId: recordId);
+    await client.ackDelivery(recordId: recordId, deliveryId: 'del_1');
+
+    expect(requests, hasLength(5));
+    for (final request in requests) {
+      expect(request.url.toString(), isNot(contains(recordId)));
+      expect(request.body, isNot(contains(recordId)));
+      expect(request.headers['authorization'], 'Bearer $recordId');
+    }
   });
 
   test('registerDevice surfaces other failures as retryable errors', () async {
@@ -154,7 +212,7 @@ void main() {
     final client = ApiClient.forTesting(
       client: MockClient((request) async {
         expect(request.method, 'DELETE');
-        expect(request.url.path, '/api/v1/records/rec_123/devices/dev_1');
+        expect(request.url.path, '/api/v1/record/devices/dev_1');
         expect(request.headers['authorization'], 'Bearer rec_123');
         return http.Response('', 204);
       }),
@@ -167,7 +225,7 @@ void main() {
     final client = ApiClient.forTesting(
       client: MockClient((request) async {
         expect(request.method, 'DELETE');
-        expect(request.url.path, '/api/v1/records/rec_123');
+        expect(request.url.path, '/api/v1/record');
         expect(request.headers['authorization'], 'Bearer rec_123');
         return http.Response('', 204);
       }),

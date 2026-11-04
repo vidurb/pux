@@ -12,7 +12,8 @@ All notable changes to pux are recorded here. The format follows
 - Server: the OTP parser caps its input and runs in linear time, and classification has a 5 s timeout, so a single large or hostile email can no longer pin a CPU.
 - Server: per-inbox delivery rate limit (`SMTP_INBOUND_RATE_LIMIT`), per-relay API rate limit (`RECORD_API_RATE_LIMIT`) and a device cap per relay (`MAX_DEVICES_PER_RECORD`).
 - Server: optional `SMTP_REQUIRE_TLS` to refuse mail before STARTTLS, and a boot warning when no SMTP TLS certificate is configured.
-- Server: the delivery WebSocket only accepts the record ID in the `x-pux-token` header; the `?token=` query parameter is no longer accepted, so the credential stays out of that URL. REST API paths still contain it.
+- Server: the delivery WebSocket only accepts the record ID in the `x-pux-token` header; the `?token=` query parameter is no longer accepted, so the credential stays out of that URL.
+- Server: the REST API identifies a relay from the `Authorization` header alone, so the record ID no longer appears in any URL and a reverse proxy that logs paths doesn't capture it. Authenticated routes moved from `/api/v1/records/:id/...` to `/api/v1/record/...`, with no compatibility period. A token that matches no record now gets 401 on every route, and these requests now appear in the server's request log.
 - Server: record IDs, inbox tokens, push tokens and email contents no longer reach the logs, including through delivery error messages, the HTTPS redirect line and crash reports. A malformed `FCM_SERVICE_ACCOUNT_JSON` is no longer echoed in the error either. When the database fails during inbound SMTP, the server now replies `451` so the sender retries, instead of dropping the connection.
 - Server: updated Bandit, jose, plug_crypto and decimal to clear 24 published advisories. Added a strict Content-Security-Policy.
 - Apps: OTP notifications are hidden on a secure Android lock screen. Copied codes and enrollment JSON are marked sensitive and cleared from the clipboard after a minute (except on iOS).
@@ -26,7 +27,7 @@ All notable changes to pux are recorded here. The format follows
 - Website: a new landing page at `/` covering how pux works, the security model and its limits, supported banks, an FAQ and self-hosting. `/signup` now redirects there. The page sets no cookies and loads no scripts.
 - Website: `/privacy` and `/terms` pages, Open Graph and Twitter cards, favicons and `/.well-known/security.txt`.
 - Apps: new icons on Android (adaptive, themed and notification), iOS and macOS, plus a splash screen.
-- `DELETE /api/v1/records/:id` and `DELETE /api/v1/records/:id/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
+- `DELETE /api/v1/record` and `DELETE /api/v1/record/devices/:device_id`. The app's reset menu offers **Remove this device** and **Delete relay everywhere**.
 - iOS: OTPs arrive as alert pushes that a notification service extension decrypts on the device, so they show even when the app has been force-quit.
 - Self-hosting with Docker Compose (`deploy/`), and a release workflow that publishes versioned server images and app builds.
 

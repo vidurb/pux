@@ -87,22 +87,22 @@ The extension target is added by `ruby ios/scripts/add_notification_service.rb` 
 
 To add a desktop, open the QR panel on the phone, tap **Copy enrollment JSON**, and paste it into the desktop app's **Import enrollment** screen. The JSON contains the private key.
 
-Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` (oldest 50 pending per request) and `WS /ws/delivery` with the record ID in the `x-pux-token` header (the only accepted form; there is no query-param fallback).
+Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/record/deliveries` (oldest 50 pending per request) and `WS /ws/delivery` with the record ID in the `x-pux-token` header (the only accepted form; there is no query-param fallback).
 
 ### HTTP API
 
-All under `/api/v1`. Every endpoint except `POST /records` needs `Authorization: Bearer <record_id>` and may return 429 `{"error":"rate_limit_exceeded"}` (per record, `RECORD_API_RATE_LIMIT` per minute).
+All under `/api/v1`. Every endpoint except `POST /records` works on the relay named by `Authorization: Bearer <record_id>`; the record ID, its only credential, is never in a URL. A missing or malformed token, or one that matches no record, gets 401 `{"error":"unauthorized"}`. These endpoints may also return 429 `{"error":"rate_limit_exceeded"}` (per record, `RECORD_API_RATE_LIMIT` per minute).
 
 | Endpoint | Success | Notes |
 |----------|---------|-------|
 | `POST /records` | 201 `{"record_id","inbox_address","public_key"}` | Rate-limited per IP |
-| `DELETE /records/:id` | 204 | Deletes the record, its devices and pending deliveries; closes its delivery WebSockets |
-| `POST /records/:id/devices` | 201 `{"device_id","platform"}` | 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token is always allowed |
-| `DELETE /records/:id/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
-| `GET /records/:id/deliveries` | 200 `{"deliveries":[{"delivery_id","envelope"}]}` | Oldest 50 |
-| `DELETE /records/:id/deliveries/:delivery_id` | 204 | 404 if unknown |
+| `DELETE /record` | 204 | Deletes the record, its devices and pending deliveries; closes its delivery WebSockets |
+| `POST /record/devices` | 201 `{"device_id","platform"}` | 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token is always allowed |
+| `DELETE /record/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
+| `GET /record/deliveries` | 200 `{"deliveries":[{"delivery_id","envelope"}]}` | Oldest 50 |
+| `DELETE /record/deliveries/:delivery_id` | 204 | 404 if unknown |
 
-Each registration returns a `device_id`, which the app stores. The home screen menu offers **Remove this device** (`DELETE /api/v1/records/:id/devices/:device_id`, then forget the keys locally) and **Delete relay everywhere** (`DELETE /api/v1/records/:id`, which stops every device). If the server can't be reached the app offers to forget the relay locally anyway.
+Each registration returns a `device_id`, which the app stores. The home screen menu offers **Remove this device** (`DELETE /api/v1/record/devices/:device_id`, then forget the keys locally) and **Delete relay everywhere** (`DELETE /api/v1/record`, which stops every device). If the server can't be reached the app offers to forget the relay locally anyway.
 
 Imported or scanned enrollments must point at an `https` server (plain `http` only for `localhost`, `127.0.0.1` and `10.0.2.2`) and the app shows the server host for confirmation before saving.
 

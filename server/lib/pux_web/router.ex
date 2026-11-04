@@ -47,11 +47,13 @@ defmodule PuxWeb.Router do
   scope "/api/v1", PuxWeb do
     pipe_through [:api, :record_auth]
 
-    delete "/records/:id", RecordController, :delete
-    post "/records/:id/devices", DeviceController, :create
-    delete "/records/:id/devices/:device_id", DeviceController, :delete
-    get "/records/:id/deliveries", DeliveryController, :index
-    delete "/records/:id/deliveries/:delivery_id", DeliveryController, :delete
+    # The relay comes from the bearer token. Its ID must stay out of these paths, since
+    # reverse proxies log them.
+    delete "/record", RecordController, :delete
+    post "/record/devices", DeviceController, :create
+    delete "/record/devices/:device_id", DeviceController, :delete
+    get "/record/deliveries", DeliveryController, :index
+    delete "/record/deliveries/:delivery_id", DeliveryController, :delete
   end
 
   scope "/", PuxWeb do
