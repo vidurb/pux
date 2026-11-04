@@ -26,6 +26,11 @@ defmodule PuxWeb.RecordController do
     end
   end
 
+  def delete(conn, _params) do
+    :ok = Records.delete_record(conn.assigns.record_id)
+    send_resp(conn, :no_content, "")
+  end
+
   defp decode_public_key(encoded) when is_binary(encoded) do
     case Crypto.decode_key(encoded) do
       {:ok, public_key} -> {:ok, public_key}

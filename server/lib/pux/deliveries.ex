@@ -15,24 +15,29 @@ defmodule Pux.Deliveries do
     |> Repo.insert()
   end
 
+  @max_page 50
+
+  @doc "The oldest pending deliveries for a record, at most #{@max_page}."
   @spec list_pending(Ecto.UUID.t()) :: [PendingDelivery.t()]
   def list_pending(record_id) when is_binary(record_id) do
     PendingDelivery
     |> where([d], d.record_id == ^record_id)
-    |> order_by([d], asc: d.inserted_at)
+    |> order_by([d], asc: d.inserted_at, asc: d.id)
+    |> limit(@max_page)
     |> Repo.all()
   end
 
-  @spec ack_pending(Ecto.UUID.t(), Ecto.UUID.t()) :: :ok | {:error, :not_found}
+  @spec ack_pending(Ecto.UUID.t(), String.t()) :: :ok | {:error, :not_found}
   def ack_pending(record_id, delivery_id)
       when is_binary(record_id) and is_binary(delivery_id) do
-    case Repo.get_by(PendingDelivery, id: delivery_id, record_id: record_id) do
-      nil ->
-        {:error, :not_found}
-
-      pending ->
-        Repo.delete!(pending)
-        :ok
+    with {:ok, delivery_id} <- Ecto.UUID.cast(delivery_id),
+         {1, _} <-
+           PendingDelivery
+           |> where([d], d.id == ^delivery_id and d.record_id == ^record_id)
+           |> Repo.delete_all() do
+      :ok
+    else
+      _ -> {:error, :not_found}
     end
   end
 

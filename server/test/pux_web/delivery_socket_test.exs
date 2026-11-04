@@ -1,5 +1,5 @@
 defmodule PuxWeb.DeliverySocketTest do
-  @moduledoc "Opens real WebSocket connections against the test endpoint (port 4002)."
+  @moduledoc "Opens real WebSocket connections against the test endpoint (port 4002 unless PUX_TEST_HTTP_PORT is set)."
   use PuxWeb.ConnCase, async: false
 
   import Bitwise
@@ -25,8 +25,18 @@ defmodule PuxWeb.DeliverySocketTest do
     assert %{"type" => "pong"} = recv_json(socket)
   end
 
-  test "accepts the legacy query param", %{enrollment: e} do
-    assert {:ok, _socket} = ws_connect("/ws/delivery?token=#{e.record_id}", [])
+  test "rejects the removed query param fallback", %{enrollment: e} do
+    assert {:status, 403} = ws_connect("/ws/delivery?token=#{e.record_id}", [])
+  end
+
+  test "closes open sockets when the record is deleted", %{enrollment: e} do
+    assert {:ok, socket} = ws_connect("/ws/delivery", [{"x-pux-token", e.record_id}])
+    send_text(socket, ~s({"type":"ping"}))
+    assert %{"type" => "pong"} = recv_json(socket)
+
+    assert :ok = Records.delete_record(e.record_id)
+
+    assert recv_closed(socket)
   end
 
   test "pushes envelopes delivered to the record", %{enrollment: e} do
@@ -48,8 +58,10 @@ defmodule PuxWeb.DeliverySocketTest do
     assert [%{id: ^id}] = Deliveries.list_pending(e.record_id)
   end
 
+  defp http_port, do: Application.fetch_env!(:pux, PuxWeb.Endpoint)[:http][:port]
+
   defp ws_connect(path, headers) do
-    {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", 4002, [:binary, active: false])
+    {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", http_port(), [:binary, active: false])
     key = Base.encode64(:crypto.strong_rand_bytes(16))
 
     extra = Enum.map_join(headers, fn {k, v} -> "#{k}: #{v}\r\n" end)
@@ -81,6 +93,14 @@ defmodule PuxWeb.DeliverySocketTest do
     |> Enum.with_index()
     |> Enum.map(fn {byte, i} -> bxor(byte, :binary.at(m, rem(i, 4))) end)
     |> :binary.list_to_bin()
+  end
+
+  # A close frame (opcode 8) or the TCP connection dropping.
+  defp recv_closed(socket) do
+    case :gen_tcp.recv(socket, 2, 2000) do
+      {:ok, <<_fin::4, 8::4, _len>>} -> true
+      {:error, :closed} -> true
+    end
   end
 
   defp recv_json(socket) do

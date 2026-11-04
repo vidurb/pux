@@ -21,6 +21,7 @@ defmodule PuxWeb.Router do
 
   pipeline :record_auth do
     plug PuxWeb.Plugs.RecordAuth
+    plug PuxWeb.Plugs.RecordRateLimit
   end
 
   scope "/", PuxWeb do
@@ -39,7 +40,9 @@ defmodule PuxWeb.Router do
   scope "/api/v1", PuxWeb do
     pipe_through [:api, :record_auth]
 
+    delete "/records/:id", RecordController, :delete
     post "/records/:id/devices", DeviceController, :create
+    delete "/records/:id/devices/:device_id", DeviceController, :delete
     get "/records/:id/deliveries", DeliveryController, :index
     delete "/records/:id/deliveries/:delivery_id", DeliveryController, :delete
   end

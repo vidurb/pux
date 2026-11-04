@@ -60,4 +60,80 @@ defmodule PuxWeb.DeviceControllerTest do
 
     assert json_response(conn, 401)["error"] == "unauthorized"
   end
+
+  defp register(conn, record_id, push_token, platform \\ "fcm") do
+    conn
+    |> auth_conn(record_id)
+    |> post("/api/v1/records/#{record_id}/devices", %{
+      "push_token" => push_token,
+      "platform" => platform
+    })
+  end
+
+  test "rejects devices over the cap", %{conn: conn, enrollment: enrollment} do
+    for i <- 1..10 do
+      assert json_response(register(conn, enrollment.record_id, "push-token-#{i}"), 201)
+    end
+
+    conn11 = register(conn, enrollment.record_id, "push-token-11")
+    assert %{"error" => "too_many_devices"} = json_response(conn11, 422)
+
+    assert %{"device_id" => _} =
+             json_response(register(conn, enrollment.record_id, "push-token-1"), 201)
+  end
+
+  test "rejects a non-string push_token", %{conn: conn, enrollment: enrollment} do
+    for bad <- [%{"a" => "b"}, ["token-abcdef"], 12_345_678] do
+      conn = register(conn, enrollment.record_id, bad)
+      assert %{"error" => "push_token and platform are required"} = json_response(conn, 422)
+    end
+  end
+
+  test "rejects a too-short push_token without leaking changeset internals", %{
+    conn: conn,
+    enrollment: enrollment
+  } do
+    conn = register(conn, enrollment.record_id, "short")
+    assert %{"error" => "push_token must be 8 to 4096 characters"} = json_response(conn, 422)
+  end
+
+  test "deletes a device", %{conn: conn, enrollment: enrollment} do
+    %{"device_id" => device_id} =
+      json_response(register(conn, enrollment.record_id, "token-abc"), 201)
+
+    path = "/api/v1/records/#{enrollment.record_id}/devices/#{device_id}"
+
+    assert response(conn |> auth_conn(enrollment.record_id) |> delete(path), 204)
+    assert Records.list_devices(enrollment.record_id) == []
+
+    conn = conn |> auth_conn(enrollment.record_id) |> delete(path)
+    assert %{"error" => "not_found"} = json_response(conn, 404)
+  end
+
+  test "device deletion is scoped to the authenticated record", %{
+    conn: conn,
+    enrollment: enrollment
+  } do
+    {:ok, other} = Records.create_record(Fixtures.public_key())
+
+    %{"device_id" => device_id} =
+      json_response(register(conn, enrollment.record_id, "token-abc"), 201)
+
+    conn =
+      conn
+      |> auth_conn(other.record_id)
+      |> delete("/api/v1/records/#{other.record_id}/devices/#{device_id}")
+
+    assert %{"error" => "not_found"} = json_response(conn, 404)
+    assert [_] = Records.list_devices(enrollment.record_id)
+  end
+
+  test "rejects a malformed device id", %{conn: conn, enrollment: enrollment} do
+    conn =
+      conn
+      |> auth_conn(enrollment.record_id)
+      |> delete("/api/v1/records/#{enrollment.record_id}/devices/not-a-uuid")
+
+    assert %{"error" => "not_found"} = json_response(conn, 404)
+  end
 end

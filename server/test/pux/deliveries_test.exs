@@ -52,4 +52,30 @@ defmodule Pux.DeliveriesTest do
     assert Deliveries.prune_stale(10) == 1
     assert Deliveries.list_pending(enrollment.record_id) == []
   end
+
+  test "list_pending returns at most the oldest 50", %{enrollment: enrollment} do
+    base = DateTime.utc_now(:microsecond)
+
+    for i <- 1..55 do
+      {:ok, pending} =
+        Deliveries.create_pending(enrollment.record_id, %{"ciphertext" => "c#{i}"})
+
+      pending
+      |> Ecto.Changeset.change(inserted_at: DateTime.add(base, i, :second))
+      |> Pux.Repo.update!()
+    end
+
+    listed = Deliveries.list_pending(enrollment.record_id)
+    assert length(listed) == 50
+    assert hd(listed).envelope == %{"ciphertext" => "c1"}
+    assert List.last(listed).envelope == %{"ciphertext" => "c50"}
+  end
+
+  test "ack is not_found for a repeated ack or a malformed id", %{enrollment: enrollment} do
+    {:ok, pending} = Deliveries.create_pending(enrollment.record_id, %{"ciphertext" => "x"})
+
+    assert :ok = Deliveries.ack_pending(enrollment.record_id, pending.id)
+    assert {:error, :not_found} = Deliveries.ack_pending(enrollment.record_id, pending.id)
+    assert {:error, :not_found} = Deliveries.ack_pending(enrollment.record_id, "not-a-uuid")
+  end
 end

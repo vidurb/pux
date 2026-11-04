@@ -81,29 +81,71 @@ defmodule Pux.Records do
     |> Repo.update!()
   end
 
-  @spec register_device(Ecto.UUID.t(), map()) :: {:ok, Device.t()} | {:error, term()}
-  def register_device(record_id, attrs) do
-    now = DateTime.utc_now()
-
-    with %Record{} = record <- get_record(record_id),
-         {:ok, device} <-
-           %Device{}
-           |> Device.changeset(
-             Map.merge(attrs, %{
-               record_id: record.id,
-               last_seen_at: now
-             })
-           )
-           |> Repo.insert(
-             on_conflict: {:replace, [:platform, :last_seen_at, :updated_at]},
-             conflict_target: [:record_id, :push_token]
-           ),
-         _ <- touch_record!(record) do
-      {:ok, device}
-    else
-      nil -> {:error, :not_found}
-      {:error, changeset} -> {:error, changeset}
+  @doc "Like `touch_record!/1`, but returns `{:error, :not_found}` if the record is gone."
+  @spec touch_record(Record.t()) :: :ok | {:error, :not_found}
+  def touch_record(%Record{id: id}) do
+    case Repo.update_all(from(r in Record, where: r.id == ^id),
+           set: [last_active_at: DateTime.utc_now()]
+         ) do
+      {1, _} -> :ok
+      {0, _} -> {:error, :not_found}
     end
+  end
+
+  @doc """
+  Registers (or refreshes) a device. Re-registering an existing push token never
+  counts against the per-record device cap.
+  """
+  @spec register_device(Ecto.UUID.t(), map()) ::
+          {:ok, Device.t()} | {:error, :not_found | :too_many_devices | Ecto.Changeset.t()}
+  def register_device(record_id, attrs) do
+    Repo.transaction(fn ->
+      with %Record{} = record <- lock_record(record_id),
+           :ok <- check_device_cap(record.id, attrs[:push_token]),
+           {:ok, device} <- upsert_device(record, attrs) do
+        touch_record!(record)
+        device
+      else
+        nil -> Repo.rollback(:not_found)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  # Serializes registrations per record so concurrent requests can't overshoot the cap.
+  defp lock_record(record_id) do
+    Record
+    |> where([r], r.id == ^record_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
+  defp check_device_cap(record_id, push_token) do
+    existing? =
+      is_binary(push_token) and
+        Repo.exists?(
+          where(Device, [d], d.record_id == ^record_id and d.push_token == ^push_token)
+        )
+
+    count = Repo.aggregate(where(Device, [d], d.record_id == ^record_id), :count)
+
+    if existing? or count < max_devices(), do: :ok, else: {:error, :too_many_devices}
+  end
+
+  defp upsert_device(record, attrs) do
+    %Device{}
+    |> Device.changeset(
+      Map.merge(attrs, %{record_id: record.id, last_seen_at: DateTime.utc_now()})
+    )
+    |> Repo.insert(
+      on_conflict: {:replace, [:platform, :last_seen_at, :updated_at]},
+      conflict_target: [:record_id, :push_token]
+    )
+  end
+
+  defp max_devices do
+    Application.get_env(:pux, :records, [])
+    |> Keyword.get(:max_devices, 10)
   end
 
   @spec list_devices(Ecto.UUID.t()) :: [Device.t()]
@@ -144,6 +186,39 @@ defmodule Pux.Records do
     count
   end
 
+  @doc "Deletes a device, scoped to its record."
+  @spec delete_record_device(Ecto.UUID.t(), String.t()) :: :ok | {:error, :not_found}
+  def delete_record_device(record_id, device_id)
+      when is_binary(record_id) and is_binary(device_id) do
+    with {:ok, device_id} <- Ecto.UUID.cast(device_id),
+         {1, _} <-
+           Device
+           |> where([d], d.id == ^device_id and d.record_id == ^record_id)
+           |> Repo.delete_all() do
+      :ok
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Deletes a record; devices and pending deliveries cascade in the database. Open
+  delivery sockets for the record are told to close. Idempotent.
+  """
+  @spec delete_record(Ecto.UUID.t()) :: :ok
+  def delete_record(record_id) when is_binary(record_id) do
+    {count, _} =
+      Record
+      |> where([r], r.id == ^record_id)
+      |> Repo.delete_all()
+
+    if count > 0 do
+      Phoenix.PubSub.broadcast(Pux.PubSub, Pux.Push.delivery_topic(record_id), :record_deleted)
+    end
+
+    :ok
+  end
+
   @spec delete_device(Device.t()) :: {:ok, Device.t()} | {:error, term()}
   def delete_device(%Device{} = device), do: Repo.delete(device)
 
@@ -182,13 +257,23 @@ defmodule Pux.Records do
     }
   end
 
-  defp generate_inbox_token do
-    alphabet_size = length(@inbox_token_alphabet)
+  # Rejection sampling: bytes >= 252 (7 * 36) are discarded so every symbol is equally likely.
+  @inbox_token_alphabet_size length(@inbox_token_alphabet)
+  @inbox_token_byte_limit 256 - rem(256, @inbox_token_alphabet_size)
 
-    :crypto.strong_rand_bytes(@token_length)
-    |> :binary.bin_to_list()
-    |> Enum.map_join(fn byte ->
-      <<Enum.at(@inbox_token_alphabet, rem(byte, alphabet_size))::utf8>>
-    end)
+  defp generate_inbox_token, do: generate_inbox_token([], @token_length)
+
+  defp generate_inbox_token(acc, 0), do: acc |> Enum.reverse() |> List.to_string()
+
+  defp generate_inbox_token(acc, remaining) do
+    acc =
+      :crypto.strong_rand_bytes(remaining)
+      |> :binary.bin_to_list()
+      |> Enum.filter(&(&1 < @inbox_token_byte_limit))
+      |> Enum.reduce(acc, fn byte, acc ->
+        [Enum.at(@inbox_token_alphabet, rem(byte, @inbox_token_alphabet_size)) | acc]
+      end)
+
+    generate_inbox_token(acc, @token_length - length(acc))
   end
 end
