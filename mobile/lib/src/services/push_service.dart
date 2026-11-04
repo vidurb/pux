@@ -46,6 +46,12 @@ class PushService implements DeliveryService {
       }
     });
 
+    // getToken and onTokenRefresh are deprecated in favour of register and
+    // onRegistered, which yield a Firebase Installation ID instead of a token.
+    // They keep working until the app opts in to FID mode. That needs a planned
+    // client and server change: a new ID would add a second device row beside
+    // the old token, so one phone could get every code twice.
+    // ignore: deprecated_member_use
     _tokenRefresh ??= messaging.onTokenRefresh.listen((newToken) async {
       try {
         await _register(newToken);
@@ -54,6 +60,7 @@ class PushService implements DeliveryService {
       }
     });
 
+    // ignore: deprecated_member_use
     final token = await messaging.getToken();
     if (token == null) {
       throw Exception('Firebase returned no push token');
