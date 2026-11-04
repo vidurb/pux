@@ -18,7 +18,7 @@ RUN mix release
 
 # Same Alpine release as the build stage: the release links against its libsodium,
 # OpenSSL and ncurses. Move the two stages together.
-FROM alpine:3.24.1
+FROM alpine:3.24.3
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs ca-certificates libsodium
 
