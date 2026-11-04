@@ -1,0 +1,40 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go through [a private report](https://github.com/vidurb/pux/security/advisories/new), not here.
+        Never paste a record ID, inbox address, enrollment JSON or private key: anyone with them can read your OTPs.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [Server, Android app, iOS app, macOS app, Linux app, Self-hosting / deployment, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: App version (from the store or release), server image tag, or commit.
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove record IDs, inbox addresses and codes first.
+      render: text

@@ -22,3 +22,6 @@ mobile/**/flutter_export_environment.sh
 # OS
 .DS_Store
 Thumbs.db
+
+# Self-hosting
+deploy/certs/

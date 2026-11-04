@@ -1,0 +1,30 @@
+name: OTP not detected
+description: A bank or service's OTP email isn't parsed, or the wrong number is picked
+labels: [parser]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! A sample email makes this fixable. **Anonymise it first**: replace the code, names, account and card numbers and your email address.
+  - type: input
+    id: sender
+    attributes:
+      label: Sender
+      description: The bank or service, and the domain its emails come from (e.g. `alerts@hdfcbank.net`).
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: What happened?
+      options: [No notification, Wrong number picked, "Shown as unverified", Other]
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Anonymised email text
+      description: The subject and the text around the code. Keep the original wording and layout.
+      render: text
+    validations:
+      required: true

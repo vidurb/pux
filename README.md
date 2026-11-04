@@ -1,6 +1,12 @@
 # pux
 
+[![server](https://github.com/vidurb/pux/actions/workflows/server.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/server.yml)
+[![mobile](https://github.com/vidurb/pux/actions/workflows/mobile.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/mobile.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
 Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-to-end encrypt it, and push it to your devices.
+
+Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your own](deploy/README.md).
 
 ## Architecture
 
@@ -30,7 +36,7 @@ mix phx.server
 
 SMTP listens on port 2525 (`SMTP_PORT`) in every environment; map public port 25 to it. HTTP on 4000.
 
-Tests need PostgreSQL (`DATABASE_URL`) and libsodium. The SMTP integration test talks to the real listener on port 2526 and the WebSocket tests to the endpoint on 4002.
+Tests need PostgreSQL (`DATABASE_URL`) and libsodium. The SMTP integration test talks to the real listener on port 2526 and the WebSocket tests to the endpoint on 4002 (override with `PUX_TEST_SMTP_PORT` / `PUX_TEST_HTTP_PORT`). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full set of checks CI runs.
 
 Toolchain versions are pinned in [`.tool-versions`](.tool-versions) (Elixir 1.18.4 / OTP 27.3.4).
 
@@ -61,14 +67,41 @@ Without Firebase config the app still runs, but the home screen says push is not
 2. Build and install: `flutter build apk --debug --dart-define=PUX_SERVER_URL=https://pux.vidur.xyz`, then `adb install build/app/outputs/flutter-apk/app-debug.apk` (or `flutter run -d <device> --dart-define=...`). CI also uploads a debug APK as the `pux-android-debug-apk` artifact of the `mobile` workflow, but it is built without Firebase config, so it cannot receive pushes.
 3. Open the app, tap **Create new relay**, allow notifications, and forward a test email (`Your OTP is 123456`) to the inbox address shown.
 
+#### iOS push
+
+iOS throttles data-only pushes and drops them for force-quit apps, so the server's FCM message also carries an `apns` alert: a generic "New code / Open pux to view" placeholder with `mutable-content: 1` (Android ignores it and stays data-only). The `NotificationService` app extension reads the keypair from a keychain group shared with the app (`$(AppIdentifierPrefix)xyz.vidur.pux.shared`, readable after first unlock), opens the sealed `ciphertext` and rewrites the title and body; if anything fails, the placeholder is shown. The app does not show its own copy of FCM messages on iOS. Before shipping:
+
+1. Upload an APNs auth key to Firebase (Project settings → Cloud Messaging).
+2. In the Apple Developer account, enable Push Notifications for `xyz.vidur.pux` and register `xyz.vidur.pux.NotificationService`. Set your team on both targets in Xcode (automatic signing creates the profiles; the keychain group needs no registration).
+3. Debug builds use the APNs sandbox; Release and Profile use production (`Runner/RunnerRelease.entitlements`).
+
+The extension target is added by `ruby ios/scripts/add_notification_service.rb` (needs the `xcodeproj` gem, which ships with CocoaPods); re-running it is safe. All iOS plugins are Swift packages, so the iOS build does not need CocoaPods.
+
 To add a desktop, open the QR panel on the phone, tap **Copy enrollment JSON**, and paste it into the desktop app's **Import enrollment** screen. The JSON contains the private key.
 
-Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` and `WS /ws/delivery` with the record ID in the `x-pux-token` header (`?token=<record_id>` still works but lands in proxy logs).
+Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/records/:id/deliveries` (oldest 50 pending per request) and `WS /ws/delivery` with the record ID in the `x-pux-token` header (the only accepted form; there is no query-param fallback).
+
+### HTTP API
+
+All under `/api/v1`. Every endpoint except `POST /records` needs `Authorization: Bearer <record_id>` and may return 429 `{"error":"rate_limit_exceeded"}` (per record, `RECORD_API_RATE_LIMIT` per minute).
+
+| Endpoint | Success | Notes |
+|----------|---------|-------|
+| `POST /records` | 201 `{"record_id","inbox_address","public_key"}` | Rate-limited per IP |
+| `DELETE /records/:id` | 204 | Deletes the record, its devices and pending deliveries; closes its delivery WebSockets |
+| `POST /records/:id/devices` | 201 `{"device_id","platform"}` | 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token is always allowed |
+| `DELETE /records/:id/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
+| `GET /records/:id/deliveries` | 200 `{"deliveries":[{"delivery_id","envelope"}]}` | Oldest 50 |
+| `DELETE /records/:id/deliveries/:delivery_id` | 204 | 404 if unknown |
+
+Each registration returns a `device_id`, which the app stores. The home screen menu offers **Remove this device** (`DELETE /api/v1/records/:id/devices/:device_id`, then forget the keys locally) and **Delete relay everywhere** (`DELETE /api/v1/records/:id`, which stops every device). If the server can't be reached the app offers to forget the relay locally anyway.
+
+Imported or scanned enrollments must point at an `https` server (plain `http` only for `localhost`, `127.0.0.1` and `10.0.2.2`) and the app shows the server host for confirmation before saving.
 
 Decrypted push payloads are JSON with a `type`:
 
-- `otp`: `otp`, `sender`, `received_at`, `parser`
-- `forward_confirm`: `code`, `url`, `sender`, `forwarding_from`, `received_at` (Gmail forwarding confirmation; confirm with the code or link to finish forwarding setup)
+- `otp`: `otp`, `sender`, `sender_domain`, `verified`, `received_at`, `parser`. `verified` is true when a valid DKIM signature aligns with the From domain; only then is `sender` a bank label, otherwise it is the From domain, and the app shows "OTP from <sender> (unverified)"
+- `forward_confirm`: `code`, `url`, `sender`, `forwarding_from`, `received_at` (Gmail forwarding confirmation, only sent when its google.com DKIM signature verifies; confirm with the code or link to finish forwarding setup)
 
 ## Production environment variables
 
@@ -86,17 +119,33 @@ Decrypted push payloads are JSON with a `type`:
 | `SMTP_MAX_MESSAGE_SIZE` | no | Max inbound message bytes (default 1MB) |
 | `SMTP_MAX_CONNECTIONS` | no | Max concurrent SMTP connections (default 100) |
 | `SMTP_MAX_CONNECTIONS_PER_IP` | no | Max concurrent SMTP connections per client IP (default 5) |
-| `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set |
+| `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set (a warning is logged at boot when unset) |
+| `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10) |
+| `RECORD_API_RATE_LIMIT` | no | Authenticated API requests per record per minute (default 120) |
+| `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
+| `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
 | `FCM_SERVICE_ACCOUNT_JSON` | no | Firebase service account JSON for push |
 
 ### Mobile release signing
 
-Copy `mobile/android/key.properties.example` to `mobile/android/key.properties` and create a release keystore. Without `key.properties`, release builds fall back to the debug keystore.
+Copy `mobile/android/key.properties.example` to `mobile/android/key.properties` and create a release keystore. Without `key.properties`, release builds fail with an error instead of falling back to the debug key; debug builds (`flutter build apk --debug`, used in CI) don't need it.
+
+Android backups and device-to-device transfer are disabled for the app, so keys never leave the device that way. OTP notifications are hidden on a secure lock screen, and copied codes and enrollment JSON are marked sensitive and cleared from the clipboard after a minute if still there (not on iOS).
 
 ## Deployment
 
-Production runs on the homestacks Sinkhole cluster; see [`clusters/sinkhole/pux-system/README.md`](https://github.com/gpdl49/homestacks/blob/main/clusters/sinkhole/pux-system/README.md) for SMTP exposure, DNS, TLS and secrets.
+To run your own server with Docker Compose, see [deploy/README.md](deploy/README.md). Releases publish `ghcr.io/vidurb/pux-server:<version>`; `main` tracks the main branch.
+
+The hosted instance runs on the homestacks Sinkhole cluster; see [`clusters/sinkhole/pux-system/README.md`](https://github.com/gpdl49/homestacks/blob/main/clusters/sinkhole/pux-system/README.md) for SMTP exposure, DNS, TLS and secrets.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the release process, and [CHANGELOG.md](CHANGELOG.md) for what changed. Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in public issues. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE).
+Copyright (C) 2026 vidurb
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for the full text.
+
+If you run a modified version of the server for others, the AGPL requires you to offer them its source.

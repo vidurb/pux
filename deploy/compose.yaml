@@ -1,0 +1,55 @@
+# Self-hosted pux: the server plus PostgreSQL. See deploy/README.md.
+# Copy env.example to .env (gitignored) and fill it in before `docker compose up -d`.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pux
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: pux
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pux -d pux"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    image: ghcr.io/vidurb/pux-server:${PUX_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://pux:${POSTGRES_PASSWORD}@db/pux
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
+      LIVE_VIEW_SIGNING_SALT: ${LIVE_VIEW_SIGNING_SALT:?set LIVE_VIEW_SIGNING_SALT in .env}
+      COOKIE_SIGNING_SALT: ${COOKIE_SIGNING_SALT:?set COOKIE_SIGNING_SALT in .env}
+      PHX_HOST: ${PHX_HOST:?set PHX_HOST in .env}
+      MAIL_DOMAIN: ${MAIL_DOMAIN:-}
+      SMTP_TLS_CERTFILE: ${SMTP_TLS_CERTFILE:-}
+      SMTP_TLS_KEYFILE: ${SMTP_TLS_KEYFILE:-}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-false}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+    ports:
+      # Inbound mail: public port 25 to the unprivileged listener.
+      - "25:2525"
+      # HTTP stays on localhost; put a TLS-terminating reverse proxy in front.
+      - "127.0.0.1:4000:4000"
+    volumes:
+      # Certificates for SMTP STARTTLS, readable by uid 65534.
+      - ./certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  db:
