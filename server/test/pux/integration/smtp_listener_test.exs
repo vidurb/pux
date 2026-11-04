@@ -3,10 +3,10 @@ defmodule Pux.Integration.SmtpListenerTest do
   use Pux.DataCase, async: false
   use Oban.Testing, repo: Pux.Repo
 
-  alias Pux.{Fixtures, Records}
+  alias Pux.{DKIMSigner, Fixtures, Records}
   alias Pux.Workers.PushWorker
 
-  @port 2526
+  @port Application.compile_env!(:pux, [:smtp, :port])
   @client_opts [relay: "127.0.0.1", port: @port, tls: :never, auth: :never, hostname: "t.local"]
 
   setup do
@@ -29,6 +29,56 @@ defmodule Pux.Integration.SmtpListenerTest do
     body = "From: alerts@hdfcbank.net\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
     assert "250 OK\r\n" = send_mail(e.inbox_address, body)
     assert_enqueued(worker: PushWorker, args: %{"device_id" => device.id})
+  end
+
+  defp delivered_payload(device, public, secret) do
+    [job] = all_enqueued(worker: PushWorker, args: %{"device_id" => device.id})
+    {:ok, ciphertext} = Base.url_decode64(job.args["envelope"]["ciphertext"], padding: false)
+    {:ok, plaintext} = :enacl.box_seal_open(ciphertext, public, secret)
+    Jason.decode!(plaintext)
+  end
+
+  defp keyed_record do
+    %{public: public, secret: secret} = :enacl.box_keypair()
+    {:ok, e} = Records.create_record(public)
+
+    {:ok, device} =
+      Records.register_device(e.record_id, %{push_token: "fcm-dkim", platform: :fcm})
+
+    {e, device, public, secret}
+  end
+
+  test "a Gmail-forwarded, DKIM-signed bank OTP arrives verified" do
+    {e, device, public, secret} = keyed_record()
+    key = DKIMSigner.rsa_key()
+    selector = DKIMSigner.publish(key, "hdfcbank.net")
+
+    # Leading dots exercise SMTP dot-stuffing on the way through.
+    bank =
+      "From: HDFC Bank <alerts@hdfcbank.net>\r\nSubject: OTP\r\n\r\n.Your OTP is 482913\r\n..\r\n\r\n"
+
+    body =
+      "X-Forwarded-To: #{e.inbox_address}\r\nX-Forwarded-For: someone@gmail.com\r\n" <>
+        DKIMSigner.sign(bank, key, d: "hdfcbank.net", s: selector)
+
+    assert "250 OK\r\n" = send_mail(e.inbox_address, body, "someone@gmail.com")
+
+    assert %{
+             "type" => "otp",
+             "otp" => "482913",
+             "sender" => "HDFC Bank",
+             "sender_domain" => "hdfcbank.net",
+             "verified" => true
+           } = delivered_payload(device, public, secret)
+  end
+
+  test "an unsigned bank OTP arrives unverified" do
+    {e, device, public, secret} = keyed_record()
+    body = "From: alerts@hdfcbank.net\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
+    assert "250 OK\r\n" = send_mail(e.inbox_address, body)
+
+    assert %{"sender" => "hdfcbank.net", "verified" => false} =
+             delivered_payload(device, public, secret)
   end
 
   test "rejects the wrong domain", %{enrollment: e} do

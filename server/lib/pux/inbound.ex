@@ -4,45 +4,62 @@ defmodule Pux.Inbound do
 
   Payload shapes (JSON, encrypted to the record key before leaving the server):
 
-    * `%{"type" => "otp", "otp", "sender", "received_at", "parser"}`
+    * `%{"type" => "otp", "otp", "sender", "sender_domain", "verified", "received_at", "parser"}`.
+      `verified` means a valid DKIM signature aligns with the From domain; only then is
+      `sender` a bank label, otherwise it is the From domain (or "Unknown sender").
     * `%{"type" => "forward_confirm", "code", "url", "sender", "forwarding_from", "received_at"}`
-      for mail-provider forwarding confirmations, so the user can finish forwarding setup.
+      for Gmail forwarding confirmations carrying a valid google.com DKIM signature,
+      so the user can finish forwarding setup.
+
+  `opts` are passed to `Pux.DKIM.aligned?/3`.
   """
 
-  alias Pux.OtpParser
+  alias Pux.{DKIM, OtpParser}
 
   require Logger
 
   @gmail_forwarding "forwarding-noreply@google.com"
 
-  @spec classify(binary(), String.t() | nil) :: {:ok, map()} | :ignore
-  def classify(raw, envelope_from \\ nil) when is_binary(raw) do
+  @spec classify(binary(), String.t() | nil, keyword()) :: {:ok, map()} | :ignore
+  def classify(raw, envelope_from \\ nil, opts \\ []) when is_binary(raw) do
     email = parse(raw)
     from = email.from || envelope_from || ""
 
-    cond do
-      String.downcase(from) == @gmail_forwarding ->
-        gmail_forward_confirm(email)
-
-      true ->
-        case OtpParser.parse(email.body, from: from, subject: email.subject) do
-          {:ok, result} ->
-            {:ok,
-             %{
-               type: "otp",
-               otp: result.otp,
-               sender: result.sender_label,
-               received_at: now(),
-               parser: result.parser
-             }}
-
-          {:error, :no_otp} ->
-            :ignore
-        end
+    if String.downcase(from) == @gmail_forwarding do
+      gmail_forward_confirm(email, raw, opts)
+    else
+      otp(email, raw, from, opts)
     end
   end
 
-  defp gmail_forward_confirm(email) do
+  defp otp(email, raw, from, opts) do
+    case OtpParser.parse(email.body, from: from, subject: email.subject) do
+      {:ok, result} ->
+        domain = OtpParser.sender_domain(from)
+        verified = DKIM.aligned?(raw, domain, opts)
+
+        {parser, sender} =
+          if verified,
+            do: {result.parser, result.sender_label},
+            else: {:generic, domain || "Unknown sender"}
+
+        {:ok,
+         %{
+           type: "otp",
+           otp: result.otp,
+           sender: sender,
+           sender_domain: domain,
+           verified: verified,
+           received_at: now(),
+           parser: parser
+         }}
+
+      {:error, :no_otp} ->
+        :ignore
+    end
+  end
+
+  defp gmail_forward_confirm(email, raw, opts) do
     text = OtpParser.normalize(email.body)
 
     code =
@@ -52,7 +69,7 @@ defmodule Pux.Inbound do
     url = first_capture(~r{(https://mail(?:-settings)?\.google\.com/\S+)}, text)
     forwarding_from = first_capture(~r/receive mail from\s+(\S+@\S+)/i, email.subject)
 
-    if code || url do
+    if (code || url) && DKIM.aligned?(raw, "google.com", opts) do
       {:ok,
        %{
          type: "forward_confirm",
@@ -89,7 +106,8 @@ defmodule Pux.Inbound do
     }
   rescue
     e ->
-      Logger.warning("SMTP: failed to parse email: #{Exception.message(e)}")
+      # The exception message can echo message content; log only its type.
+      Logger.warning("SMTP: failed to parse email (#{inspect(e.__struct__)})")
       %{from: nil, subject: "", body: raw}
   end
 

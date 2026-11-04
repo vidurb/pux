@@ -63,4 +63,42 @@ defmodule Pux.OtpParserTest do
   test "does not truncate longer numbers" do
     assert {:error, :no_otp} = OtpParser.parse("Your OTP reference 816235124")
   end
+
+  describe "hostile input" do
+    defp fast(fun) do
+      {micros, result} = :timer.tc(fun)
+      assert micros < 1_000_000, "took #{div(micros, 1000)} ms"
+      result
+    end
+
+    test "a 1 MB body of repeated codes" do
+      body = String.duplicate("OTP 12345 ", 100_000)
+      assert {:ok, %{otp: "12345"}} = fast(fn -> OtpParser.parse(body) end)
+    end
+
+    test "unclosed tags and blocks" do
+      for body <- [
+            String.duplicate("<", 1_000_000),
+            String.duplicate("<style>", 150_000),
+            "Your OTP is 482913 " <> String.duplicate("<script>x", 100_000)
+          ] do
+        fast(fn -> OtpParser.parse(body) end)
+      end
+
+      assert {:ok, %{otp: "482913"}} =
+               OtpParser.parse("Your OTP is 482913 <style>unclosed 111111")
+    end
+
+    test "only the start of a huge body is parsed" do
+      body = String.duplicate("x ", 200_000) <> "Your OTP is 482913"
+      assert {:error, :no_otp} = OtpParser.parse(body)
+    end
+
+    test "invalid UTF-8 and multi-byte characters near a code" do
+      assert {:ok, %{otp: "482913"}} =
+               OtpParser.parse("₹" <> String.duplicate("a", 28) <> " 482913 is your OTP")
+
+      assert {:ok, %{otp: "482913"}} = OtpParser.parse(<<"OTP 482913 ", 0xFF, 0xFE>>)
+    end
+  end
 end

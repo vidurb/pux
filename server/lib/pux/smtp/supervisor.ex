@@ -12,6 +12,7 @@ defmodule Pux.SMTP.Supervisor do
   def init(_init_arg) do
     children = [
       {Registry, keys: :duplicate, name: @registry},
+      {Task.Supervisor, name: Pux.SMTP.TaskSupervisor},
       :gen_smtp_server.child_spec(:pux_smtp, Pux.SMTP.Session, server_options())
     ]
 
@@ -35,6 +36,10 @@ defmodule Pux.SMTP.Supervisor do
       max_recipients: Keyword.get(smtp_config, :max_recipients, 10),
       max_connections_per_ip: Keyword.get(smtp_config, :max_connections_per_ip, 5),
       tls?: tls?,
+      require_tls?: Keyword.get(smtp_config, :require_tls, false),
+      classify_timeout_ms: Keyword.get(smtp_config, :classify_timeout_ms, 5_000),
+      inbound_rate_limit: Keyword.get(smtp_config, :inbound_rate_limit, 20),
+      inbound_rate_scale_ms: Keyword.get(smtp_config, :inbound_rate_scale_ms, 600_000),
       registry: @registry
     ]
 

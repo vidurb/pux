@@ -6,6 +6,7 @@ defmodule Pux.SMTP.Session do
   @behaviour :gen_smtp_server_session
 
   alias Pux.{Inbound, Push, Records}
+  alias PuxWeb.Plugs.RateLimit
 
   require Logger
 
@@ -16,6 +17,11 @@ defmodule Pux.SMTP.Session do
       max_size: Keyword.get(options, :max_size, 1_048_576),
       max_recipients: Keyword.get(options, :max_recipients, 10),
       tls?: Keyword.get(options, :tls?, false),
+      require_tls?: Keyword.get(options, :require_tls?, false),
+      tls_active?: false,
+      classify_timeout_ms: Keyword.get(options, :classify_timeout_ms, 5_000),
+      inbound_rate_limit: Keyword.get(options, :inbound_rate_limit, 20),
+      inbound_rate_scale_ms: Keyword.get(options, :inbound_rate_scale_ms, 600_000),
       from: nil,
       recipients: []
     }
@@ -40,9 +46,12 @@ defmodule Pux.SMTP.Session do
   end
 
   @impl true
-  def handle_STARTTLS(state), do: state
+  def handle_STARTTLS(state), do: %{state | tls_active?: true}
 
   @impl true
+  def handle_MAIL(_from, %{tls?: true, require_tls?: true, tls_active?: false} = state),
+    do: {:error, "530 5.7.0 Must issue a STARTTLS command first", state}
+
   def handle_MAIL(from, state), do: {:ok, %{state | from: from, recipients: []}}
 
   @impl true
@@ -72,20 +81,54 @@ defmodule Pux.SMTP.Session do
 
   @impl true
   def handle_DATA(_from, _to, data, state) do
-    case Inbound.classify(data, state.from) do
+    case classify(data, state) do
       {:ok, payload} ->
         plaintext = Jason.encode!(payload)
-
-        Enum.each(state.recipients, fn record ->
-          Records.touch_record!(record)
-          Push.deliver_to_record(record, plaintext)
-        end)
+        Enum.each(state.recipients, &deliver(&1, plaintext, state))
 
       :ignore ->
         Logger.debug("SMTP: no OTP found in message")
     end
 
     {:ok, "250 OK", %{state | recipients: [], from: nil}}
+  end
+
+  # Runs off the session process with a hard timeout. Exit reasons can carry
+  # message content, so they are never logged.
+  defp classify(data, state) do
+    task =
+      Task.Supervisor.async_nolink(Pux.SMTP.TaskSupervisor, Inbound, :classify, [
+        data,
+        state.from
+      ])
+
+    case Task.yield(task, state.classify_timeout_ms) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} ->
+        result
+
+      {:exit, _reason} ->
+        Logger.warning("SMTP: classification failed; message ignored")
+        :ignore
+
+      nil ->
+        Logger.warning("SMTP: classification timed out; message ignored")
+        :ignore
+    end
+  end
+
+  defp deliver(record, plaintext, state) do
+    with :ok <-
+           RateLimit.allow?("record:" <> record.id,
+             key: "inbound",
+             limit: state.inbound_rate_limit,
+             scale_ms: state.inbound_rate_scale_ms
+           ),
+         :ok <- Records.touch_record(record) do
+      Push.deliver_to_record(record, plaintext)
+    else
+      {:error, :rate_limited} -> Logger.info("SMTP: inbound rate limit hit; delivery skipped")
+      {:error, :not_found} -> Logger.debug("SMTP: record deleted while mail was in flight")
+    end
   end
 
   @impl true
