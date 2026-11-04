@@ -9,10 +9,12 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../app.dart';
 import '../services/api_client.dart';
 import '../services/delivery_controller.dart';
+import '../services/desktop_delivery_service.dart';
 import '../services/record_store.dart';
 import '../services/sensitive_clipboard.dart';
 import 'delivery_prompts.dart';
 import 'enroll_chooser_screen.dart';
+import 'held_codes.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -229,6 +231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           if (_removing) const LinearProgressIndicator(),
           const DeliveryPrompts(),
+          HeldCodes(held: DesktopDeliveryService.instance.held),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
             builder: (context, status, _) =>

@@ -49,6 +49,7 @@ All notable changes to pux are recorded here. The format follows
 - A phone that went 30 days without an OTP or being opened no longer loses its registration and silently misses the next code, and a relay that went 90 days without one no longer starts bouncing the bank's forwarded mail.
 - Server: tokens FCM rejects as malformed are removed like unregistered ones, and a dry-run check finds dead tokens on relays that get no mail. A 404 that doesn't name the token (a wrong project ID, a proxy) no longer removes the device.
 - Desktop: an app left running re-registers every 12 hours, so it can't age out while connected.
+- macOS: a code that arrives while notifications are off is no longer lost. It stays on the server until it expires, up to 15 minutes after arriving, can be read on the home screen in the meantime, and appears as a notification once they're allowed again. Decrypted codes are kept in memory only. Linux and Windows have no setting pux can read, so the OS can still drop a code there unnoticed.
 - The OTP parser no longer crashes on bodies that aren't valid UTF-8, or on codes near multi-byte characters such as `₹`.
 - An SMTP session no longer crashes if its relay is deleted while mail is being delivered.
 - Acknowledging a desktop delivery no longer races with a concurrent acknowledgement.

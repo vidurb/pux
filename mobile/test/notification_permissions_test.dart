@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -203,6 +206,19 @@ void main() {
         }, variant: variant);
       });
 
+      testWidgets('the off prompt says what happens to codes here', (tester) async {
+        apple.options = _FakeApple.denied;
+
+        await pumpPrompts(tester);
+
+        final desktop = platform == TargetPlatform.macOS;
+        expect(
+          find.textContaining('New codes wait on this screen'),
+          desktop ? findsOneWidget : findsNothing,
+        );
+        expect(find.textContaining('are lost'), desktop ? findsNothing : findsOneWidget);
+      }, variant: variant);
+
       testWidgets('the button opens the app notification page', (tester) async {
         apple.options = _FakeApple.denied;
         await pumpPrompts(tester);
@@ -276,6 +292,62 @@ void main() {
       expect(find.text('Open settings'), findsNothing);
     }, variant: TargetPlatformVariant.only(platform));
   }
+
+  group('check', () {
+    test('returns what it read', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      android.appEnabled = false;
+
+      expect(await NotificationPermissions.instance.check(), NotificationAccess.off);
+      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+    });
+
+    test('returns null on failure, keeping the last state', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      android.appEnabled = false;
+      await NotificationPermissions.instance.check();
+      android.statusError = PlatformException(code: 'boom');
+
+      expect(await NotificationPermissions.instance.check(), isNull);
+      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+    });
+
+    test('returns null if the OS never answers', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        NotificationPermissions.channel,
+        (_) => Completer<Object?>().future,
+      );
+
+      expect(
+        await NotificationPermissions.instance.check(timeout: const Duration(milliseconds: 5)),
+        isNull,
+      );
+    });
+
+    test('returns null if the answer is malformed', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        NotificationPermissions.channel,
+        (_) async => {'appEnabled': 'yes'},
+      );
+
+      expect(await NotificationPermissions.instance.check(), isNull);
+    });
+
+    for (final platform in [TargetPlatform.linux, TargetPlatform.windows]) {
+      test('has nothing to read on ${platform.name}', () async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+        expect(await NotificationPermissions.instance.check(), NotificationAccess.allowed);
+      });
+    }
+  });
 
   group('state on resume', () {
     testWidgets('appears when notifications are turned off while away', (tester) async {

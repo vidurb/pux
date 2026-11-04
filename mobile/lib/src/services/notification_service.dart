@@ -105,22 +105,28 @@ class NotificationService {
   /// Decrypts and shows an encrypted envelope. Returns false when the
   /// envelope could not be decrypted, so callers do not acknowledge it.
   Future<bool> handleEncryptedMessage(Map<String, dynamic> data) async {
+    final notification = await decrypt(data);
+    if (notification == null) return false;
+
+    await show(notification);
+    return true;
+  }
+
+  /// Decrypts an envelope, or returns null if that isn't possible.
+  Future<RelayNotification?> decrypt(Map<String, dynamic> data) async {
     final ciphertext = data['ciphertext'] as String?;
     if (ciphertext == null) {
       debugPrint('Ignoring envelope without ciphertext');
-      return false;
+      return null;
     }
 
-    final Map<String, dynamic> payload;
     try {
-      payload = await CryptoService.instance.decryptPayload(ciphertext);
+      final payload = await CryptoService.instance.decryptPayload(ciphertext);
+      return RelayNotification.fromPayload(payload);
     } catch (error, stackTrace) {
       debugPrint('Failed to decrypt envelope: $error\n$stackTrace');
-      return false;
+      return null;
     }
-
-    await show(RelayNotification.fromPayload(payload));
-    return true;
   }
 
   Future<void> show(RelayNotification notification) async {
