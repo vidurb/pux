@@ -98,6 +98,7 @@ defmodule Pux.CredentialLoggingTest do
     end
 
     test "classification crash doesn't log the message", %{enrollment: e} do
+      {:ok, _} = add_device(e, :fcm)
       {:ok, _banner, state} = Session.init("pux.test", 0, {127, 0, 0, 1}, mail_domain: "pux.test")
       # A non-binary envelope sender makes Inbound.classify/2 raise on a mail with no From.
       {:ok, state} = Session.handle_MAIL(123, state)

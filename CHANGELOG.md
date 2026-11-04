@@ -35,6 +35,8 @@ All notable changes to pux are recorded here. The format follows
 
 ### Changed
 
+- Server: **retention no longer depends on quietness for relays and phones.** A phone stays registered until FCM reports its token dead or it goes 2 years with no registration and no accepted push, instead of 30 days, and a relay stays while it has a device, then for 30 days after losing the last one, instead of 90 days from its last activity. As a result the server keeps inbox tokens, public keys and push tokens for as long as an app stays installed, up to that limit; see [Data retention](README.md#data-retention). Desktop devices age out after 90 days without registering, up from 30. The `:pruner` settings are now `device_max_idle_days`, `desktop_device_ttl_days`, `deviceless_record_ttl_days` and `fcm_token_check_days`.
+- Server: mail to a relay with no devices now bounces at `RCPT` with the same `550 5.1.1` as an unknown address, instead of being accepted and dropped, so the sender's bounce shows that something is wrong.
 - Payloads include `verified` and `sender_domain`, and unverified senders are shown as "OTP from <domain> (unverified)".
 - Phoenix 1.8, Phoenix LiveView 1.2, Hammer 7, Oban 2.24.
 - iOS requires 15.0 or later, and the iOS build uses Swift Package Manager instead of CocoaPods.
@@ -43,6 +45,9 @@ All notable changes to pux are recorded here. The format follows
 
 ### Fixed
 
+- A phone that went 30 days without an OTP or being opened no longer loses its registration and silently misses the next code, and a relay that went 90 days without one no longer starts bouncing the bank's forwarded mail.
+- Server: tokens FCM rejects as malformed are removed like unregistered ones, and a dry-run check finds dead tokens on relays that get no mail. A 404 that doesn't name the token (a wrong project ID, a proxy) no longer removes the device.
+- Desktop: an app left running re-registers every 12 hours, so it can't age out while connected.
 - The OTP parser no longer crashes on bodies that aren't valid UTF-8, or on codes near multi-byte characters such as `₹`.
 - An SMTP session no longer crashes if its relay is deleted while mail is being delivered.
 - Acknowledging a desktop delivery no longer races with a concurrent acknowledgement.

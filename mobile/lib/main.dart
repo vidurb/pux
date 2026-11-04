@@ -24,7 +24,6 @@ Future<void> main() async {
     unawaited(DeliveryController.instance.start());
   });
 
-  // Keeps the device registration fresh; the server prunes devices it has
-  // not heard from in 30 days.
+  // Keeps the device registration fresh.
   AppLifecycleListener(onResume: () => unawaited(DeliveryController.instance.onResume()));
 }
