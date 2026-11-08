@@ -68,7 +68,9 @@ mise install
 mise run setup
 ```
 
-That pins Erlang/OTP, Elixir, Flutter, and Temurin JDK 17 (for Android builds) per [`mise.toml`](mise.toml). You still need PostgreSQL and libsodium for the server, and platform SDKs (Xcode, Android SDK, etc.) for mobile targets.
+That pins Erlang/OTP, Elixir, Flutter, Temurin JDK 17 (for Android builds), [hk](https://hk.jdx.dev), and [jactionlint](https://github.com/jdx/jactionlint) per [`mise.toml`](mise.toml). `mise run setup` installs hk pre-commit hooks (format/check on staged Elixir, Dart, and workflow files). Run `hk check` anytime for the same checks without committing.
+
+You still need PostgreSQL and libsodium for the server, and platform SDKs (Xcode, Android SDK, etc.) for mobile targets.
 
 ### Server
 

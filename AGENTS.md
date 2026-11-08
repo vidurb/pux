@@ -7,7 +7,9 @@ mise install
 mise run setup
 ```
 
-Versions live in [`mise.toml`](mise.toml). PostgreSQL must be running for server tests (`DATABASE_URL`, default `postgres://postgres:postgres@localhost/pux_test`).
+Versions live in [`mise.toml`](mise.toml). `mise run setup` installs hk hooks from [`hk.pkl`](hk.pkl). Fast local checks: `hk check` (or rely on pre-commit). Workflow lint uses `jactionlint --profile correctness` (pedantic policy rules are a CI follow-up).
+
+PostgreSQL must be running for server tests (`DATABASE_URL`, default `postgres://postgres:postgres@localhost/pux_test`).
 
 **Server checks** (from `server/`):
 

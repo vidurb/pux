@@ -31,7 +31,9 @@ mise install
 mise run setup
 ```
 
-See [`mise.toml`](mise.toml). You still need PostgreSQL, libsodium, and per-platform mobile SDKs.
+See [`mise.toml`](mise.toml). `mise run setup` installs hk git hooks (Elixir/Dart format checks and `jactionlint` on workflows). Use `hk check` before pushing; full `mix test` / `flutter test` remain CI and manual.
+
+You still need PostgreSQL, libsodium, and per-platform mobile SDKs.
 
 ## Server
 

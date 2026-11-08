@@ -4,6 +4,8 @@ elixir = "1.18.4-otp-27"
 flutter = "3.47.8"
 # Android Gradle (mobile/android/app/build.gradle.kts targets JVM 17)
 java = "temurin-17.0.21+9"
+hk = "2.11.1"
+jactionlint = "2.5.0"
 
 [tasks.setup-server]
 description = "Fetch Elixir dependencies"
@@ -15,6 +17,10 @@ description = "Fetch Flutter/Dart dependencies"
 dir = "mobile"
 run = "flutter pub get"
 
+[tasks.setup-hooks]
+description = "Install git hooks (hk + mise)"
+run = "hk install --mise"
+
 [tasks.setup]
-description = "Fetch server and mobile dependencies after mise install"
-depends = ["setup-server", "setup-mobile"]
+description = "Install deps and git hooks after mise install"
+depends = ["setup-server", "setup-mobile", "setup-hooks"]
