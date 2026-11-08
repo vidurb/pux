@@ -61,6 +61,17 @@ Dead tokens count towards `MAX_DEVICES_PER_RECORD` until they're found. If a new
 
 ## Local development
 
+Install [mise](https://mise.jdx.dev), then from the repo root:
+
+```bash
+mise install
+mise run setup
+```
+
+That pins Erlang/OTP, Elixir, Flutter, Temurin JDK 17 (for Android builds), [hk](https://hk.jdx.dev), and [jactionlint](https://github.com/jdx/jactionlint) per [`mise.toml`](mise.toml). `mise run setup` installs hk pre-commit hooks (format/check on staged Elixir, Dart, and workflow files). Run `hk check` anytime for the same checks without committing.
+
+You still need PostgreSQL and libsodium for the server, and platform SDKs (Xcode, Android SDK, etc.) for mobile targets.
+
 ### Server
 
 ```bash
@@ -73,8 +84,6 @@ mix phx.server
 SMTP listens on port 2525 (`SMTP_PORT`) in every environment; map public port 25 to it. HTTP on 4000.
 
 Tests need PostgreSQL (`DATABASE_URL`) and libsodium. The SMTP integration test talks to the real listener on port 2526 and the WebSocket tests to the endpoint on 4002 (override with `PUX_TEST_SMTP_PORT` / `PUX_TEST_HTTP_PORT`). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full set of checks CI runs.
-
-Toolchain versions are pinned in [`.tool-versions`](.tool-versions) (Elixir 1.18.4 / OTP 27.3.4).
 
 ### Mobile
 

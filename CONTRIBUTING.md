@@ -22,9 +22,20 @@ verification) need a design discussion before code.
 | `brand/` | Logo sources and identity guide; `scripts/render-brand.sh` renders the PNGs from them |
 | `.github/` | CI, release workflow, Dependabot |
 
-## Server
+## Toolchains
 
-You need Elixir and Erlang at the versions in [`.tool-versions`](.tool-versions), PostgreSQL and libsodium.
+From the repo root, [mise](https://mise.jdx.dev) installs pinned Erlang/OTP, Elixir, Flutter, and JDK 17:
+
+```bash
+mise install
+mise run setup
+```
+
+See [`mise.toml`](mise.toml). `mise run setup` installs hk git hooks (Elixir/Dart format checks and `jactionlint` on workflows). Use `hk check` before pushing; full `mix test` / `flutter test` remain CI and manual.
+
+You still need PostgreSQL, libsodium, and per-platform mobile SDKs.
+
+## Server
 
 ```bash
 cd server
@@ -55,7 +66,7 @@ A test with a representative (anonymised) email body is the most useful part of 
 
 ## Mobile
 
-You need Flutter stable. Building for a platform also needs that platform's toolchain: Android SDK and JDK 17 for Android, Xcode for iOS and macOS, and CocoaPods for macOS.
+Flutter comes from mise (same stable line CI uses). Building for a platform also needs that platform's toolchain: Android SDK, Xcode for iOS and macOS, and CocoaPods for macOS.
 
 ```bash
 cd mobile
