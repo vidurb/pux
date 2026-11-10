@@ -9,7 +9,7 @@ defmodule PuxWeb.PageControllerTest do
       conn = get(conn, "/")
       body = html_response(conn, 200)
 
-      assert body =~ "sealed on the way to your phone"
+      assert body =~ "on every device, even with no signal"
       assert body =~ ~s(href="/assets/app.css")
       refute body =~ "<script"
       refute body =~ "<style"

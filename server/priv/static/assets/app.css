@@ -277,12 +277,11 @@ code {
   color: #47574f;
 }
 
-.demo-cipher {
-  display: block;
+.demo-status {
+  margin: 0;
   color: var(--mint);
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   line-height: 1.5;
-  overflow-wrap: anywhere;
 }
 
 .demo-title {
