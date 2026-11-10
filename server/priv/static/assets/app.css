@@ -58,6 +58,17 @@ body {
   line-height: 1.6;
 }
 
+/* Keep the footer at the bottom of the window on short pages */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
 h1,
 h2,
 h3 {
@@ -612,4 +623,62 @@ details p {
   .self-host {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Tables stack into labelled rows on phones, so no column hides off-screen */
+@media (max-width: 36rem) {
+  .table-scroll {
+    overflow-x: visible;
+  }
+
+  table,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+  }
+
+  table {
+    min-width: 0;
+  }
+
+  thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    padding-block: 0.5rem;
+  }
+
+  tbody tr:first-child {
+    border-top: 0;
+  }
+
+  tbody th {
+    padding-bottom: 0.25rem;
+    white-space: normal;
+  }
+
+  td {
+    padding-block: 0.25rem;
+  }
+
+  td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+}
+
+/* Error pages */
+.error-page h1 {
+  margin-bottom: 1rem;
 }

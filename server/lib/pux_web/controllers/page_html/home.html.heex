@@ -155,23 +155,23 @@
         <tbody>
           <tr>
             <th scope="row">Android</th>
-            <td>Push through Firebase</td>
-            <td>Create a relay or scan a QR code</td>
+            <td data-label="Delivery">Push through Firebase</td>
+            <td data-label="Status">Create a relay or scan a QR code</td>
           </tr>
           <tr>
             <th scope="row">iOS</th>
-            <td>Push through Firebase and APNs</td>
-            <td>Built, but push hasn't been tested on a real device yet</td>
+            <td data-label="Delivery">Push through Firebase and APNs</td>
+            <td data-label="Status">Built, but push hasn't been tested on a real device yet</td>
           </tr>
           <tr>
             <th scope="row">macOS and Linux</th>
-            <td>WebSocket, with polling as a fallback</td>
-            <td>Import an enrollment from your phone</td>
+            <td data-label="Delivery">WebSocket, with polling as a fallback</td>
+            <td data-label="Status">Import an enrollment from your phone</td>
           </tr>
           <tr>
             <th scope="row">Windows</th>
-            <td>None</td>
-            <td>Not supported for now</td>
+            <td data-label="Delivery">None</td>
+            <td data-label="Status">Not supported for now</td>
           </tr>
         </tbody>
       </table>
@@ -258,28 +258,32 @@
         <tbody>
           <tr>
             <th scope="row">Email contents</th>
-            <td>In memory only, while parsing</td>
-            <td>Never written to disk or the database</td>
+            <td data-label="Form">In memory only, while parsing</td>
+            <td data-label="Kept for">Never written to disk or the database</td>
           </tr>
           <tr>
             <th scope="row">Push jobs</th>
-            <td>Sealed envelope, in the database</td>
-            <td>Deleted about 10 minutes after the job finishes</td>
+            <td data-label="Form">Sealed envelope, in the database</td>
+            <td data-label="Kept for">Deleted about 10 minutes after the job finishes</td>
           </tr>
           <tr>
             <th scope="row">Desktop deliveries</th>
-            <td>Sealed envelope, in the database. Only if the relay has a desktop</td>
-            <td>Until the desktop confirms it, up to about 15 minutes</td>
+            <td data-label="Form">
+              Sealed envelope, in the database. Only if the relay has a desktop
+            </td>
+            <td data-label="Kept for">Until the desktop confirms it, up to about 15 minutes</td>
           </tr>
           <tr>
             <th scope="row">Relay</th>
-            <td>Record ID, inbox token, public key, last activity</td>
-            <td>Until you delete it, or 30 days after it loses its last device</td>
+            <td data-label="Form">Record ID, inbox token, public key, last activity</td>
+            <td data-label="Kept for">
+              Until you delete it, or 30 days after it loses its last device
+            </td>
           </tr>
           <tr>
             <th scope="row">Device</th>
-            <td>Push token, platform, last seen, last token check</td>
-            <td>
+            <td data-label="Form">Push token, platform, last seen, last token check</td>
+            <td data-label="Kept for">
               Phones: until you remove it, the push service reports it's no longer valid, or 2 years with no app open and no code delivered. Desktops: until you remove it, or 90 days without registering
             </td>
           </tr>

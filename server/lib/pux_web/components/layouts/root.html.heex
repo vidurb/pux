@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{assigns[:page_title] || "pux"}</title>
     <meta :if={assigns[:description]} name="description" content={@description} />
+    <meta :if={assigns[:noindex]} name="robots" content="noindex" />
     <meta name="theme-color" content="#0E3B32" />
     <link rel="canonical" href={PuxWeb.Endpoint.url() <> @conn.request_path} />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
