@@ -3,12 +3,13 @@ defmodule PuxWeb.PageController do
 
   alias Pux.OtpParser
 
-  @description "pux turns the OTP emails your bank sends into end-to-end encrypted push " <>
-                 "notifications. No accounts, no stored mail, open source."
+  @description "Get your bank OTPs on your computer and every phone you add, over Wi-Fi " <>
+                 "or any internet connection, even when your phone has no signal. " <>
+                 "End-to-end encrypted and open source."
 
   def home(conn, _params) do
     conn
-    |> meta("pux: encrypted OTP relay", @description)
+    |> meta("pux: bank OTPs on every device, even with no signal", @description)
     |> render(:home, banks: OtpParser.bank_labels())
   end
 

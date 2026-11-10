@@ -9,7 +9,7 @@ defmodule PuxWeb.PageControllerTest do
       conn = get(conn, "/")
       body = html_response(conn, 200)
 
-      assert body =~ "sealed on the way to your phone"
+      assert body =~ "on every device, even with no signal"
       assert body =~ ~s(href="/assets/app.css")
       refute body =~ "<script"
       refute body =~ "<style"
@@ -38,6 +38,18 @@ defmodule PuxWeb.PageControllerTest do
       for bank <- Pux.OtpParser.bank_labels() do
         assert body =~ "<li>#{bank}</li>"
       end
+    end
+
+    test "labels every table cell so tables can stack on phones", %{conn: conn} do
+      body = html_response(get(conn, "/"), 200)
+
+      refute body =~ "<td>"
+      assert body =~ ~s(<td data-label="Status">)
+      assert body =~ ~s(<td data-label="Kept for">)
+    end
+
+    test "is indexable", %{conn: conn} do
+      refute html_response(get(conn, "/"), 200) =~ "noindex"
     end
 
     test "has description, Open Graph and Twitter card tags", %{conn: conn} do

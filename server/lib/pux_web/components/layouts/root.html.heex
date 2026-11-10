@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{assigns[:page_title] || "pux"}</title>
     <meta :if={assigns[:description]} name="description" content={@description} />
+    <meta :if={assigns[:noindex]} name="robots" content="noindex" />
     <meta name="theme-color" content="#0E3B32" />
     <link rel="canonical" href={PuxWeb.Endpoint.url() <> @conn.request_path} />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -20,7 +21,7 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="The pux logo with the line: bank OTPs, sealed on the way to your phone"
+      content="The pux logo with the line: bank OTPs on every device, even with no signal"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/assets/app.css" />
@@ -31,9 +32,10 @@
       <div class="wrap site-header__row">
         <a class="site-logo" href="/" aria-label="pux home"><.wordmark /></a>
         <nav aria-label="Main">
+          <a href="/#why">Why pux</a>
           <a href="/#how">How it works</a>
-          <a href="/#security">Security</a>
           <a href="/#banks">Banks</a>
+          <a href="/#security">Security</a>
           <a href="/#faq">FAQ</a>
           <a href="https://github.com/vidurb/pux">Source</a>
         </nav>

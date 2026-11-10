@@ -9,7 +9,7 @@
 [![mobile](https://github.com/vidurb/pux/actions/workflows/mobile.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/mobile.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-Privacy-first OTP relay: receive bank OTP emails, parse the code in memory, end-to-end encrypt it, and push it to your devices.
+Get your bank OTPs on your computer and every phone you add, even when your phone has no signal. pux takes the OTP from the email your bank sends, end-to-end encrypts it, and pushes it to your devices over any internet connection.
 
 Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your own](deploy/README.md).
 
