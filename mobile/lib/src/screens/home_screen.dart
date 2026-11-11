@@ -154,6 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String forgetWarning,
     required Future<void> Function() serverCall,
   }) async {
+    final app = _AppHandles.of(context);
     setState(() => _removing = true);
     await DeliveryController.instance.stop();
 
@@ -198,17 +199,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
 
-    await _forgetLocally();
+    await _forgetLocally(app);
   }
 
-  Future<void> _forgetLocally() async {
+  /// Forgets the relay on this device and shows the chooser. [app] is
+  /// resolved before the caller's first await; without it, it is resolved
+  /// now, before this one's.
+  Future<void> _forgetLocally([_AppHandles? app]) async {
+    app ??= _AppHandles.of(context);
     await DeliveryController.instance.stop();
     await RecordStore.instance.clear();
-    ref.invalidate(enrollmentProvider);
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const EnrollChooserScreen()),
-      (_) => false,
+    // The screen may be gone by now, so this mustn't use `ref` or `context`:
+    // the relay is forgotten either way, and the app has to show it.
+    app.container.invalidate(enrollmentProvider);
+    unawaited(
+      app.navigator.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const EnrollChooserScreen()),
+        (_) => false,
+      ),
     );
   }
 
@@ -254,8 +262,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           HeldCodes(held: DesktopDeliveryService.instance.held),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
-            builder: (context, status, _) =>
-                _DeliveryBanner(status: status, onForget: _forgetLocally),
+            builder: (context, status, _) => _DeliveryBanner(
+              status: status,
+              onForget: () => _forgetLocally(),
+            ),
           ),
           const Text(
             'Forward bank OTP emails to your inbox address. Codes arrive as encrypted push notifications.',
@@ -316,6 +326,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
+}
+
+/// What forgetting the relay updates. Both outlive the home screen, unlike
+/// `ref` and `context`, which throw once it is disposed.
+class _AppHandles {
+  _AppHandles.of(BuildContext context)
+    : container = ProviderScope.containerOf(context, listen: false),
+      navigator = Navigator.of(context);
+
+  final ProviderContainer container;
+  final NavigatorState navigator;
 }
 
 class _DeliveryBanner extends StatelessWidget {
