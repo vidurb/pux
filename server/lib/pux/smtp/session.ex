@@ -179,12 +179,15 @@ defmodule Pux.SMTP.Session do
   @impl true
   def terminate(reason, state), do: {:ok, reason, state}
 
+  # A limit of 0 turns this off, for a listener behind a TCP proxy, where every
+  # connection comes from the proxy. Keyed like the HTTP limits: IPv6 per /64.
   defp over_connection_limit?(address, options) do
     with registry when is_atom(registry) and not is_nil(registry) <- options[:registry],
-         limit when is_integer(limit) <- options[:max_connections_per_ip],
+         limit when is_integer(limit) and limit > 0 <- options[:max_connections_per_ip],
          pid when is_pid(pid) <- Process.whereis(registry) do
-      {:ok, _} = Registry.register(registry, address, nil)
-      length(Registry.lookup(registry, address)) > limit
+      key = RateLimit.address_key(address)
+      {:ok, _} = Registry.register(registry, key, nil)
+      length(Registry.lookup(registry, key)) > limit
     else
       _ -> false
     end

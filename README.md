@@ -170,7 +170,7 @@ All under `/api/v1`. Every endpoint except `POST /records` works on the relay na
 
 | Endpoint | Success | Notes |
 |----------|---------|-------|
-| `POST /records` | 201 `{"record_id","inbox_address","public_key"}` | Rate-limited per IP |
+| `POST /records` | 201 `{"record_id","inbox_address","public_key"}` | Rate-limited per IP (per /64 for IPv6) |
 | `DELETE /record` | 204 | Deletes the record, its devices and pending deliveries; closes its delivery WebSockets |
 | `POST /record/devices` | 201 `{"device_id","platform"}` | 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token is always allowed |
 | `DELETE /record/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
@@ -200,12 +200,12 @@ Decrypted push payloads are JSON with a `type`:
 | `MAIL_DOMAIN` | no | SMTP recipient domain |
 | `SMTP_PORT` | no | SMTP listen port (default `2525`; the image runs as non-root) |
 | `SMTP_MAX_MESSAGE_SIZE` | no | Max inbound message bytes (default 1MB) |
-| `SMTP_MAX_CONNECTIONS` | no | Max concurrent SMTP connections (default 100) |
-| `SMTP_MAX_CONNECTIONS_PER_IP` | no | Max concurrent SMTP connections per client IP (default 5) |
+| `SMTP_MAX_CONNECTIONS` | no | Max concurrent SMTP connections (default 100). Applies even with the per-IP limit off |
+| `SMTP_MAX_CONNECTIONS_PER_IP` | no | Max concurrent SMTP connections per client IP, or per /64 for IPv6 (default 5). `0` turns it off, for SMTP behind a TCP proxy that hides the client IP; see [deploy/README.md](deploy/README.md#smtp-behind-a-tcp-proxy) |
 | `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set (a warning is logged at boot when unset) |
 | `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10). Dead push tokens count until found; see [Data retention](#data-retention) |
 | `RECORD_API_RATE_LIMIT` | no | Authenticated API requests per record per minute (default 120) |
-| `AUTH_FAILURE_RATE_LIMIT` | no | Failed authentications per client IP per minute, across the API and the delivery WebSocket, before that IP gets 429 for the rest of the minute (default 300). Mobile carrier NAT can put many users on one IP, so keep it generous |
+| `AUTH_FAILURE_RATE_LIMIT` | no | Failed authentications per client IP (per /64 for IPv6) per minute, across the API and the delivery WebSocket, before that IP gets 429 for the rest of the minute (default 300). Mobile carrier NAT can put many users on one IP, so keep it generous |
 | `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
 | `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
 | `FCM_SERVICE_ACCOUNT_JSON` | no | Firebase service account JSON for push |

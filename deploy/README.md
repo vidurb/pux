@@ -57,6 +57,23 @@ SMTP_REQUIRE_TLS=true
 
 The server reads the certificate at start-up, so restart it (`docker compose restart server`) after renewing.
 
+### SMTP behind a TCP proxy
+
+The server limits concurrent SMTP connections per client IP (`SMTP_MAX_CONNECTIONS_PER_IP`, default 5;
+IPv6 clients are counted per /64). It sees the address of whoever opened the TCP connection, and it
+doesn't support the PROXY protocol. So if port 25 reaches the server through a TCP proxy or load
+balancer (HAProxy, nginx `stream`, a cloud load balancer in TCP mode, Docker's userland proxy, a tunnel),
+every connection seems to come from the proxy, and the per-IP limit turns into a cap of 5 connections in
+total. Either:
+
+- **Preserve the client IP,** for example with a load balancer in pass-through mode or a plain port
+  forward (the Compose `ports:` mapping keeps it for IPv4 when Docker uses iptables, its default), or
+- **Turn the per-IP limit off** with `SMTP_MAX_CONNECTIONS_PER_IP=0` in `.env`. An empty value counts as
+  unset and gives the default, so it has to be `0`.
+
+`SMTP_MAX_CONNECTIONS` (default 100) still caps connections in total, and the per-relay delivery limit
+(`SMTP_INBOUND_RATE_LIMIT`) still applies, so a mail flood can't push unlimited OTPs either way.
+
 ## 4. Run
 
 ```bash

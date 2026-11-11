@@ -20,7 +20,7 @@ defmodule PuxWeb.DeliverySocket do
     with token when is_binary(token) <- header_token(transport),
          # The stored ID, not the token: topics are matched exactly, so a UUID in another
          # case would subscribe to a topic nothing is ever sent to.
-         {:ok, record_id} <- RecordAuth.authenticate(token, client_ip(transport)) do
+         {:ok, record_id} <- RecordAuth.authenticate(token, rate_limit_key(transport)) do
       {:ok, %{record_id: record_id}}
     else
       {:error, :rate_limited} -> {:error, :rate_limited}
@@ -43,8 +43,8 @@ defmodule PuxWeb.DeliverySocket do
 
   # Sockets dispatch before any plug, so the peer here is what `conn.remote_ip` is for a
   # REST request, and `x_headers` keeps every X-Forwarded-For line in order.
-  defp client_ip(%{connect_info: %{peer_data: %{address: address}, x_headers: headers}}) do
-    RateLimit.client_ip(address, for({"x-forwarded-for", value} <- headers, do: value))
+  defp rate_limit_key(%{connect_info: %{peer_data: %{address: address}, x_headers: headers}}) do
+    RateLimit.rate_limit_key(address, for({"x-forwarded-for", value} <- headers, do: value))
   end
 
   @impl true

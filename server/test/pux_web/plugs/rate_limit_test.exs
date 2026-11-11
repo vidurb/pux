@@ -51,6 +51,49 @@ defmodule PuxWeb.Plugs.RateLimitTest do
     end
   end
 
+  describe "address_key/1" do
+    test "keeps IPv4 addresses whole, as a tuple or a string" do
+      assert RateLimit.address_key({203, 0, 113, 7}) == "203.0.113.7"
+      assert RateLimit.address_key("203.0.113.7") == "203.0.113.7"
+    end
+
+    test "treats IPv4-mapped IPv6 as IPv4" do
+      assert RateLimit.address_key({0, 0, 0, 0, 0, 0xFFFF, 0xCB00, 0x7107}) == "203.0.113.7"
+      assert RateLimit.address_key("::ffff:203.0.113.7") == "203.0.113.7"
+    end
+
+    test "cuts IPv6 addresses to their /64" do
+      assert RateLimit.address_key({0x2001, 0xDB8, 1, 2, 3, 4, 5, 6}) == "2001:db8:1:2::/64"
+      assert RateLimit.address_key("2001:db8:1:2:ffff::1") == "2001:db8:1:2::/64"
+      assert RateLimit.address_key("2001:DB8:1:2::") == "2001:db8:1:2::/64"
+      assert RateLimit.address_key("2001:db8:1:3::1") == "2001:db8:1:3::/64"
+      assert RateLimit.address_key("::1") == "::/64"
+    end
+
+    test "returns anything that isn't an address unchanged" do
+      for value <- ["unknown", "1.2", "203.0.113.7:25", "", <<0xFF, 0xFE>>] do
+        assert RateLimit.address_key(value) == value
+      end
+    end
+  end
+
+  describe "rate_limit_key/1,2" do
+    test "is the client IP, with IPv6 cut to its /64" do
+      for {peer, xff, expected} <- [
+            {{10, 244, 0, 5}, "1.1.1.1, 203.0.113.7", "203.0.113.7"},
+            {{198, 51, 100, 2}, "1.1.1.1", "198.51.100.2"},
+            {{0, 0, 0, 0, 0, 0xFFFF, 0x0AF4, 0x0005}, "203.0.113.9", "203.0.113.9"},
+            {{10, 0, 0, 1}, "2001:db8:a:b:c:d:e:f", "2001:db8:a:b::/64"},
+            {{10, 0, 0, 1}, "::ffff:203.0.113.9", "203.0.113.9"},
+            {{0x2001, 0xDB8, 0xA, 0xB, 1, 2, 3, 4}, "1.1.1.1", "2001:db8:a:b::/64"},
+            {{0xFD00, 0, 0, 0, 0, 0, 0, 1}, "2001:db8::5", "2001:db8::/64"}
+          ] do
+        assert RateLimit.rate_limit_key(conn_from(peer, xff)) == expected
+        assert RateLimit.rate_limit_key(peer, [xff]) == expected
+      end
+    end
+  end
+
   describe "limit_reached?/2" do
     test "doesn't count against the limit" do
       opts = [key: "test_peek:#{System.unique_integer()}", limit: 1, scale_ms: 60_000]
@@ -107,6 +150,17 @@ defmodule PuxWeb.Plugs.RateLimitTest do
       assert Jason.decode!(conn.resp_body) == %{"error" => "rate_limit_exceeded"}
 
       refute RateLimit.call(conn_from({198, 51, 100, 8}, nil), opts).halted
+    end
+
+    test "counts an IPv6 /64 as one client" do
+      opts =
+        RateLimit.init(key: "test_plug_v6:#{System.unique_integer()}", limit: 1, scale_ms: 60_000)
+
+      refute RateLimit.call(conn_from({0x2001, 0xDB8, 1, 2, 0, 0, 0, 1}, nil), opts).halted
+
+      assert RateLimit.call(conn_from({0x2001, 0xDB8, 1, 2, 0xA, 0xB, 0xC, 0xD}, nil), opts).halted
+
+      refute RateLimit.call(conn_from({0x2001, 0xDB8, 1, 3, 0, 0, 0, 1}, nil), opts).halted
     end
   end
 end
