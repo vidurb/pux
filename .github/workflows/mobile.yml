@@ -62,8 +62,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # The iOS, macOS and Linux builds are unsigned and use no secrets, so they run on pull
+  # requests too, including ones from forks. Signed builds live in release.yml and
+  # testflight.yml, which only run on tags or by hand.
   build-ios:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: macos-latest
     defaults:
@@ -79,7 +81,6 @@ jobs:
       - run: flutter build ios --release --no-codesign --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
 
   build-macos:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: macos-latest
     defaults:
@@ -95,7 +96,6 @@ jobs:
       - run: flutter build macos --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
 
   build-linux:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     defaults:
