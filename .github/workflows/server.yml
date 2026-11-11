@@ -58,9 +58,20 @@ jobs:
       - run: mix sobelow --exit medium
       - run: mix test
 
+  # Smoke-tests the image on each platform that publish pushes, on a native runner for
+  # each (no QEMU), so an arm64-only break fails here instead of in production. Runs on
+  # pushes to main too, because publish waits for it.
   image:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    name: image (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     services:
       postgres:
         image: postgres:16
@@ -90,11 +101,14 @@ jobs:
           tags: pux-server:ci
       # Booting can't catch this: musl 1.2.6 makes OTP 27 abort on every start on Intel
       # AMX hosts and never elsewhere, and only about 1 runner in 10 has AMX. So check the
-      # version instead. Remove this once the image's OTP includes erlang/otp#11810.
+      # version instead, on both platforms since they build from the same Dockerfile.
+      # Remove this once the image's OTP includes erlang/otp#11810.
       - name: Both stages use a musl that OTP 27 can start on, on any CPU
         run: |
-          grep -m1 'model name' /proc/cpuinfo
-          LD_SHOW_AUXV=1 /bin/true | grep AT_MINSIGSTKSZ
+          uname -m
+          grep -m1 -E '^(model name|CPU part)' /proc/cpuinfo || true
+          grep -qw amx_tile /proc/cpuinfo && echo "host has AMX" || echo "host has no AMX"
+          LD_SHOW_AUXV=1 /bin/true | grep AT_MINSIGSTKSZ || true
           docker buildx build --target build --load -t pux-server:ci-build server
           for image in pux-server:ci-build pux-server:ci; do
             version=$(docker run --rm --entrypoint sh "$image" -c '/lib/ld-musl-*.so.1 2>&1 || true' | sed -n 's/^Version //p')
@@ -156,7 +170,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [test, image]
     runs-on: ubuntu-latest
     permissions:
       contents: read
