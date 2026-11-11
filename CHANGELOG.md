@@ -35,6 +35,8 @@ All notable changes to pux are recorded here. The format follows
 - Android: the home screen, including right after setup, warns when codes could silently stop arriving, either because Android 12+ can hibernate pux after months without use or because its background battery use is restricted, and links to the settings page that fixes it. A warning goes away once the setting changes. If dismissed, it returns only after the setting has been fixed and then undone, or after setting up pux again.
 - Apps: on Android, iOS and macOS, the home screen warns when notifications are off, when the Android "OTP codes" category is off, or when iOS or macOS delivers them without an alert, and links to the settings page that fixes it. It goes away once the setting changes and can't be dismissed while the problem lasts, because without notifications codes are lost. The home screen now shows one setup prompt at a time, with this one first.
 - Self-hosting with Docker Compose (`deploy/`), and a release workflow that publishes versioned server images and app builds.
+- macOS: releases ship a disk image signed with Developer ID and notarized, so it opens without a Gatekeeper warning. Its signature carries the keychain entitlements the app needs to save an enrollment.
+- Linux: releases include a `.deb` for Debian and Ubuntu next to the tarball, with a desktop entry and icon. Both are built on Ubuntu 22.04, so they run on it and on Debian 12 and later.
 
 ### Changed
 
@@ -48,6 +50,7 @@ All notable changes to pux are recorded here. The format follows
 
 ### Fixed
 
+- Linux: release bundles now include libsodium. A clean build left it out, because the CMake check for the native assets ran before they were built, so the app couldn't decrypt codes.
 - A phone that went 30 days without an OTP or being opened no longer loses its registration and silently misses the next code, and a relay that went 90 days without one no longer starts bouncing the bank's forwarded mail.
 - Server: tokens FCM rejects as malformed are removed like unregistered ones, and a dry-run check finds dead tokens on relays that get no mail. A 404 that doesn't name the token (a wrong project ID, a proxy) no longer removes the device.
 - Desktop: an app left running re-registers every 12 hours, so it can't age out while connected.
