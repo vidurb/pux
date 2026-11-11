@@ -66,7 +66,7 @@ A test with a representative (anonymised) email body is the most useful part of 
 
 ## Mobile
 
-Flutter comes from mise (same stable line CI uses). Building for a platform also needs that platform's toolchain: Android SDK, Xcode for iOS and macOS, and CocoaPods for macOS.
+Flutter comes from mise (same stable line CI uses). Building for a platform also needs that platform's toolchain: Android SDK, and Xcode for iOS and macOS. Every iOS and macOS plugin is a Swift package, so neither build needs CocoaPods.
 
 ```bash
 cd mobile
