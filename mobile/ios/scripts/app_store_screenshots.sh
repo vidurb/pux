@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Takes App Store screenshots of the scenes in lib/screenshots/scenes.dart.
 #
-# Builds the screenshot entry point once for the simulator, then on a 6.9"
-# iPhone and a 13" iPad opens each scene, sets a clean status bar and saves a
-# PNG at the size App Store Connect asks for. Before each launch it writes the
+# Builds the screenshot entry point once for the simulator, then on a 6.3" and
+# a 6.9" iPhone and a 13" iPad opens each scene, sets a clean status bar and
+# saves a PNG at the size App Store Connect asks for, without an alpha channel. Before each launch it writes the
 # scene name to tmp/pux_scene in the app's data container, so one build covers
 # every scene. (Flutter on iOS sees an empty environment, so SIMCTL_CHILD_*
 # variables don't work for this.)
@@ -24,7 +24,9 @@ bundle_id=xyz.vidur.pux
 app=build/ios/iphonesimulator/Runner.app
 
 # name | device type | expected pixel size
+# App Store Connect requires the 6.3" iPhone set; 6.9" is still accepted.
 devices=(
+  "iphone-6.3|com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro|1206x2622"
   "iphone-6.9|com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max|1320x2868"
   "ipad-13|com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB|2064x2752"
 )
@@ -94,9 +96,16 @@ for entry in "${devices[@]}"; do
     # The first launch of a debug build loads the Dart VM, so give it longer.
     if [ "$index" -eq 1 ]; then sleep $((settle * 2)); else sleep "$settle"; fi
     xcrun simctl io "$udid" screenshot --type=png "$file" >/dev/null 2>&1
-    actual=$(sips -g pixelWidth -g pixelHeight "$file" | awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } END { print w "x" h }')
-    if [ "$actual" != "$size" ]; then
-      echo "  $file is $actual, but App Store Connect expects $size" >&2
+    # App Store Connect rejects screenshots with an alpha channel, and the
+    # simulator's PNGs have one. A JPEG at full quality has none; on these
+    # flat-colour scenes the round trip is invisible.
+    sips -s format jpeg -s formatOptions 100 "$file" --out "$file.jpg" >/dev/null
+    sips -s format png "$file.jpg" --out "$file" >/dev/null
+    rm "$file.jpg"
+    actual=$(sips -g pixelWidth -g pixelHeight -g hasAlpha "$file" |
+      awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } /hasAlpha/ { a = $2 } END { print w "x" h " alpha:" a }')
+    if [ "$actual" != "$size alpha:no" ]; then
+      echo "  $file is $actual, but App Store Connect expects $size alpha:no" >&2
       exit 1
     fi
     echo "  $file"

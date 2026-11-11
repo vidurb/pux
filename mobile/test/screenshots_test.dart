@@ -5,6 +5,7 @@ import 'package:pux/screenshots/scenes.dart';
 
 /// App Store screenshot sizes in logical pixels, with their scale.
 const _devices = {
+  'iPhone 6.3"': (Size(402, 874), 3.0),
   'iPhone 6.9"': (Size(440, 956), 3.0),
   'iPad 13"': (Size(1032, 1376), 2.0),
 };
