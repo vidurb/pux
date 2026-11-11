@@ -7,7 +7,7 @@ defmodule Pux.InboundTest do
 
   @rsa DKIMSigner.rsa_key()
 
-  @bank "From: HDFC Bank <alerts@hdfcbank.net>\r\nSubject: OTP\r\nDate: Thu, 29 Oct 2026 10:00:00 +0530\r\n\r\nYour OTP is 482913\r\n"
+  @bank "From: HSBC <hsbc@hsbc.bank.in>\r\nSubject: OTP\r\nDate: Thu, 29 Oct 2026 10:00:00 +0530\r\n\r\nYour OTP is 482913\r\n"
 
   @gmail_confirm """
   From: Gmail Team <forwarding-noreply@google.com>\r
@@ -28,15 +28,15 @@ defmodule Pux.InboundTest do
   end
 
   test "labels a DKIM-verified bank OTP" do
-    assert {:ok, payload} = Inbound.classify(sign(@bank, "hdfcbank.net"))
+    assert {:ok, payload} = Inbound.classify(sign(@bank, "hsbc.bank.in"))
 
     assert %{
              type: "otp",
              otp: "482913",
-             sender: "HDFC Bank",
-             sender_domain: "hdfcbank.net",
+             sender: "HSBC",
+             sender_domain: "hsbc.bank.in",
              verified: true,
-             parser: :hdfc
+             parser: :hsbc
            } = payload
   end
 
@@ -45,22 +45,22 @@ defmodule Pux.InboundTest do
 
     assert %{
              otp: "482913",
-             sender: "hdfcbank.net",
-             sender_domain: "hdfcbank.net",
+             sender: "hsbc.bank.in",
+             sender_domain: "hsbc.bank.in",
              verified: false,
              parser: :generic
            } = payload
   end
 
   test "a signature from another domain doesn't verify the From domain" do
-    assert {:ok, %{sender: "hdfcbank.net", verified: false}} =
+    assert {:ok, %{sender: "hsbc.bank.in", verified: false}} =
              Inbound.classify(sign(@bank, "evil.example"))
   end
 
   test "a tampered signed message is unverified" do
-    raw = @bank |> sign("hdfcbank.net") |> String.replace("482913", "111111")
+    raw = @bank |> sign("hsbc.bank.in") |> String.replace("482913", "111111")
 
-    assert {:ok, %{otp: "111111", verified: false, sender: "hdfcbank.net"}} =
+    assert {:ok, %{otp: "111111", verified: false, sender: "hsbc.bank.in"}} =
              Inbound.classify(raw)
   end
 
@@ -70,9 +70,9 @@ defmodule Pux.InboundTest do
         "X-Forwarded-To: abc@pux.test\r\nX-Forwarded-For: someone@gmail.com abc@pux.test\r\n" <>
         "Delivered-To: someone@gmail.com\r\n" <>
         "ARC-Seal: i=1; a=rsa-sha256; t=1; cv=none; d=google.com; s=arc-20240605; b=AAAA\r\n" <>
-        sign(@bank, "hdfcbank.net")
+        sign(@bank, "hsbc.bank.in")
 
-    assert {:ok, %{sender: "HDFC Bank", verified: true}} = Inbound.classify(forwarded)
+    assert {:ok, %{sender: "HSBC", verified: true}} = Inbound.classify(forwarded)
   end
 
   test "no From header gives an unknown, unverified sender" do
@@ -106,7 +106,7 @@ defmodule Pux.InboundTest do
 
   test "reads HTML-only messages" do
     raw =
-      "From: alerts@kotak.com\r\nSubject: OTP\r\nContent-Type: text/html\r\n\r\n<p>Your OTP is <b>918273</b></p>\r\n"
+      "From: alerts@rbl.bank.in\r\nSubject: OTP\r\nContent-Type: text/html\r\n\r\n<p>Your OTP is <b>918273</b></p>\r\n"
 
     assert {:ok, %{otp: "918273"}} = Inbound.classify(raw)
   end

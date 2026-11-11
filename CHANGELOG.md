@@ -24,6 +24,8 @@ All notable changes to pux are recorded here. The format follows
 
 ### Added
 
+- Server: HSBC, RBL Bank and American Express are shown by name when DKIM verifies. They replace HDFC, ICICI, SBI, Axis, Kotak, YES and IDFC FIRST, which don't send OTPs by email; codes from those senders are still delivered, under the sender's domain.
+- Apps and README: a guide to forwarding only bank OTP emails from Gmail and Outlook.com, with the sender and subject of known OTP emails (HSBC credit card, RBL Bank).
 - A logo and identity (`brand/`), used for the website, favicons and app icons. The name is written `pux`, lowercase, everywhere.
 - Website: a new landing page at `/` covering how pux works, the security model and its limits, supported banks, an FAQ and self-hosting. `/signup` now redirects there. The page sets no cookies and loads no scripts.
 - Website: `/privacy` and `/terms` pages, Open Graph and Twitter cards, favicons and `/.well-known/security.txt`.

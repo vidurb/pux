@@ -15,6 +15,32 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 
 <img src="brand/screenshots/site-desktop.jpg" alt="The pux website, showing the headline and an example of a sealed code on the server next to the readable code on a device" width="640"> <img src="brand/screenshots/site-mobile-dark.jpg" alt="The pux website on a phone in dark mode" height="360">
 
+## Setting up forwarding
+
+Forward only your bank's OTP emails to your pux inbox address, not your whole mailbox. The app shows these steps under **How to set up forwarding**.
+
+**Gmail** (filters can only be created on gmail.com in a browser):
+
+1. Settings → **See all settings** → **Forwarding and POP/IMAP** → **Add a forwarding address**, and enter your inbox address.
+2. Gmail sends a confirmation to that address; pux delivers it to the app as a notification with the code. Enter the code in Gmail. Leave forwarding itself disabled.
+3. In the search bar, open the search options, fill in **From** and **Subject** for your bank (see below), and choose **Create filter**.
+4. Tick **Forward it to**, pick your inbox address, and create the filter.
+
+**Outlook.com**: Settings → **Mail** → **Rules** → **Add new rule**, with the conditions **From** and **Subject includes**, and the action **Redirect to** your inbox address. Redirect keeps the bank as the sender, so its DKIM signature still verifies; Forward rewrites the message and the code shows as unverified.
+
+Other providers usually have equivalent rules; prefer one that keeps the original sender.
+
+Known OTP emails (check one in your own inbox first, since banks use different senders per product and change them):
+
+| Bank | From | Subject |
+|------|------|---------|
+| HSBC (credit card) | `hsbc@hsbc.bank.in` | `Your HSBC Credit Card OTP` |
+| RBL Bank | `alerts@rbl.bank.in` | `One-Time Password for your online transaction` |
+
+Know another? Open a PR adding it here and to `knownOtpSenders` in [`forwarding_help_screen.dart`](mobile/lib/src/screens/forwarding_help_screen.dart).
+
+To check the relay itself, email `Your OTP is 123456` straight to your inbox address.
+
 ## Architecture
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, website, FCM push)

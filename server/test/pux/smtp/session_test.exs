@@ -8,7 +8,7 @@ defmodule Pux.SMTP.SessionTest do
 
   import ExUnit.CaptureLog
 
-  @otp_mail "From: alerts@hdfcbank.net\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
+  @otp_mail "From: hsbc@hsbc.bank.in\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
 
   setup do
     {:ok, enrollment} = Records.create_record(Fixtures.public_key())
@@ -239,8 +239,8 @@ defmodule Pux.SMTP.SessionTest do
   test "classification has a hard timeout", %{enrollment: e} do
     device = with_device(e)
     key = DKIMSigner.rsa_key()
-    DKIMTestResolver.put("slow._domainkey.hdfcbank.net", {:sleep, 5_000})
-    data = DKIMSigner.sign(@otp_mail, key, d: "hdfcbank.net", s: "slow")
+    DKIMTestResolver.put("slow._domainkey.hsbc.bank.in", {:sleep, 5_000})
+    data = DKIMSigner.sign(@otp_mail, key, d: "hsbc.bank.in", s: "slow")
 
     log =
       capture_log(fn ->

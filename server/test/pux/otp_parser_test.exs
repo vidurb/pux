@@ -11,8 +11,16 @@ defmodule Pux.OtpParserTest do
   test "labels the sender from the From domain" do
     body = "Dear customer, OTP is 654321 for transaction."
 
-    assert {:ok, %{otp: "654321", sender_label: "HDFC Bank", parser: :hdfc}} =
-             OtpParser.parse(body, from: "HDFC Bank <alerts@hdfcbank.net>")
+    assert {:ok, %{otp: "654321", sender_label: "HSBC", parser: :hsbc}} =
+             OtpParser.parse(body, from: "HSBC <hsbc@hsbc.bank.in>")
+
+    assert {:ok, %{sender_label: "RBL Bank", parser: :rbl}} =
+             OtpParser.parse(body, from: "alerts@rbl.bank.in")
+
+    assert {:ok, %{sender_label: "American Express", parser: :amex}} =
+             OtpParser.parse(body,
+               from: "American Express <americanexpress@welcome.americanexpress.com>"
+             )
 
     assert {:ok, %{sender_label: "example.com", parser: :generic}} =
              OtpParser.parse(body, from: "noreply@example.com")

@@ -5,11 +5,11 @@ defmodule Pux.DKIMTest do
 
   @rsa DKIMSigner.rsa_key()
 
-  @message "From: HDFC Bank <alerts@hdfcbank.net>\r\nTo: abc@pux.test\r\nSubject: OTP\r\nDate: Thu, 29 Oct 2026 10:00:00 +0530\r\n\r\nYour  OTP is 482913. \r\n\r\nDo not share.\r\n\r\n"
+  @message "From: HSBC <hsbc@hsbc.bank.in>\r\nTo: abc@pux.test\r\nSubject: OTP\r\nDate: Thu, 29 Oct 2026 10:00:00 +0530\r\n\r\nYour  OTP is 482913. \r\n\r\nDo not share.\r\n\r\n"
 
   defp signed(opts \\ [], message \\ @message, key \\ @rsa) do
-    selector = DKIMSigner.publish(key, Keyword.get(opts, :d, "hdfcbank.net"))
-    DKIMSigner.sign(message, key, Keyword.merge([d: "hdfcbank.net", s: selector], opts))
+    selector = DKIMSigner.publish(key, Keyword.get(opts, :d, "hsbc.bank.in"))
+    DKIMSigner.sign(message, key, Keyword.merge([d: "hsbc.bank.in", s: selector], opts))
   end
 
   describe "RFC 8463 appendix A" do
@@ -81,98 +81,98 @@ defmodule Pux.DKIMTest do
   end
 
   test "valid rsa signature aligns with the From domain" do
-    assert DKIM.aligned?(signed(), "hdfcbank.net")
+    assert DKIM.aligned?(signed(), "hsbc.bank.in")
   end
 
   test "simple canonicalisation" do
-    assert DKIM.aligned?(signed(c: {:simple, :simple}), "hdfcbank.net")
-    assert DKIM.aligned?(signed(c: {:relaxed, :simple}), "hdfcbank.net")
+    assert DKIM.aligned?(signed(c: {:simple, :simple}), "hsbc.bank.in")
+    assert DKIM.aligned?(signed(c: {:relaxed, :simple}), "hsbc.bank.in")
 
     refute DKIM.aligned?(
              signed(c: {:simple, :simple}) |> String.replace("Your  OTP", "Your OTP"),
-             "hdfcbank.net"
+             "hsbc.bank.in"
            )
   end
 
   test "relaxed body tolerates whitespace changes" do
     raw = signed() |> String.replace("Your  OTP is 482913. ", "Your OTP is 482913.")
-    assert DKIM.aligned?(raw, "hdfcbank.net")
+    assert DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "ed25519 signature" do
-    assert DKIM.aligned?(signed([], @message, DKIMSigner.ed25519_key()), "hdfcbank.net")
+    assert DKIM.aligned?(signed([], @message, DKIMSigner.ed25519_key()), "hsbc.bank.in")
   end
 
   test "parent and subdomains align, unrelated domains don't" do
-    assert DKIM.aligned?(signed(), "alerts.hdfcbank.net")
-    assert DKIM.aligned?(signed(d: "mail.hdfcbank.net"), "hdfcbank.net")
-    refute DKIM.aligned?(signed(), "hdfcbank.net.evil.example")
-    refute DKIM.aligned?(signed(d: "evil.example"), "hdfcbank.net")
+    assert DKIM.aligned?(signed(), "alerts.hsbc.bank.in")
+    assert DKIM.aligned?(signed(d: "mail.hsbc.bank.in"), "hsbc.bank.in")
+    refute DKIM.aligned?(signed(), "hsbc.bank.in.evil.example")
+    refute DKIM.aligned?(signed(d: "evil.example"), "hsbc.bank.in")
   end
 
   test "tampered body fails" do
     raw = signed() |> String.replace("482913", "111111")
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "tampered signed header fails" do
     raw = signed() |> String.replace("Subject: OTP", "Subject: Your OTP")
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "unsigned header changes don't matter" do
     raw = signed() |> String.replace("To: abc@pux.test", "To: other@pux.test")
-    assert DKIM.aligned?(raw, "hdfcbank.net")
+    assert DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "a second From header is never aligned" do
     raw = "From: evil@evil.example\r\n" <> signed()
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "missing or revoked key fails" do
-    raw = DKIMSigner.sign(@message, @rsa, d: "hdfcbank.net", s: "nokey")
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    raw = DKIMSigner.sign(@message, @rsa, d: "hsbc.bank.in", s: "nokey")
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
 
-    DKIMTestResolver.put("revoked._domainkey.hdfcbank.net", "v=DKIM1; k=rsa; p=")
-    raw = DKIMSigner.sign(@message, @rsa, d: "hdfcbank.net", s: "revoked")
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    DKIMTestResolver.put("revoked._domainkey.hsbc.bank.in", "v=DKIM1; k=rsa; p=")
+    raw = DKIMSigner.sign(@message, @rsa, d: "hsbc.bank.in", s: "revoked")
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "wrong key fails" do
-    selector = DKIMSigner.publish(DKIMSigner.rsa_key(), "hdfcbank.net")
-    raw = DKIMSigner.sign(@message, @rsa, d: "hdfcbank.net", s: selector)
-    refute DKIM.aligned?(raw, "hdfcbank.net")
+    selector = DKIMSigner.publish(DKIMSigner.rsa_key(), "hsbc.bank.in")
+    raw = DKIMSigner.sign(@message, @rsa, d: "hsbc.bank.in", s: selector)
+    refute DKIM.aligned?(raw, "hsbc.bank.in")
   end
 
   test "x= expiry" do
     now = System.os_time(:second)
-    assert DKIM.aligned?(signed(extra: ["x=#{now + 60}"]), "hdfcbank.net")
-    refute DKIM.aligned?(signed(extra: ["x=#{now - 60}"]), "hdfcbank.net")
+    assert DKIM.aligned?(signed(extra: ["x=#{now + 60}"]), "hsbc.bank.in")
+    refute DKIM.aligned?(signed(extra: ["x=#{now - 60}"]), "hsbc.bank.in")
   end
 
   test "l= must cover the whole body" do
     [_, body] = :binary.split(@message, "\r\n\r\n")
     len = byte_size(DKIM.canon_body(body, :relaxed))
 
-    assert DKIM.aligned?(signed(extra: ["l=#{len}"]), "hdfcbank.net")
-    refute DKIM.aligned?(signed(extra: ["l=10"]), "hdfcbank.net")
+    assert DKIM.aligned?(signed(extra: ["l=#{len}"]), "hsbc.bank.in")
+    refute DKIM.aligned?(signed(extra: ["l=10"]), "hsbc.bank.in")
   end
 
   test "signatures that don't sign From are ignored" do
-    refute DKIM.aligned?(signed(h: ["subject", "date"]), "hdfcbank.net")
+    refute DKIM.aligned?(signed(h: ["subject", "date"]), "hsbc.bank.in")
   end
 
   test "dot-unstuffed lines and an empty trailing body verify" do
-    message = "From: a@hdfcbank.net\r\nSubject: x\r\n\r\n.leading dot\r\n..two\r\n"
+    message = "From: a@hsbc.bank.in\r\nSubject: x\r\n\r\n.leading dot\r\n..two\r\n"
     raw = signed([], message)
-    assert DKIM.aligned?(raw, "hdfcbank.net")
-    assert DKIM.aligned?(String.replace_suffix(raw, "\r\n", ""), "hdfcbank.net")
+    assert DKIM.aligned?(raw, "hsbc.bank.in")
+    assert DKIM.aligned?(String.replace_suffix(raw, "\r\n", ""), "hsbc.bank.in")
   end
 
   test "unsigned and garbage messages" do
-    refute DKIM.aligned?(@message, "hdfcbank.net")
-    refute DKIM.aligned?("garbage", "hdfcbank.net")
+    refute DKIM.aligned?(@message, "hsbc.bank.in")
+    refute DKIM.aligned?("garbage", "hsbc.bank.in")
     refute DKIM.aligned?("DKIM-Signature: v=1; a=rsa-sha256\r\nFrom: a@b.c\r\n\r\nx", "b.c")
     refute DKIM.aligned?(signed(), nil)
   end

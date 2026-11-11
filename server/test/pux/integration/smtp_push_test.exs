@@ -10,7 +10,7 @@ defmodule Pux.Integration.SmtpPushTest do
     record = Records.get_record(enrollment.record_id)
 
     body = "Dear customer, OTP is 654321 for your transaction."
-    assert {:ok, parsed} = OtpParser.parse(body, from: "alerts@hdfcbank.net")
+    assert {:ok, parsed} = OtpParser.parse(body, from: "hsbc@hsbc.bank.in")
 
     plaintext =
       Jason.encode!(%{

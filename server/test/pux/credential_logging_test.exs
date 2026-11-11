@@ -59,12 +59,12 @@ defmodule Pux.CredentialLoggingTest do
       {:ok, _} = add_device(e, :desktop)
       on_insert("pending_deliveries", "RAISE EXCEPTION 'database failure';")
 
-      body = "From: a@hdfcbank.net\r\nTo: #{e.inbox_address}\r\n\r\nYour OTP is 482913\r\n"
+      body = "From: a@hsbc.bank.in\r\nTo: #{e.inbox_address}\r\n\r\nYour OTP is 482913\r\n"
 
       log =
         capture_log(fn ->
           assert {:error, :send, {:temporary_failure, _, "451 4.3.0" <> _}} =
-                   :gen_smtp_client.send_blocking({"a@hdfcbank.net", [e.inbox_address], body},
+                   :gen_smtp_client.send_blocking({"a@hsbc.bank.in", [e.inbox_address], body},
                      relay: "127.0.0.1",
                      port: @smtp_port,
                      tls: :never,
