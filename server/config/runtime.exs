@@ -51,6 +51,8 @@ if config_env() == :prod do
     mail_domain: mail_domain,
     max_message_size: smtp_max_message_size,
     max_connections: String.to_integer(env.("SMTP_MAX_CONNECTIONS") || "100"),
+    # 0 turns the per-IP limit off (behind a TCP proxy every connection has the proxy's IP);
+    # empty counts as unset, like everywhere else, so it gives the default.
     max_connections_per_ip: String.to_integer(env.("SMTP_MAX_CONNECTIONS_PER_IP") || "5"),
     tls_certfile: smtp_tls_certfile,
     tls_keyfile: smtp_tls_keyfile,

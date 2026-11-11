@@ -55,6 +55,50 @@ defmodule Pux.SMTP.SessionTest do
     assert {:stop, :normal, "421 " <> _} = Task.await(task)
   end
 
+  describe "the per-IP connection limit" do
+    setup do
+      registry = :"smtp_test_registry_#{System.unique_integer([:positive])}"
+      start_supervised!({Registry, keys: :duplicate, name: registry})
+      {:ok, registry: registry}
+    end
+
+    # Each init/4 registers the calling process, so a second connection needs its own.
+    defp init_elsewhere(address, opts) do
+      fn -> Session.init("h", 0, address, opts) end |> Task.async() |> Task.await()
+    end
+
+    test "counts an IPv6 /64 as one client", %{registry: registry} do
+      opts = [registry: registry, max_connections_per_ip: 1]
+
+      assert {:ok, _, _} = Session.init("h", 0, {0x2001, 0xDB8, 1, 2, 0, 0, 0, 1}, opts)
+
+      assert {:stop, :normal, "421 " <> _} =
+               init_elsewhere({0x2001, 0xDB8, 1, 2, 0xA, 0xB, 0xC, 0xD}, opts)
+
+      assert {:ok, _, _} = init_elsewhere({0x2001, 0xDB8, 1, 3, 0, 0, 0, 1}, opts)
+    end
+
+    test "counts an IPv4-mapped IPv6 peer as its IPv4 address", %{registry: registry} do
+      opts = [registry: registry, max_connections_per_ip: 1]
+
+      assert {:ok, _, _} = Session.init("h", 0, {203, 0, 113, 7}, opts)
+
+      assert {:stop, :normal, "421 " <> _} =
+               init_elsewhere({0, 0, 0, 0, 0, 0xFFFF, 0xCB00, 0x7107}, opts)
+    end
+
+    test "is off at 0", %{registry: registry} do
+      opts = [registry: registry, max_connections_per_ip: 0]
+
+      for _ <- 1..3 do
+        assert {:ok, _, _} = init_elsewhere({10, 0, 0, 9}, opts)
+      end
+
+      assert {:ok, _, _} = Session.init("h", 0, {10, 0, 0, 9}, opts)
+      assert Registry.count(registry) == 0
+    end
+  end
+
   defp with_device(enrollment) do
     {:ok, device} =
       Records.register_device(enrollment.record_id, %{

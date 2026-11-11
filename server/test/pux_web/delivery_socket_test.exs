@@ -184,6 +184,19 @@ defmodule PuxWeb.DeliverySocketTest do
 
       assert {:ok, _} = DeliverySocket.connect(transport(peer, e.record_id, ["203.0.113.41"]))
     end
+
+    test "counts an IPv6 /64 as one client", %{enrollment: e} do
+      peer = {10, 0, 0, 1}
+
+      for xff <- ["2001:db8:5:6::1", "2001:db8:5:6:ffff::2"] do
+        assert :error = DeliverySocket.connect(transport(peer, Ecto.UUID.generate(), [xff]))
+      end
+
+      assert {:error, :rate_limited} =
+               DeliverySocket.connect(transport(peer, e.record_id, ["2001:db8:5:6::3"]))
+
+      assert {:ok, _} = DeliverySocket.connect(transport(peer, e.record_id, ["2001:db8:5:7::1"]))
+    end
   end
 
   def notify_query(_event, _measurements, %{source: "records"}, test_pid) do

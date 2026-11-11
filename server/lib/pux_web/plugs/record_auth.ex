@@ -8,7 +8,8 @@ defmodule PuxWeb.Plugs.RecordAuth do
 
   ## Failed authentication limit
 
-  Each lookup that finds nothing counts against the client IP. The limit is checked before
+  Each lookup that finds nothing counts against the client IP (its /64 for IPv6; see
+  `PuxWeb.Plugs.RateLimit.rate_limit_key/1`). The limit is checked before
   the lookup, because the point is to save the query, so an IP over the limit gets 429 for
   a valid token too. That also keeps the 429 from saying whether a record exists. Requests
   that authenticate don't count, and neither do malformed tokens, which cost no query.
@@ -29,7 +30,7 @@ defmodule PuxWeb.Plugs.RecordAuth do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          # The stored ID, not the token: a UUID in another case finds the same record, and
          # must not get its own rate limit bucket.
-         {:ok, record_id} <- authenticate(token, RateLimit.client_ip(conn), opts) do
+         {:ok, record_id} <- authenticate(token, RateLimit.rate_limit_key(conn), opts) do
       assign(conn, :record_id, record_id)
     else
       {:error, :rate_limited} ->
@@ -48,11 +49,11 @@ defmodule PuxWeb.Plugs.RecordAuth do
 
   @doc """
   Finds the record a token belongs to and returns its stored ID, applying the failed
-  authentication limit for `client_ip`.
+  authentication limit for `client_key`, from `PuxWeb.Plugs.RateLimit.rate_limit_key/1`.
   """
   @spec authenticate(String.t(), String.t(), keyword()) ::
           {:ok, Ecto.UUID.t()} | {:error, :unauthorized | :rate_limited}
-  def authenticate(token, client_ip, opts \\ []) do
+  def authenticate(token, client_key, opts \\ []) do
     limit =
       :pux
       |> Application.fetch_env!(:auth_failure_rate_limit)
@@ -63,24 +64,24 @@ defmodule PuxWeb.Plugs.RecordAuth do
       not valid_uuid?(token) ->
         {:error, :unauthorized}
 
-      RateLimit.limit_reached?(client_ip, limit) ->
+      RateLimit.limit_reached?(client_key, limit) ->
         # Neither the token nor the IP: the privacy policy says when an IP reaches the logs.
         Logger.info("Failed authentication rate limit exceeded")
         {:error, :rate_limited}
 
       true ->
-        lookup(token, client_ip, limit)
+        lookup(token, client_key, limit)
     end
   end
 
-  defp lookup(token, client_ip, limit) do
+  defp lookup(token, client_key, limit) do
     case Records.get_record(token) do
       %Record{id: record_id} ->
         {:ok, record_id}
 
       nil ->
         # Only counting. This request has had its query, and the next one is checked anyway.
-        _ = RateLimit.allow?(client_ip, limit)
+        _ = RateLimit.allow?(client_key, limit)
         {:error, :unauthorized}
     end
   end

@@ -22,7 +22,7 @@ defmodule PuxWeb.Plugs.RateLimit do
       Keyword.get(opts, :scale_ms, Keyword.get(rate_config, :record_create_scale_ms, 60_000))
 
     limit = Keyword.get(opts, :limit, Keyword.get(rate_config, :record_create_limit, 10))
-    client_key = "#{key}:#{client_ip(conn)}"
+    client_key = "#{key}:#{rate_limit_key(conn)}"
 
     case Limiter.hit(client_key, scale_ms, limit) do
       {:allow, _count} ->
@@ -65,8 +65,45 @@ defmodule PuxWeb.Plugs.RateLimit do
   end
 
   @doc """
-  Client IP for rate limiting. Only the rightmost `X-Forwarded-For` hop (appended
-  by the gateway) is trusted, and only when the peer is a private address.
+  Key to rate limit the client of `conn` on: `client_ip/1`, with IPv6 addresses cut to
+  their /64 (see `address_key/1`).
+  """
+  @spec rate_limit_key(Plug.Conn.t()) :: String.t()
+  def rate_limit_key(conn), do: conn |> client_ip() |> address_key()
+
+  @doc "The same, for callers with no conn. Takes the arguments of `client_ip/2`."
+  @spec rate_limit_key(:inet.ip_address(), [String.t()]) :: String.t()
+  def rate_limit_key(peer_address, forwarded_for_headers) do
+    peer_address |> client_ip(forwarded_for_headers) |> address_key()
+  end
+
+  @doc """
+  Rate limit key for one address, as a tuple or a string. IPv4 addresses, including
+  IPv4-mapped IPv6, are kept whole. IPv6 addresses become their /64, such as
+  `"2001:db8:1:2::/64"`, because a single client usually controls a whole /64 and could
+  otherwise get a new limit for every address in it. A string that isn't an IP address
+  is returned unchanged.
+  """
+  @spec address_key(:inet.ip_address() | String.t()) :: String.t()
+  def address_key(address) when is_binary(address) do
+    # Not String.to_charlist/1: a header value needn't be valid UTF-8.
+    case :inet.parse_strict_address(:binary.bin_to_list(address)) do
+      {:ok, ip} -> address_key(ip)
+      {:error, _} -> address
+    end
+  end
+
+  def address_key(address) when is_tuple(address) do
+    case normalize_ip(address) do
+      {a, b, c, d, _, _, _, _} -> "#{:inet.ntoa({a, b, c, d, 0, 0, 0, 0})}/64"
+      ip -> ip |> :inet.ntoa() |> to_string()
+    end
+  end
+
+  @doc """
+  Client IP. Only the rightmost `X-Forwarded-For` hop (appended by the gateway) is
+  trusted, and only when the peer is a private address. Rate limits key on
+  `rate_limit_key/1` instead.
   """
   @spec client_ip(Plug.Conn.t()) :: String.t()
   def client_ip(conn) do
