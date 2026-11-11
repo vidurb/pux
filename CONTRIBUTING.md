@@ -64,6 +64,30 @@ OTP parsing lives in `server/lib/pux/otp_parser.ex`. To label a new bank, add it
 
 A test with a representative (anonymised) email body is the most useful part of such a PR. Remove names, account numbers and real codes before committing any sample.
 
+### Bumping Elixir, OTP and Alpine
+
+Dependabot can't do this for you. It skips `hexpm/elixir` (the image has too many tags to list) and only proposes Alpine patch updates for the runtime stage (see `.github/dependabot.yml`). Check for new versions by hand every month or two, and whenever an OTP or Alpine security release comes out.
+
+**Don't move to Alpine 3.24 or newer yet.** Alpine 3.24 ships musl 1.2.6, which rejects the fixed 8192-byte signal stack that OTP 27.3.4.19 and earlier give the VM, so the release aborts on every start on Intel hosts with AMX (`amx_tile` in `/proc/cpuinfo`). Stay on Alpine 3.23 (musl 1.2.5) until the image's OTP includes [erlang/otp#11810](https://github.com/erlang/otp/pull/11810); the details are in [#38](https://github.com/vidurb/pux/issues/38). A boot test on an ordinary runner can't catch this, because only AMX hosts fail and most runners don't have it, so the `image` job in `server.yml` checks the musl version of both stages instead and fails at 1.2.6 or newer. When OTP has the fix, bump OTP first, then Alpine, and remove that check in the same PR.
+
+To bump:
+
+1. Find a `hexpm/elixir` tag for the Elixir and OTP you want on the current Alpine release. Tags look like `1.18.4-erlang-27.3.4.16-alpine-3.23.5`. Search the [tag list on Docker Hub](https://hub.docker.com/r/hexpm/elixir/tags) with a filter such as `1.18.4-erlang-27.3.4`, or ask the API, which filters by substring:
+
+   ```bash
+   curl -s 'https://hub.docker.com/v2/repositories/hexpm/elixir/tags?page_size=100&name=1.18.4-erlang-27.3.4' |
+     jq -r '.results[].name' | grep -- '-alpine-3\.23\.' | sort -V | tail
+   ```
+
+2. Keep both Dockerfile stages on the same Alpine release. The runtime stage links against the build stage's libsodium, OpenSSL and ncurses, so `FROM hexpm/elixir:…-alpine-3.23.x` and `FROM alpine:3.23.y` move together (patch versions may differ).
+3. Keep the versions aligned everywhere they're pinned:
+   - `server/Dockerfile`: the `hexpm/elixir` tag (exact OTP patch, for example `27.3.4.16`).
+   - `mise.toml`: `erlang` and `elixir` (for example `27.3.4` and `1.18.4-otp-27`).
+   - `.github/workflows/server.yml`: `otp-version` and `elixir-version` for `erlef/setup-beam` in the `test` job.
+
+   mise and CI may pin a shorter OTP version than the Dockerfile, but they must be on the same Elixir release and OTP major and minor version.
+4. Open a PR (`fix(server): …`, since the image ships). The `image` job builds and smoke-tests the image on amd64 and arm64, including the musl check.
+
 ## Mobile
 
 Flutter comes from mise (same stable line CI uses). Building for a platform also needs that platform's toolchain: Android SDK, Xcode for iOS and macOS, and CocoaPods for macOS.
