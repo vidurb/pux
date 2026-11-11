@@ -51,6 +51,8 @@ mapfile -t elves < <(find "$root/opt/pux" -type f \( -name pux -o -name '*.so*' 
 depends=$(cd "$work" && dpkg-shlibdeps -O -l"$root/opt/pux/lib" "${elves[@]}" 2>"$work/shlibdeps.log" \
   | sed -n 's/^shlibs:Depends=//p') || { cat "$work/shlibdeps.log" >&2; exit 1; }
 test -n "$depends" || { echo "error: dpkg-shlibdeps found no dependencies" >&2; cat "$work/shlibdeps.log" >&2; exit 1; }
+# The Flutter engine loads EGL and GLES with dlopen, which dpkg-shlibdeps can't see.
+depends="$depends, libegl1, libgles2"
 
 size=$(du -sk "$root" | cut -f1)
 cat > "$root/DEBIAN/control" <<CONTROL

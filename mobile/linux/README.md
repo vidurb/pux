@@ -8,8 +8,9 @@ The Linux app is a desktop client like the macOS one: it imports an enrollment e
 |-------|----------|
 | glibc 2.35 or later | The release is built on Ubuntu 22.04 |
 | GTK 3 (`libgtk-3-0`) | The Flutter embedder |
+| EGL and OpenGL ES (`libegl1`, `libgles2`, from Mesa or a GPU driver) | Rendering. The engine loads them at run time, so `dpkg-shlibdeps` can't find them and the `.deb` lists them by hand |
 | libsecret (`libsecret-1-0`) | `flutter_secure_storage` keeps the relay's keys through it |
-| A Secret Service provider, running and unlocked: GNOME Keyring, KWallet or KeePassXC | Where libsecret actually stores the keys. Without one, importing an enrollment fails |
+| A Secret Service provider, running and unlocked: GNOME Keyring, KWallet or KeePassXC | Where libsecret actually stores the keys. Without one, the app fails at startup with `org.freedesktop.secrets was not provided by any .service files` |
 | A notification daemon (`org.freedesktop.Notifications` on D-Bus) | Showing codes. Every desktop environment has one |
 
 libsodium and the Flutter engine are bundled in `lib/`. The app doesn't use the camera on desktop.
