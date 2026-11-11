@@ -10,7 +10,7 @@ body:
     id: sender
     attributes:
       label: Sender
-      description: The bank or service, and the domain its emails come from (e.g. `alerts@hdfcbank.net`).
+      description: The bank or service, and the domain its emails come from (e.g. `hsbc@hsbc.bank.in`).
     validations:
       required: true
   - type: dropdown

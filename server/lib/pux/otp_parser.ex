@@ -13,13 +13,9 @@ defmodule Pux.OtpParser do
         }
 
   @senders [
-    {~w(hdfcbank.net hdfcbank.com hdfcbank.bank.in), :hdfc, "HDFC Bank"},
-    {~w(icicibank.com icicibank.bank.in), :icici, "ICICI Bank"},
-    {~w(sbi.co.in onlinesbi.com sbi.bank.in), :sbi, "SBI"},
-    {~w(axisbank.com axisbank.bank.in), :axis, "Axis Bank"},
-    {~w(kotak.com kotak.bank.in), :kotak, "Kotak Bank"},
-    {~w(yesbank.in yes.bank.in), :yes, "YES Bank"},
-    {~w(idfcfirstbank.com idfcfirst.bank.in), :idfc, "IDFC FIRST Bank"}
+    {~w(hsbc.bank.in hsbc.co.in), :hsbc, "HSBC"},
+    {~w(rbl.bank.in rblbank.com), :rbl, "RBL Bank"},
+    {~w(americanexpress.com aexp.com), :amex, "American Express"}
   ]
 
   @keyword ~r/\b(?:OTP|one[\s-]?time[\s-]?(?:password|passcode|pin|code)|passcode|(?:verification|security|login|sign[\s-]?in|auth(?:entication|orization)?|access|confirmation|2FA)\s+code|your\s+code)\b/i

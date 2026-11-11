@@ -21,12 +21,12 @@ defmodule Pux.Integration.SmtpListenerTest do
     {:ok, enrollment: enrollment, device: device}
   end
 
-  defp send_mail(to, body, from \\ "alerts@hdfcbank.net") do
+  defp send_mail(to, body, from \\ "hsbc@hsbc.bank.in") do
     :gen_smtp_client.send_blocking({from, [to], body}, @client_opts)
   end
 
   test "accepts an OTP email and enqueues a push", %{enrollment: e, device: device} do
-    body = "From: alerts@hdfcbank.net\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
+    body = "From: hsbc@hsbc.bank.in\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
     assert "250 OK\r\n" = send_mail(e.inbox_address, body)
     assert_enqueued(worker: PushWorker, args: %{"device_id" => device.id})
   end
@@ -51,33 +51,33 @@ defmodule Pux.Integration.SmtpListenerTest do
   test "a Gmail-forwarded, DKIM-signed bank OTP arrives verified" do
     {e, device, public, secret} = keyed_record()
     key = DKIMSigner.rsa_key()
-    selector = DKIMSigner.publish(key, "hdfcbank.net")
+    selector = DKIMSigner.publish(key, "hsbc.bank.in")
 
     # Leading dots exercise SMTP dot-stuffing on the way through.
     bank =
-      "From: HDFC Bank <alerts@hdfcbank.net>\r\nSubject: OTP\r\n\r\n.Your OTP is 482913\r\n..\r\n\r\n"
+      "From: HSBC <hsbc@hsbc.bank.in>\r\nSubject: OTP\r\n\r\n.Your OTP is 482913\r\n..\r\n\r\n"
 
     body =
       "X-Forwarded-To: #{e.inbox_address}\r\nX-Forwarded-For: someone@gmail.com\r\n" <>
-        DKIMSigner.sign(bank, key, d: "hdfcbank.net", s: selector)
+        DKIMSigner.sign(bank, key, d: "hsbc.bank.in", s: selector)
 
     assert "250 OK\r\n" = send_mail(e.inbox_address, body, "someone@gmail.com")
 
     assert %{
              "type" => "otp",
              "otp" => "482913",
-             "sender" => "HDFC Bank",
-             "sender_domain" => "hdfcbank.net",
+             "sender" => "HSBC",
+             "sender_domain" => "hsbc.bank.in",
              "verified" => true
            } = delivered_payload(device, public, secret)
   end
 
   test "an unsigned bank OTP arrives unverified" do
     {e, device, public, secret} = keyed_record()
-    body = "From: alerts@hdfcbank.net\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
+    body = "From: hsbc@hsbc.bank.in\r\nSubject: OTP\r\n\r\nYour OTP is 482913\r\n"
     assert "250 OK\r\n" = send_mail(e.inbox_address, body)
 
-    assert %{"sender" => "hdfcbank.net", "verified" => false} =
+    assert %{"sender" => "hsbc.bank.in", "verified" => false} =
              delivered_payload(device, public, secret)
   end
 

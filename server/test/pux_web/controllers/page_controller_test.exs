@@ -33,7 +33,7 @@ defmodule PuxWeb.PageControllerTest do
     test "lists every bank the parser labels", %{conn: conn} do
       body = html_response(get(conn, "/"), 200)
 
-      assert length(Pux.OtpParser.bank_labels()) == 7
+      assert length(Pux.OtpParser.bank_labels()) == 3
 
       for bank <- Pux.OtpParser.bank_labels() do
         assert body =~ "<li>#{bank}</li>"
