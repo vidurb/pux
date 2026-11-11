@@ -31,7 +31,9 @@ class EnrollChooserScreen extends ConsumerWidget {
               FilledButton(
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CreateRelayScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const CreateRelayScreen(),
+                    ),
                   );
                 },
                 child: const Text('Create new relay'),
@@ -49,7 +51,9 @@ class EnrollChooserScreen extends ConsumerWidget {
               FilledButton(
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ImportEnrollmentScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const ImportEnrollmentScreen(),
+                    ),
                   );
                 },
                 child: const Text('Import enrollment'),
@@ -57,8 +61,10 @@ class EnrollChooserScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             Text(
               isDesktop
-                  ? 'Key generation happens on mobile. Desktop clients only receive decrypted codes.'
-                  : 'Keys are generated on your device. The private key never leaves your phone.',
+                  ? 'Keys are created on your phone. Importing its enrollment gives this '
+                        'computer a copy, so it decrypts codes itself.'
+                  : 'Keys are generated on this phone. The private key leaves it only if '
+                        'you add another device.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey),
             ),
