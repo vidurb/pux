@@ -14,6 +14,7 @@ import '../services/record_store.dart';
 import '../services/sensitive_clipboard.dart';
 import 'delivery_prompts.dart';
 import 'enroll_chooser_screen.dart';
+import 'forwarding_help_screen.dart';
 import 'held_codes.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -63,7 +64,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Copy')),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Copy'),
+          ),
         ],
       ),
     );
@@ -73,7 +77,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Enrollment JSON copied. It is cleared from the clipboard in a minute.'),
+        content: Text(
+          'Enrollment JSON copied. It is cleared from the clipboard in a minute.',
+        ),
       ),
     );
   }
@@ -112,7 +118,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final deviceId = await RecordStore.instance.deviceId();
         // Never registered with a server that returns device IDs: nothing to remove.
         if (recordId == null || deviceId == null) return;
-        await ApiClient.instance.deleteDevice(recordId: recordId, deviceId: deviceId);
+        await ApiClient.instance.deleteDevice(
+          recordId: recordId,
+          deviceId: deviceId,
+        );
       },
     );
   }
@@ -158,18 +167,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text(failureTitle),
-            content: Text('The server could not be reached or refused: $error\n\n$forgetWarning'),
+            content: Text(
+              'The server could not be reached or refused: $error\n\n$forgetWarning',
+            ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.cancel),
+                onPressed: () =>
+                    Navigator.of(context).pop(_RemovalFailureChoice.cancel),
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.retry),
+                onPressed: () =>
+                    Navigator.of(context).pop(_RemovalFailureChoice.retry),
                 child: const Text('Try again'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(_RemovalFailureChoice.forget),
+                onPressed: () =>
+                    Navigator.of(context).pop(_RemovalFailureChoice.forget),
                 child: const Text('Forget locally anyway'),
               ),
             ],
@@ -220,8 +234,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'remove_device', child: Text('Remove this device')),
-              PopupMenuItem(value: 'delete_relay', child: Text('Delete relay everywhere')),
+              PopupMenuItem(
+                value: 'remove_device',
+                child: Text('Remove this device'),
+              ),
+              PopupMenuItem(
+                value: 'delete_relay',
+                child: Text('Delete relay everywhere'),
+              ),
             ],
           ),
         ],
@@ -242,17 +262,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 16),
           if (_inbox != null) ...[
-            const Text('Inbox address', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Inbox address',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             SelectableText(_inbox!),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => Clipboard.setData(ClipboardData(text: _inbox!)),
               child: const Text('Copy inbox address'),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ForwardingHelpScreen(inbox: _inbox),
+                ),
+              ),
+              icon: const Icon(Icons.help_outline),
+              label: const Text('How to set up forwarding'),
+            ),
           ],
           const SizedBox(height: 24),
           if (_showQr && _enrollmentJson != null) ...[
-            const Text('Add another device', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Add another device',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Center(
               child: QrImageView(
@@ -295,9 +331,18 @@ class _DeliveryBanner extends StatelessWidget {
               "device's key."
         : null;
 
-    final (Color color, String text, List<Widget> actions) = switch (status.state) {
-      DeliveryState.idle || DeliveryState.ready => (Colors.orange, '', const <Widget>[]),
-      DeliveryState.connecting => (Colors.blueGrey, 'Connecting…', const <Widget>[]),
+    final (
+      Color color,
+      String text,
+      List<Widget> actions,
+    ) = switch (status.state) {
+      DeliveryState.idle ||
+      DeliveryState.ready => (Colors.orange, '', const <Widget>[]),
+      DeliveryState.connecting => (
+        Colors.blueGrey,
+        'Connecting…',
+        const <Widget>[],
+      ),
       DeliveryState.retrying => (
         Colors.orange,
         'Not connected: ${status.message ?? 'unknown error'}',
@@ -310,7 +355,8 @@ class _DeliveryBanner extends StatelessWidget {
       ),
       DeliveryState.firebaseUnconfigured => (
         Colors.red,
-        status.message ?? 'Push notifications are not configured in this build.',
+        status.message ??
+            'Push notifications are not configured in this build.',
         const <Widget>[],
       ),
       DeliveryState.recordUnknown => (
@@ -349,9 +395,15 @@ class _DeliveryBanner extends StatelessWidget {
             children: [
               if (text.isNotEmpty) Text(text, style: TextStyle(color: color)),
               if (undecryptable != null)
-                Text(undecryptable, style: const TextStyle(color: Colors.orange)),
+                Text(
+                  undecryptable,
+                  style: const TextStyle(color: Colors.orange),
+                ),
               if (actions.isNotEmpty)
-                Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: actions,
+                ),
             ],
           ),
         ),
@@ -384,7 +436,9 @@ class _DeleteRelayDialogState extends State<_DeleteRelayDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final confirmed = _controller.text.trim().toLowerCase() == _DeleteRelayDialog.confirmationWord;
+    final confirmed =
+        _controller.text.trim().toLowerCase() ==
+        _DeleteRelayDialog.confirmationWord;
 
     return AlertDialog(
       title: const Text('Delete relay everywhere?'),
@@ -398,7 +452,9 @@ class _DeleteRelayDialogState extends State<_DeleteRelayDialog> {
             'are discarded. This cannot be undone.',
           ),
           const SizedBox(height: 16),
-          const Text('Type "${_DeleteRelayDialog.confirmationWord}" to confirm.'),
+          const Text(
+            'Type "${_DeleteRelayDialog.confirmationWord}" to confirm.',
+          ),
           TextField(
             controller: _controller,
             autofocus: true,
@@ -408,9 +464,14 @@ class _DeleteRelayDialogState extends State<_DeleteRelayDialog> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: confirmed ? () => Navigator.of(context).pop(true) : null,
           child: const Text('Delete everywhere'),
         ),
