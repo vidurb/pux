@@ -49,7 +49,7 @@ To check the relay itself, email `Your OTP is 123456` straight to your inbox add
 
 ## Security model
 
-- Encryption keypairs are generated on the mobile device; the private key never leaves the phone.
+- Encryption keypairs are generated on the mobile device; the private key leaves the phone only when you export an enrollment to add another device.
 - The server stores only the client-supplied public key and encrypts OTP payloads with libsodium sealed boxes.
 - Emails are parsed in memory and never stored.
 - No accounts: a record ID is the only credential.

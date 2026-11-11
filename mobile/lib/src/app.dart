@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/enroll_chooser_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/record_store.dart';
+import 'theme.dart';
 
 final enrollmentProvider = FutureProvider<bool>(
   (ref) async {
@@ -23,14 +24,14 @@ class PuxApp extends ConsumerWidget {
 
     return MaterialApp(
       title: 'pux',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0E3B32)),
-        useMaterial3: true,
-      ),
+      theme: puxTheme(),
       home: enrollment.when(
-        data: (enrolled) => enrolled ? const HomeScreen() : const EnrollChooserScreen(),
-        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (error, _) => Scaffold(body: Center(child: Text('Error: $error'))),
+        data: (enrolled) =>
+            enrolled ? const HomeScreen() : const EnrollChooserScreen(),
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (error, _) =>
+            Scaffold(body: Center(child: Text('Error: $error'))),
       ),
     );
   }
