@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -39,7 +41,11 @@ class RelayNotification {
       default:
         final otp = payload['otp'] as String? ?? '??????';
         final marker = payload['verified'] == false ? ' (unverified)' : '';
-        return RelayNotification(title: 'OTP from $sender$marker', body: otp, code: otp);
+        return RelayNotification(
+          title: 'OTP from $sender$marker',
+          body: otp,
+          code: otp,
+        );
     }
   }
 
@@ -50,18 +56,86 @@ class RelayNotification {
   final String? code;
 }
 
+/// Codes for the "Copy code" action, kept in memory by notification ID so the
+/// code never becomes the plugin's payload. Nothing here is written to disk, so
+/// after a restart the action finds nothing and does nothing.
+@visibleForTesting
+class NotificationCodes {
+  NotificationCodes({this.lifetime = codeLifetime});
+
+  /// As long as a desktop holds a code (`DesktopDeliveryService._holdFor`): the
+  /// server's 10 minute limit plus up to 5 until its pruner runs. A code is no
+  /// use after that, so the action stops offering it.
+  static const codeLifetime = Duration(minutes: 15);
+
+  final Duration lifetime;
+  final Map<int, String> _codes = {};
+  final Map<int, Timer> _expiry = {};
+
+  int get length => _codes.length;
+
+  void put(int id, String code) {
+    _expiry.remove(id)?.cancel();
+    _codes[id] = code;
+    _expiry[id] = Timer(lifetime, () => remove(id));
+  }
+
+  /// The code for [id], if it hasn't expired. Removes it: the notification has
+  /// been answered, which closes it.
+  String? take(int id) {
+    final code = _codes[id];
+    remove(id);
+    return code;
+  }
+
+  void remove(int id) {
+    _expiry.remove(id)?.cancel();
+    _codes.remove(id);
+  }
+}
+
 class NotificationService {
-  NotificationService._();
+  NotificationService._([FlutterLocalNotificationsPlugin? plugin])
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+
+  /// For platforms whose plugin can't be faked through a method channel.
+  @visibleForTesting
+  factory NotificationService.forTesting(
+    FlutterLocalNotificationsPlugin plugin,
+  ) => NotificationService._(plugin);
 
   static final NotificationService instance = NotificationService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin;
   int _sequence = 0;
+
+  @visibleForTesting
+  final NotificationCodes codes = NotificationCodes();
+
+  /// Where the "Copy code" action finds its code.
+  ///
+  /// - Android: in the payload. The system keeps it in the action's intent, not
+  ///   in a file, and the action can arrive after the process that showed the
+  ///   notification (often the FCM background isolate) has gone.
+  /// - Linux: in [codes]. The plugin writes every payload to
+  ///   `notification_plugin_cache.json` under `$XDG_RUNTIME_DIR`, a file this
+  ///   app doesn't control. Desktop codes only arrive while the app runs, and
+  ///   the action is answered by the same process, so memory is enough.
+  /// - Elsewhere there is no action, so the code isn't passed on at all. macOS
+  ///   would keep it in the notification's userInfo, and Windows in the toast's
+  ///   launch arguments.
+  static bool get _codeInPayload =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  static bool get _codeInMemory =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
   Future<void> init() async {
     const android = AndroidInitializationSettings('@drawable/ic_stat_pux');
     const darwin = DarwinInitializationSettings();
-    const linux = LinuxInitializationSettings(defaultActionName: 'Open notification');
+    const linux = LinuxInitializationSettings(
+      defaultActionName: 'Open notification',
+    );
     const windows = WindowsInitializationSettings(
       appName: 'pux',
       appUserModelId: 'xyz.vidur.pux',
@@ -76,7 +150,10 @@ class NotificationService {
       windows: windows,
     );
 
-    await _plugin.initialize(settings: settings, onDidReceiveNotificationResponse: _onResponse);
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: _onResponse,
+    );
 
     // Not available in the FCM background isolate on every platform.
     try {
@@ -91,14 +168,26 @@ class NotificationService {
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       final iosPlugin = _plugin
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      await iosPlugin?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
       final macPlugin = _plugin
-          .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
-      await macPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >();
+      await macPlugin?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
   }
 
@@ -141,34 +230,58 @@ class NotificationService {
       visibility: NotificationVisibility.private,
       actions: [
         if (notification.code != null)
-          const AndroidNotificationAction(_copyActionId, 'Copy code', showsUserInterface: true),
+          const AndroidNotificationAction(
+            _copyActionId,
+            'Copy code',
+            showsUserInterface: true,
+          ),
       ],
     );
     const darwinDetails = DarwinNotificationDetails();
-    const linuxDetails = LinuxNotificationDetails();
+    final linuxDetails = LinuxNotificationDetails(
+      actions: [
+        if (notification.code != null)
+          const LinuxNotificationAction(key: _copyActionId, label: 'Copy code'),
+      ],
+    );
     const windowsDetails = WindowsNotificationDetails();
 
-    await _plugin.show(
-      id: _nextId(),
-      title: notification.title,
-      body: notification.body,
-      notificationDetails: NotificationDetails(
-        android: androidDetails,
-        iOS: darwinDetails,
-        macOS: darwinDetails,
-        linux: linuxDetails,
-        windows: windowsDetails,
-      ),
-      payload: notification.code,
-    );
+    final id = _nextId();
+    final code = notification.code;
+    if (code != null && _codeInMemory) codes.put(id, code);
+
+    try {
+      await _plugin.show(
+        id: id,
+        title: notification.title,
+        body: notification.body,
+        notificationDetails: NotificationDetails(
+          android: androidDetails,
+          iOS: darwinDetails,
+          macOS: darwinDetails,
+          linux: linuxDetails,
+          windows: windowsDetails,
+        ),
+        payload: _codeInPayload ? code : null,
+      );
+    } catch (_) {
+      codes.remove(id);
+      rethrow;
+    }
   }
 
   /// Unique per notification, so codes arriving in the same second do not
   /// replace each other.
-  int _nextId() => (DateTime.now().millisecondsSinceEpoch + _sequence++) & 0x7fffffff;
+  int _nextId() =>
+      (DateTime.now().millisecondsSinceEpoch + _sequence++) & 0x7fffffff;
 
   Future<void> _onResponse(NotificationResponse response) async {
-    final code = response.payload;
+    final id = response.id;
+    // Outside Android the payload is never a code, so it isn't read. A Linux
+    // notification left from before a restart finds nothing and copies nothing.
+    final code = _codeInPayload
+        ? response.payload
+        : (id == null ? null : codes.take(id));
     if (response.actionId == _copyActionId && code != null && code.isNotEmpty) {
       await SensitiveClipboard.instance.copy(code);
     }
