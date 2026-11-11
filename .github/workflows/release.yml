@@ -277,6 +277,8 @@ jobs:
         run: |
           mkdir -p dist
           bundle=build/linux/x64/release/bundle
+          # The app can't decrypt anything without it, and nothing else notices.
+          test -f "$bundle/lib/libsodium.so" || { echo "::error::libsodium.so is missing from the bundle"; exit 1; }
           tar -C "$bundle" -czf "dist/pux-$VERSION-linux-x64.tar.gz" .
           linux/packaging/build_deb.sh "$bundle" "$VERSION" "dist/pux-$VERSION-linux-amd64.deb"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

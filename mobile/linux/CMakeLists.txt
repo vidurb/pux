@@ -107,12 +107,14 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
 endforeach(bundled_library)
 
 # Copy the native assets provided by the build.dart from all packages.
+# libsodium comes from here. The build hooks fill the directory after CMake
+# configures, so an if(EXISTS) check would skip it on every clean build. Make
+# sure it exists instead, in case no package has native assets.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
-if(EXISTS "${NATIVE_ASSETS_DIR}")
-  install(DIRECTORY "${NATIVE_ASSETS_DIR}"
-     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-     COMPONENT Runtime)
-endif()
+file(MAKE_DIRECTORY "${NATIVE_ASSETS_DIR}")
+install(DIRECTORY "${NATIVE_ASSETS_DIR}"
+   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+   COMPONENT Runtime)
 
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.

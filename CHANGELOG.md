@@ -50,6 +50,7 @@ All notable changes to pux are recorded here. The format follows
 
 ### Fixed
 
+- Linux: release bundles now include libsodium. A clean build left it out, because the CMake check for the native assets ran before they were built, so the app couldn't decrypt codes.
 - A phone that went 30 days without an OTP or being opened no longer loses its registration and silently misses the next code, and a relay that went 90 days without one no longer starts bouncing the bank's forwarded mail.
 - Server: tokens FCM rejects as malformed are removed like unregistered ones, and a dry-run check finds dead tokens on relays that get no mail. A 404 that doesn't name the token (a wrong project ID, a proxy) no longer removes the device.
 - Desktop: an app left running re-registers every 12 hours, so it can't age out while connected.
