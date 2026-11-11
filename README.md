@@ -148,6 +148,18 @@ iOS throttles data-only pushes and drops them for force-quit apps, so the server
 
 The extension target is added by `ruby ios/scripts/add_notification_service.rb` (needs the `xcodeproj` gem, which ships with CocoaPods); re-running it is safe. All iOS plugins are Swift packages, so the iOS build does not need CocoaPods.
 
+#### Installing the desktop apps
+
+Each [release](https://github.com/vidurb/pux/releases) has these desktop builds:
+
+| System | File | Install |
+|--------|------|---------|
+| macOS 12 or later, Apple silicon or Intel | `pux-<version>-macos.dmg` | Open it and drag pux to Applications. It is signed and notarized |
+| Debian 12, Ubuntu 22.04 or later, x86-64 | `pux-<version>-linux-amd64.deb` | `sudo apt install ./pux-<version>-linux-amd64.deb`, which also installs GTK 3 and libsecret |
+| Other Linux, x86-64, glibc 2.35 or later | `pux-<version>-linux-x64.tar.gz` | Extract it anywhere and run `./pux`. Install GTK 3 and libsecret first, for example `sudo dnf install gtk3 libsecret` (Fedora) or `sudo pacman -S gtk3 libsecret` (Arch) |
+
+On Linux, pux keeps its keys in the Secret Service, so a keyring has to be running in your session: GNOME Keyring (most desktops), KWallet (KDE Plasma), or KeePassXC with Secret Service integration turned on. Without one, importing an enrollment fails. Codes appear through the desktop's notification service.
+
 To add a desktop, open the QR panel on the phone, tap **Copy enrollment JSON**, and paste it into the desktop app's **Import enrollment** screen. The JSON contains the private key.
 
 Desktop clients register with `platform: "desktop"` and connect to `GET/DELETE /api/v1/record/deliveries` (oldest 50 pending per request) and `WS /ws/delivery` with the record ID in the `x-pux-token` header (the only accepted form; there is no query-param fallback).
