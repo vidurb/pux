@@ -130,7 +130,7 @@ packages:
     source: hosted
     version: "2.0.0"
   dbus:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: dbus
       sha256: "0ce9b0a839e6dee59a37a623d2fc26a35bbbe6404213e419b0d6411023d62645"
@@ -247,7 +247,7 @@ packages:
     source: hosted
     version: "22.3.3"
   flutter_local_notifications_linux:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: flutter_local_notifications_linux
       sha256: "3b89a4bf095fa5f8a99beeabf982c5bd506c3ad25e7b9e61da945e994dc5b615"

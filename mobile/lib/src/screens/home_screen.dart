@@ -252,6 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (_removing) const LinearProgressIndicator(),
           const DeliveryPrompts(),
           HeldCodes(held: DesktopDeliveryService.instance.held),
+          RecentCodes(recent: DesktopDeliveryService.instance.recent),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
             builder: (context, status, _) =>
