@@ -12,8 +12,9 @@ import 'notification_permissions.dart';
 import 'notification_service.dart';
 import 'record_store.dart';
 
-/// A decrypted code that may not have reached the user, kept for the home
-/// screen. Lives in memory only: decrypted codes are never written to disk.
+/// A decrypted code kept for the home screen: one that may not have reached the
+/// user, or one just delivered where pux can't tell whether the OS showed it.
+/// Lives in memory only: decrypted codes are never written to disk.
 class HeldDelivery {
   HeldDelivery({
     required this.deliveryId,
@@ -49,6 +50,11 @@ class HeldDelivery {
 ///   is still shown, and the server's expiry bounds what stays unacknowledged.
 ///   The cost is a repeat notification if the app restarts before expiry, which
 ///   beats a lost code.
+///
+/// Where the state can't be read at all ([keepsRecentCodes]), a code that was
+/// shown and acknowledged is also kept in [recent], since the desktop may have
+/// discarded the notification with nothing telling pux. It's cleared like a
+/// held code: on expiry, and by [stop].
 class DesktopDeliveryService implements DeliveryService {
   DesktopDeliveryService._({
     Future<RelayNotification?> Function(Map<String, dynamic> envelope)? decrypt,
@@ -58,23 +64,31 @@ class DesktopDeliveryService implements DeliveryService {
     Duration Function(int attempt)? backoff,
     Duration holdFor = _holdFor,
     Duration holdRecheck = _holdRecheck,
+    Duration showTimeout = _showTimeout,
+    bool? keepRecent,
   }) : _decrypt = decrypt ?? NotificationService.instance.decrypt,
        _show = show ?? NotificationService.instance.show,
        _checkAccess = checkAccess ?? _readAccess,
        _connect = connect ?? _connectIO,
        _backoff = backoff ?? DeliveryController.backoff,
        _holdDuration = holdFor,
-       _holdRecheckInterval = holdRecheck;
+       _holdRecheckInterval = holdRecheck,
+       _showTimeoutDuration = showTimeout,
+       _keepRecent = keepRecent ?? keepsRecentCodes;
 
   @visibleForTesting
   DesktopDeliveryService.forTesting({
-    required Future<RelayNotification?> Function(Map<String, dynamic> envelope) decrypt,
+    required Future<RelayNotification?> Function(Map<String, dynamic> envelope)
+    decrypt,
     required Future<void> Function(RelayNotification notification) show,
     required Future<NotificationAccess?> Function() checkAccess,
-    required WebSocketChannel Function(Uri url, Map<String, String> headers) connect,
+    required WebSocketChannel Function(Uri url, Map<String, String> headers)
+    connect,
     required Duration Function(int attempt) backoff,
     required Duration holdFor,
     required Duration holdRecheck,
+    Duration showTimeout = _showTimeout,
+    bool keepRecent = false,
   }) : this._(
          decrypt: decrypt,
          show: show,
@@ -83,6 +97,8 @@ class DesktopDeliveryService implements DeliveryService {
          backoff: backoff,
          holdFor: holdFor,
          holdRecheck: holdRecheck,
+         showTimeout: showTimeout,
+         keepRecent: keepRecent,
        );
 
   static final DesktopDeliveryService instance = DesktopDeliveryService._();
@@ -95,8 +111,26 @@ class DesktopDeliveryService implements DeliveryService {
 
   /// While holding, how often to look for notifications coming back and for
   /// held codes the server has dropped. Coming back has no event unless the user
-  /// returns to the app, and nothing runs at all when nothing is held.
+  /// returns to the app. Also expires recent codes, and nothing runs at all
+  /// when there are none of either.
   static const _holdRecheck = Duration(seconds: 30);
+
+  /// Longer than showing a notification ever takes. On Linux, with no session
+  /// bus to reach, the plugin's first D-Bus call fails and every later one waits
+  /// forever, so without this a code would never be shown or held.
+  static const _showTimeout = Duration(seconds: 10);
+
+  /// Whether this platform has no notification state to read, so a code can be
+  /// lost after it's acknowledged. Linux and Windows always report allowed.
+  /// macOS reports off and quiet, which hold codes, and keeps what it shows in
+  /// Notification Center even under Focus.
+  static bool get keepsRecentCodes {
+    if (kIsWeb) return false;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.linux || TargetPlatform.windows => true,
+      _ => false,
+    };
+  }
 
   static const _pingInterval = Duration(seconds: 30);
 
@@ -108,8 +142,9 @@ class DesktopDeliveryService implements DeliveryService {
   static const _registrationInterval = Duration(hours: 12);
 
   /// A delivery waits for this, so an OS that never answers mustn't stall it.
-  static Future<NotificationAccess?> _readAccess() =>
-      NotificationPermissions.instance.check(timeout: const Duration(seconds: 2));
+  static Future<NotificationAccess?> _readAccess() => NotificationPermissions
+      .instance
+      .check(timeout: const Duration(seconds: 2));
 
   static WebSocketChannel _connectIO(Uri url, Map<String, String> headers) =>
       IOWebSocketChannel.connect(
@@ -118,13 +153,17 @@ class DesktopDeliveryService implements DeliveryService {
         connectTimeout: const Duration(seconds: 15),
       );
 
-  final Future<RelayNotification?> Function(Map<String, dynamic> envelope) _decrypt;
+  final Future<RelayNotification?> Function(Map<String, dynamic> envelope)
+  _decrypt;
   final Future<void> Function(RelayNotification notification) _show;
   final Future<NotificationAccess?> Function() _checkAccess;
-  final WebSocketChannel Function(Uri url, Map<String, String> headers) _connect;
+  final WebSocketChannel Function(Uri url, Map<String, String> headers)
+  _connect;
   final Duration Function(int attempt) _backoff;
   final Duration _holdDuration;
   final Duration _holdRecheckInterval;
+  final Duration _showTimeoutDuration;
+  final bool _keepRecent;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
@@ -147,6 +186,7 @@ class DesktopDeliveryService implements DeliveryService {
   final Set<String> _finished = {};
 
   final Map<String, HeldDelivery> _holding = {};
+  final Map<String, HeldDelivery> _recent = {};
   Timer? _holdTimer;
 
   /// Bumped by [stop], so work still running can't put a code back in memory
@@ -157,6 +197,10 @@ class DesktopDeliveryService implements DeliveryService {
 
   /// Codes that may not have reached the user, oldest first.
   final ValueNotifier<List<HeldDelivery>> held = ValueNotifier(const []);
+
+  /// Codes shown and acknowledged, oldest first, kept until they expire where
+  /// pux can't tell whether the desktop displayed them. Always empty elsewhere.
+  final ValueNotifier<List<HeldDelivery>> recent = ValueNotifier(const []);
 
   @override
   Future<void> init() async {
@@ -194,12 +238,14 @@ class DesktopDeliveryService implements DeliveryService {
     });
   }
 
-  /// Also clears held codes, since this is how a relay gets forgotten.
+  /// Also clears held and recent codes, since this is how a relay gets
+  /// forgotten.
   @override
   Future<void> stop() async {
     _session++;
     NotificationPermissions.instance.access.removeListener(_onAccessChanged);
     _holding.clear();
+    _recent.clear();
     _publishHeld();
     await _disconnect();
   }
@@ -236,7 +282,9 @@ class DesktopDeliveryService implements DeliveryService {
 
     // Only what was held before asking: anything newer may just not be listed.
     final heldBefore = _holding.keys.toSet();
-    final pending = await ApiClient.instance.listPendingDeliveries(recordId: recordId);
+    final pending = await ApiClient.instance.listPendingDeliveries(
+      recordId: recordId,
+    );
 
     // A full page can leave out newer deliveries, so absence proves nothing.
     if (pending.length < ApiClient.pendingPageSize) {
@@ -261,9 +309,10 @@ class DesktopDeliveryService implements DeliveryService {
     if (recordId == null) return;
 
     try {
-      final channel = _connect(Uri.parse(ApiClient.instance.deliveryWebSocketUrl()), {
-        'x-pux-token': recordId,
-      });
+      final channel = _connect(
+        Uri.parse(ApiClient.instance.deliveryWebSocketUrl()),
+        {'x-pux-token': recordId},
+      );
       await channel.ready;
       if (_stopped) {
         await channel.sink.close();
@@ -279,7 +328,9 @@ class DesktopDeliveryService implements DeliveryService {
           try {
             await _handleSocketEvent(recordId, event);
           } catch (error, stackTrace) {
-            debugPrint('Desktop delivery socket event failed: $error\n$stackTrace');
+            debugPrint(
+              'Desktop delivery socket event failed: $error\n$stackTrace',
+            );
           }
         },
         onDone: _scheduleReconnect,
@@ -317,7 +368,11 @@ class DesktopDeliveryService implements DeliveryService {
         final deliveryId = decoded['delivery_id'] as String?;
         final envelope = decoded['envelope'] as Map<String, dynamic>?;
         if (deliveryId == null || envelope == null) return;
-        await _handleDelivery(recordId: recordId, deliveryId: deliveryId, envelope: envelope);
+        await _handleDelivery(
+          recordId: recordId,
+          deliveryId: deliveryId,
+          envelope: envelope,
+        );
       case 'pong':
         break;
     }
@@ -328,13 +383,19 @@ class DesktopDeliveryService implements DeliveryService {
     required String deliveryId,
     required Map<String, dynamic> envelope,
   }) async {
-    if (_undecryptable.contains(deliveryId) || _holding.containsKey(deliveryId)) return;
+    if (_undecryptable.contains(deliveryId) ||
+        _holding.containsKey(deliveryId)) {
+      return;
+    }
     if (!_inFlight.add(deliveryId)) return;
 
     final session = _session;
     try {
       if (_finished.contains(deliveryId)) {
-        await ApiClient.instance.ackDelivery(recordId: recordId, deliveryId: deliveryId);
+        await ApiClient.instance.ackDelivery(
+          recordId: recordId,
+          deliveryId: deliveryId,
+        );
         return;
       }
 
@@ -359,7 +420,12 @@ class DesktopDeliveryService implements DeliveryService {
 
       if (access == NotificationAccess.allowed && notified) {
         _finished.add(deliveryId);
-        await ApiClient.instance.ackDelivery(recordId: recordId, deliveryId: deliveryId);
+        // Before acknowledging, which can throw: the code has been shown.
+        _keepRecentCode(deliveryId, notification, expiresAt: _expiryFromNow());
+        await ApiClient.instance.ackDelivery(
+          recordId: recordId,
+          deliveryId: deliveryId,
+        );
       } else {
         _hold(deliveryId, notification, notified: notified);
       }
@@ -370,9 +436,11 @@ class DesktopDeliveryService implements DeliveryService {
 
   /// A failure here isn't an undecryptable delivery: the code is fine and can
   /// be retried. Logs only the type, since the error could echo the arguments.
+  /// A timeout counts as a failure, so a code is held rather than stuck; if the
+  /// call does finish later, the retry shows the code a second time.
   Future<bool> _tryShow(RelayNotification notification) async {
     try {
-      await _show(notification);
+      await _show(notification).timeout(_showTimeoutDuration);
       return true;
     } catch (error) {
       debugPrint('Showing a notification failed: ${error.runtimeType}');
@@ -380,12 +448,34 @@ class DesktopDeliveryService implements DeliveryService {
     }
   }
 
-  void _hold(String deliveryId, RelayNotification notification, {required bool notified}) {
+  void _hold(
+    String deliveryId,
+    RelayNotification notification, {
+    required bool notified,
+  }) {
     _holding[deliveryId] = HeldDelivery(
       deliveryId: deliveryId,
       notification: notification,
-      expiresAt: DateTime.now().add(_holdDuration),
+      expiresAt: _expiryFromNow(),
       notified: notified,
+    );
+    _publishHeld();
+  }
+
+  DateTime _expiryFromNow() => DateTime.now().add(_holdDuration);
+
+  /// Keeps a just-delivered code until [expiresAt], if this platform keeps any.
+  void _keepRecentCode(
+    String deliveryId,
+    RelayNotification notification, {
+    required DateTime expiresAt,
+  }) {
+    if (!_keepRecent) return;
+    _recent[deliveryId] = HeldDelivery(
+      deliveryId: deliveryId,
+      notification: notification,
+      expiresAt: expiresAt,
+      notified: true,
     );
     _publishHeld();
   }
@@ -397,13 +487,18 @@ class DesktopDeliveryService implements DeliveryService {
     _publishHeld();
   }
 
+  /// Publishes held and recent codes, and runs the recheck while there are any.
   void _publishHeld() {
     held.value = List.unmodifiable(_holding.values);
-    if (_holding.isEmpty) {
+    recent.value = List.unmodifiable(_recent.values);
+    if (_holding.isEmpty && _recent.isEmpty) {
       _holdTimer?.cancel();
       _holdTimer = null;
     } else {
-      _holdTimer ??= Timer.periodic(_holdRecheckInterval, (_) => unawaited(_recheckHeld()));
+      _holdTimer ??= Timer.periodic(
+        _holdRecheckInterval,
+        (_) => unawaited(_recheckHeld()),
+      );
     }
   }
 
@@ -411,6 +506,10 @@ class DesktopDeliveryService implements DeliveryService {
 
   Future<void> _recheckHeld() async {
     final now = DateTime.now();
+    final recentBefore = _recent.length;
+    _recent.removeWhere((_, delivery) => !delivery.expiresAt.isAfter(now));
+    if (_recent.length != recentBefore) _publishHeld();
+
     _forgetHeld([
       for (final delivery in _holding.values)
         if (!delivery.expiresAt.isAfter(now)) delivery.deliveryId,
@@ -463,6 +562,11 @@ class DesktopDeliveryService implements DeliveryService {
           if (access == NotificationAccess.allowed &&
               delivery.notified &&
               _holding.containsKey(delivery.deliveryId)) {
+            _keepRecentCode(
+              delivery.deliveryId,
+              delivery.notification,
+              expiresAt: delivery.expiresAt,
+            );
             await _finishHeld(delivery.deliveryId);
             if (session != _session) return;
           }
@@ -479,7 +583,10 @@ class DesktopDeliveryService implements DeliveryService {
     try {
       final recordId = await RecordStore.instance.recordId();
       if (recordId == null) return;
-      await ApiClient.instance.ackDelivery(recordId: recordId, deliveryId: deliveryId);
+      await ApiClient.instance.ackDelivery(
+        recordId: recordId,
+        deliveryId: deliveryId,
+      );
     } catch (error) {
       debugPrint('Desktop delivery ack failed: $error');
     }

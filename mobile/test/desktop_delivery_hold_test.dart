@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -119,7 +120,9 @@ void main() {
     showFails = false;
     undecryptable = {};
     ApiClient.setInstanceForTesting(
-      ApiClient.forTesting(client: MockClient((request) async => server.handle(request))),
+      ApiClient.forTesting(
+        client: MockClient((request) async => server.handle(request)),
+      ),
     );
     NotificationPermissions.instance.access.value = NotificationAccess.allowed;
   });
@@ -134,6 +137,9 @@ void main() {
     Duration holdFor = _never,
     Duration holdRecheck = _never,
     Future<RelayNotification?> Function(Map<String, dynamic>)? decrypt,
+    Future<void> Function(RelayNotification)? show,
+    Duration showTimeout = const Duration(seconds: 10),
+    bool keepRecent = false,
   }) {
     return current = DesktopDeliveryService.forTesting(
       decrypt:
@@ -141,12 +147,20 @@ void main() {
           (envelope) async {
             final id = envelope['ciphertext'] as String;
             if (undecryptable.contains(id)) return null;
-            return RelayNotification(title: 'OTP', body: 'code-$id', code: 'code-$id');
+            return RelayNotification(
+              title: 'OTP',
+              body: 'code-$id',
+              code: 'code-$id',
+            );
           },
-      show: (notification) async {
-        if (showFails) throw StateError('no notification daemon');
-        shown.add(notification.body);
-      },
+      show:
+          show ??
+          (notification) async {
+            if (showFails) throw StateError('no notification daemon');
+            shown.add(notification.body);
+          },
+      showTimeout: showTimeout,
+      keepRecent: keepRecent,
       checkAccess: () async => access,
       connect: (_, _) {
         final socket = _FakeSocket();
@@ -159,7 +173,8 @@ void main() {
     );
   }
 
-  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 40));
+  Future<void> settle() =>
+      Future<void>.delayed(const Duration(milliseconds: 40));
 
   Future<void> waitFor(bool Function() condition) async {
     for (var i = 0; i < 400 && !condition(); i++) {
@@ -205,45 +220,57 @@ void main() {
       expect(server.acks, ['a']);
     });
 
-    test('a failed acknowledgement retries without showing the code again', () async {
-      server.pending.add('a');
-      server.ackFailures = 1;
-      final s = service();
-      await expectLater(s.init(), throwsA(anything));
-      expect(shown, ['code-a']);
+    test(
+      'a failed acknowledgement retries without showing the code again',
+      () async {
+        server.pending.add('a');
+        server.ackFailures = 1;
+        final s = service();
+        await expectLater(s.init(), throwsA(anything));
+        expect(shown, ['code-a']);
 
-      await s.init();
+        await s.init();
 
-      expect(shown, ['code-a']);
-      expect(server.acks, ['a']);
-    });
+        expect(shown, ['code-a']);
+        expect(server.acks, ['a']);
+      },
+    );
   });
 
   group('with notifications off', () {
     setUp(() => access = NotificationAccess.off);
 
-    test('a code is not shown or acknowledged, and can be read in the app', () async {
-      final before = DeliveryController.instance.status.value.undecryptable;
-      server.pending.add('a');
-      final s = service();
-      await s.init();
+    test(
+      'a code is not shown or acknowledged, and can be read in the app',
+      () async {
+        final before = DeliveryController.instance.status.value.undecryptable;
+        server.pending.add('a');
+        final s = service();
+        await s.init();
 
-      expect(shown, isEmpty);
-      expect(server.acks, isEmpty);
-      expect(server.pending, ['a']);
-      expect(s.held.value.single.notification.body, 'code-a');
-      expect(DeliveryController.instance.status.value.undecryptable, before);
-    });
+        expect(shown, isEmpty);
+        expect(server.acks, isEmpty);
+        expect(server.pending, ['a']);
+        expect(s.held.value.single.notification.body, 'code-a');
+        expect(DeliveryController.instance.status.value.undecryptable, before);
+      },
+    );
 
-    test('the state is read when the code arrives, not taken from the last check', () async {
-      // The notifier still says allowed, as it does before the home screen's
-      // first check, when the first poll runs.
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.allowed);
-      server.pending.add('a');
-      await service().init();
+    test(
+      'the state is read when the code arrives, not taken from the last check',
+      () async {
+        // The notifier still says allowed, as it does before the home screen's
+        // first check, when the first poll runs.
+        expect(
+          NotificationPermissions.instance.access.value,
+          NotificationAccess.allowed,
+        );
+        server.pending.add('a');
+        await service().init();
 
-      expect(server.acks, isEmpty);
-    });
+        expect(server.acks, isEmpty);
+      },
+    );
 
     test('turning them back on delivers once, then acknowledges', () async {
       server.pending.addAll(['a', 'b']);
@@ -259,19 +286,22 @@ void main() {
       expect(s.held.value, isEmpty);
     });
 
-    test('notifications coming back with no event are noticed by the recheck', () async {
-      server.pending.add('a');
-      final s = service(holdRecheck: const Duration(milliseconds: 2));
-      await s.init();
-      await settle();
-      expect(shown, isEmpty);
+    test(
+      'notifications coming back with no event are noticed by the recheck',
+      () async {
+        server.pending.add('a');
+        final s = service(holdRecheck: const Duration(milliseconds: 2));
+        await s.init();
+        await settle();
+        expect(shown, isEmpty);
 
-      access = NotificationAccess.allowed;
-      await waitFor(() => server.acks.length == 1);
-      await settle();
+        access = NotificationAccess.allowed;
+        await waitFor(() => server.acks.length == 1);
+        await settle();
 
-      expect(shown, ['code-a']);
-    });
+        expect(shown, ['code-a']);
+      },
+    );
 
     test('a code that expires is cleared and never shown later', () async {
       server.pending.add('a');
@@ -308,18 +338,23 @@ void main() {
       expect(shown, isEmpty);
     });
 
-    test('a full page proves nothing about a held code it leaves out', () async {
-      final s = service();
-      await s.init();
-      await waitFor(() => sockets.isNotEmpty);
-      sockets.single.send('new');
-      await waitFor(() => s.held.value.length == 1);
+    test(
+      'a full page proves nothing about a held code it leaves out',
+      () async {
+        final s = service();
+        await s.init();
+        await waitFor(() => sockets.isNotEmpty);
+        sockets.single.send('new');
+        await waitFor(() => s.held.value.length == 1);
 
-      server.pending.addAll([for (var i = 0; i < ApiClient.pendingPageSize; i++) 'old$i']);
-      await s.init();
+        server.pending.addAll([
+          for (var i = 0; i < ApiClient.pendingPageSize; i++) 'old$i',
+        ]);
+        await s.init();
 
-      expect(heldIds(s), contains('new'));
-    });
+        expect(heldIds(s), contains('new'));
+      },
+    );
 
     test('reconnecting neither repeats nor reports a held code', () async {
       final before = DeliveryController.instance.status.value.undecryptable;
@@ -355,7 +390,9 @@ void main() {
       await s.init();
 
       ApiClient.setInstanceForTesting(
-        ApiClient.forTesting(client: MockClient((_) async => http.Response('', 503))),
+        ApiClient.forTesting(
+          client: MockClient((_) async => http.Response('', 503)),
+        ),
       );
       await expectLater(s.init(), throwsA(anything));
 
@@ -382,24 +419,32 @@ void main() {
       await waitFor(() => server.polls == 1);
 
       await s.stop();
-      decrypting.complete(const RelayNotification(title: 'OTP', body: 'x', code: 'x'));
+      decrypting.complete(
+        const RelayNotification(title: 'OTP', body: 'x', code: 'x'),
+      );
       await starting;
 
       expect(s.held.value, isEmpty);
     });
 
-    test('an undecryptable delivery is still reported once and never held', () async {
-      final before = DeliveryController.instance.status.value.undecryptable;
-      server.pending.add('bad');
-      undecryptable.add('bad');
-      final s = service();
-      await s.init();
-      await s.init();
+    test(
+      'an undecryptable delivery is still reported once and never held',
+      () async {
+        final before = DeliveryController.instance.status.value.undecryptable;
+        server.pending.add('bad');
+        undecryptable.add('bad');
+        final s = service();
+        await s.init();
+        await s.init();
 
-      expect(DeliveryController.instance.status.value.undecryptable, before + 1);
-      expect(s.held.value, isEmpty);
-      expect(server.acks, isEmpty);
-    });
+        expect(
+          DeliveryController.instance.status.value.undecryptable,
+          before + 1,
+        );
+        expect(s.held.value, isEmpty);
+        expect(server.acks, isEmpty);
+      },
+    );
   });
 
   for (final (label, state) in [
@@ -409,15 +454,18 @@ void main() {
     group('when $label', () {
       setUp(() => access = state);
 
-      test('a code is shown and readable in the app, but not acknowledged', () async {
-        server.pending.add('a');
-        final s = service();
-        await s.init();
+      test(
+        'a code is shown and readable in the app, but not acknowledged',
+        () async {
+          server.pending.add('a');
+          final s = service();
+          await s.init();
 
-        expect(shown, ['code-a']);
-        expect(server.acks, isEmpty);
-        expect(heldIds(s), ['a']);
-      });
+          expect(shown, ['code-a']);
+          expect(server.acks, isEmpty);
+          expect(heldIds(s), ['a']);
+        },
+      );
 
       test('it keeps delivering new codes, without repeating them', () async {
         server.pending.add('a');
@@ -463,22 +511,178 @@ void main() {
     });
   }
 
-  test('a failure showing a code holds it and retries without a tight loop', () async {
-    showFails = true;
-    final before = DeliveryController.instance.status.value.undecryptable;
+  test(
+    'a failure showing a code holds it and retries without a tight loop',
+    () async {
+      showFails = true;
+      final before = DeliveryController.instance.status.value.undecryptable;
+      server.pending.add('a');
+      final s = service(holdRecheck: const Duration(milliseconds: 10));
+      await s.init();
+
+      expect(heldIds(s), ['a']);
+      expect(server.acks, isEmpty);
+      expect(DeliveryController.instance.status.value.undecryptable, before);
+
+      showFails = false;
+      await waitFor(() => server.acks.length == 1);
+      await settle();
+
+      expect(shown, ['code-a']);
+      expect(s.held.value, isEmpty);
+    },
+  );
+
+  // On Linux with no session bus, the plugin's D-Bus client never answers again
+  // after its first failure (see linux_notification_daemon_test.dart).
+  test(
+    'a notification that never finishes showing is held, not stuck',
+    () async {
+      final hanging = Completer<void>();
+      var attempts = 0;
+      server.pending.add('a');
+      final s = service(
+        showTimeout: const Duration(milliseconds: 20),
+        show: (_) {
+          attempts++;
+          return hanging.future;
+        },
+      );
+      await s.init();
+
+      expect(attempts, 1);
+      expect(heldIds(s), ['a']);
+      expect(s.held.value.single.notified, isFalse);
+      expect(server.acks, isEmpty);
+    },
+  );
+
+  test('without keeping recent codes, a delivered code is not kept', () async {
     server.pending.add('a');
-    final s = service(holdRecheck: const Duration(milliseconds: 10));
+    final s = service();
     await s.init();
 
-    expect(heldIds(s), ['a']);
-    expect(server.acks, isEmpty);
-    expect(DeliveryController.instance.status.value.undecryptable, before);
+    expect(server.acks, ['a']);
+    expect(s.recent.value, isEmpty);
+  });
 
-    showFails = false;
-    await waitFor(() => server.acks.length == 1);
-    await settle();
+  group('where the desktop cannot say whether it showed a code', () {
+    test(
+      'a delivered code is acknowledged and kept as recent, not held',
+      () async {
+        server.pending.add('a');
+        final s = service(keepRecent: true);
+        await s.init();
 
-    expect(shown, ['code-a']);
-    expect(s.held.value, isEmpty);
+        expect(shown, ['code-a']);
+        expect(server.acks, ['a']);
+        expect(s.held.value, isEmpty);
+        expect(s.recent.value.single.notification.body, 'code-a');
+      },
+    );
+
+    test('a code from the socket is kept as recent too', () async {
+      final s = service(keepRecent: true);
+      await s.init();
+      await waitFor(() => sockets.isNotEmpty);
+
+      server.pending.add('a');
+      sockets.single.send('a');
+      await waitFor(() => s.recent.value.isNotEmpty);
+
+      expect(s.recent.value.map((d) => d.deliveryId), ['a']);
+    });
+
+    test('a recent code expires like a held one, without polling', () async {
+      server.pending.add('a');
+      final s = service(
+        keepRecent: true,
+        holdFor: const Duration(milliseconds: 300),
+        holdRecheck: const Duration(milliseconds: 2),
+      );
+      await s.init();
+      // Past the socket's own poll on connecting.
+      await waitFor(() => sockets.isNotEmpty);
+      await settle();
+      final polls = server.polls;
+      expect(s.recent.value, hasLength(1));
+
+      await waitFor(() => s.recent.value.isEmpty);
+      await settle();
+
+      // Acknowledged, so nothing on the server to look for.
+      expect(server.polls, polls);
+      expect(shown, ['code-a']);
+    });
+
+    test('stopping clears recent codes', () async {
+      server.pending.add('a');
+      final s = service(keepRecent: true);
+      await s.init();
+      expect(s.recent.value, hasLength(1));
+
+      await s.stop();
+
+      expect(s.recent.value, isEmpty);
+    });
+
+    test('a failed acknowledgement still keeps the code, once', () async {
+      server.pending.add('a');
+      server.ackFailures = 1;
+      final s = service(keepRecent: true);
+      await expectLater(s.init(), throwsA(anything));
+      expect(s.recent.value.map((d) => d.deliveryId), ['a']);
+
+      await s.init();
+
+      expect(shown, ['code-a']);
+      expect(server.acks, ['a']);
+      expect(s.recent.value.map((d) => d.deliveryId), ['a']);
+    });
+
+    test(
+      'a held code moves to recent once shown, keeping its expiry',
+      () async {
+        showFails = true;
+        server.pending.add('a');
+        final s = service(
+          keepRecent: true,
+          holdRecheck: const Duration(milliseconds: 10),
+        );
+        await s.init();
+        final expiresAt = s.held.value.single.expiresAt;
+        expect(s.recent.value, isEmpty);
+
+        showFails = false;
+        await waitFor(() => server.acks.length == 1);
+        await settle();
+
+        expect(s.held.value, isEmpty);
+        expect(s.recent.value.single.deliveryId, 'a');
+        expect(s.recent.value.single.expiresAt, expiresAt);
+      },
+    );
+
+    test('a code that is held is not also listed as recent', () async {
+      access = NotificationAccess.off;
+      server.pending.add('a');
+      final s = service(keepRecent: true);
+      await s.init();
+
+      expect(heldIds(s), ['a']);
+      expect(s.recent.value, isEmpty);
+    });
+  });
+
+  test('only Linux and Windows keep recent codes', () {
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    for (final platform in TargetPlatform.values) {
+      debugDefaultTargetPlatformOverride = platform;
+      expect(
+        DesktopDeliveryService.keepsRecentCodes,
+        platform == TargetPlatform.linux || platform == TargetPlatform.windows,
+        reason: platform.name,
+      );
+    }
   });
 }
