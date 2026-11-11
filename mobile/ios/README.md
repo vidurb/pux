@@ -82,3 +82,20 @@ The certificate and profiles expire after a year. Renew them by repeating steps 
 - Each build asks about export compliance before anyone can install it. pux encrypts codes with libsodium, so read Apple's questions carefully. Once you know the answer, it can go in `Info.plist` as `ITSAppUsesNonExemptEncryption` so later builds skip the question.
 - **Internal testing** (up to 100 members of your App Store Connect team) needs no review: add testers to an internal group.
 - **External testing** needs Beta App Review the first time, plus test information and a privacy policy URL (`https://pux.vidur.xyz/privacy`).
+
+## App Store screenshots
+
+`lib/screenshots/` is a separate entry point that draws the store screenshots: branded scenes that mock a code arriving (lock screen, no signal, phone and computer), plus the real setup and forwarding screens in a phone frame. It never touches storage, the network or Firebase, and the shipped app doesn't include it. The scenes and their captions are in `lib/screenshots/scenes.dart`, in store order. The sender is a fictional "Northwind Bank", because App Review can reject screenshots that show a real bank's name.
+
+```bash
+cd mobile
+ios/scripts/app_store_screenshots.sh            # writes build/app_store_screenshots/
+```
+
+The script needs Xcode with an iOS simulator runtime (`xcodebuild -downloadPlatform iOS`). It builds once, then opens every scene on its own 6.9" iPhone and 13" iPad simulators (the scene name goes in a file in the app's `tmp` directory, because Flutter on iOS can't read launch environment variables), with a clean Wi-Fi-only status bar, and checks each PNG is the size App Store Connect expects. To look at one scene while editing:
+
+```bash
+flutter run -t lib/screenshots/main.dart --dart-define=PUX_SCENE=noSignal
+```
+
+`test/screenshots_test.dart` lays out every scene at both sizes and fails on overflow.
