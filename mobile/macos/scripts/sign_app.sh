@@ -41,10 +41,13 @@ entitlements="$work/app.entitlements"
 cp "$script_dir/../Runner/Release.entitlements" "$entitlements"
 if [ -n "$team_id" ]; then
   app_id="$team_id.$bundle_id"
-  plutil -insert com.apple.application-identifier -string "$app_id" "$entitlements"
-  plutil -insert com.apple.developer.team-identifier -string "$team_id" "$entitlements"
-  plutil -insert keychain-access-groups -array "$entitlements"
-  plutil -insert keychain-access-groups.0 -string "$app_id" "$entitlements"
+  # PlistBuddy, not plutil: plutil reads the dots in these keys as a key path.
+  /usr/libexec/PlistBuddy \
+    -c "Add :com.apple.application-identifier string $app_id" \
+    -c "Add :com.apple.developer.team-identifier string $team_id" \
+    -c "Add :keychain-access-groups array" \
+    -c "Add :keychain-access-groups:0 string $app_id" \
+    "$entitlements"
 
   security cms -D -i "$profile" > "$work/profile.plist"
   profile_app_id=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$work/profile.plist")
