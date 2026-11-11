@@ -92,4 +92,4 @@ If you change the iOS notification service extension's target or build settings,
 2. Set the same version in `server/mix.exs` (`version:`) and `mobile/pubspec.yaml` (`version: x.y.z+<build>`, with the build number incremented).
 3. Commit, then tag and push: `git tag -s vx.y.z -m vx.y.z && git push origin vx.y.z`.
 
-The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z`, builds a signed Android APK and AAB plus macOS and Linux bundles, and creates a GitHub Release with the changelog section as notes. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases.
+The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z`, builds a signed Android APK and AAB plus macOS and Linux bundles, and creates a GitHub Release with the changelog section as notes. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. The same tag also triggers the `testflight` workflow, which uploads an iOS build to TestFlight (setup in [mobile/ios/README.md](mobile/ios/README.md#testflight)).
