@@ -92,7 +92,7 @@ cd mobile
 ios/scripts/app_store_screenshots.sh            # writes build/app_store_screenshots/
 ```
 
-The script needs Xcode with an iOS simulator runtime (`xcodebuild -downloadPlatform iOS`). It builds once, then opens every scene on its own 6.9" iPhone and 13" iPad simulators (the scene name goes in a file in the app's `tmp` directory, because Flutter on iOS can't read launch environment variables), with a clean Wi-Fi-only status bar, and checks each PNG is the size App Store Connect expects. To look at one scene while editing:
+The script needs Xcode with an iOS simulator runtime (`xcodebuild -downloadPlatform iOS`). It builds once, then opens every scene on its own 6.3" and 6.9" iPhone and 13" iPad simulators (the scene name goes in a file in the app's `tmp` directory, because Flutter on iOS can't read launch environment variables), with a clean Wi-Fi-only status bar, flattens each PNG (App Store Connect rejects an alpha channel) and checks it's the size App Store Connect expects. App Store Connect requires the 6.3" iPhone set (1206 × 2622); the 6.9" set is optional. To look at one scene while editing:
 
 ```bash
 flutter run -t lib/screenshots/main.dart --dart-define=PUX_SCENE=noSignal
