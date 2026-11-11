@@ -1,5 +1,5 @@
 [tools]
-erlang = "27.3.4"
+erlang = "27.3.4.16"
 elixir = "1.18.4-otp-27"
 flutter = "3.47.8"
 # Android Gradle (mobile/android/app/build.gradle.kts targets JVM 17)
