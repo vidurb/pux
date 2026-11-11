@@ -106,14 +106,41 @@ If you change the iOS notification service extension's target or build settings,
 ## Pull requests
 
 - Keep each PR focused, with tests for every behaviour change.
-- Use [Conventional Commits](https://www.conventionalcommits.org/) with a scope, as in the existing history: `fix(smtp): …`, `feat(mobile): …`, `docs: …`, `chore(ci): …`.
-- Add a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for anything user-visible.
+- PRs are squash-merged, and the PR title becomes the commit message on `main`. It must be a [Conventional Commit](https://www.conventionalcommits.org/), ideally with a scope: `fix(smtp): …`, `feat(mobile): …`, `docs: …`, `ci: …`. The `pr-title` check enforces this. In a one-commit PR, the commit message must match the title.
+- The title is the changelog entry, so write it for users: `feat(macos): ship a signed, notarized disk image`, not `feat: sign_app.sh changes`. The type decides the release:
+  - `feat` is a minor release and appears under **Added**.
+  - `fix` and `perf` are a patch release, under **Fixed** and **Performance**. Use `fix` for security fixes too.
+  - `!` after the type, or a `BREAKING CHANGE:` footer, is a minor release before 1.0.0 and a major one after. Use it for API or enrollment changes that older apps or servers can't handle.
+  - `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` don't cut a release and don't appear in the changelog.
+- Don't edit [CHANGELOG.md](CHANGELOG.md) in a PR; release-please writes it. (Until v0.1.0 is cut, user-visible changes still go under **Unreleased**.)
 - Never commit secrets, real OTP emails, keystores or `key.properties`. Firebase client config (`google-services.json`, `GoogleService-Info.plist`) is not secret and is committed on purpose.
 
 ## Releases (maintainers)
 
-1. Move the **Unreleased** entries in `CHANGELOG.md` under a new `## [x.y.z] - YYYY-MM-DD` heading.
-2. Set the same version in `server/mix.exs` (`version:`) and `mobile/pubspec.yaml` (`version: x.y.z+<build>`, with the build number incremented).
-3. Commit, then tag and push: `git tag -s vx.y.z -m vx.y.z && git push origin vx.y.z`.
+Releases are cut by [release-please](https://github.com/googleapis/release-please), configured in [`release-please-config.json`](release-please-config.json), with the current version in [`.release-please-manifest.json`](.release-please-manifest.json). The server and apps share one version.
 
-The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z`, builds a signed Android APK and AAB, a signed and notarized macOS disk image (setup in [mobile/macos/README.md](mobile/macos/README.md#one-time-setup)) and a Linux `.deb` and tarball ([mobile/linux/README.md](mobile/linux/README.md)), and creates a GitHub Release with the changelog section as notes. Running the workflow by hand builds everything without publishing, to check signing before a tag. Tags with a suffix such as `v0.2.0-rc.1` become pre-releases. The same tag also triggers the `testflight` workflow, which uploads an iOS build to TestFlight (setup in [mobile/ios/README.md](mobile/ios/README.md#testflight)).
+1. Every push to `main` updates an open **chore: release x.y.z** PR. It bumps `server/mix.exs` and `mobile/pubspec.yaml` and adds a `CHANGELOG.md` section written from the commits since the last release. Before 1.0.0, a `feat` raises the minor version, and anything else releasable raises the patch.
+2. To release, review the PR and merge it. The changelog in the PR can be edited just before merging. A later push to `main` regenerates the PR and discards the edits.
+3. On merge, release-please tags `vx.y.z`, creates a draft GitHub Release and starts the `release` and `testflight` workflows on the tag.
+
+The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z` (and `x.y`). It builds a signed Android APK and AAB, a signed and notarized macOS disk image (setup in [mobile/macos/README.md](mobile/macos/README.md#one-time-setup)), and a Linux `.deb` and tarball ([mobile/linux/README.md](mobile/linux/README.md)). It attaches all of these and `SHA256SUMS` to the draft, then publishes it with the changelog section as notes. If any build fails, the release stays a draft and nothing is announced. Re-run the failed jobs. If the failure needs a code fix, merge it as a `fix:`, release the next patch version, and delete the unpublished draft. The `testflight` workflow uploads an iOS build to TestFlight (setup in [mobile/ios/README.md](mobile/ios/README.md#testflight)). Android and macOS build numbers come from the `release` workflow's run number, and iOS build numbers from the `testflight` workflow's.
+
+Other cases:
+
+- **Choosing a version:** add a `Release-As: x.y.z` footer to a commit on `main` (an empty `chore: release x.y.z` commit works).
+- **Trying the builds:** run the `release` workflow by hand on a branch. It builds and signs everything without publishing.
+
+### First release (v0.1.0)
+
+release-please waits until the repository has a release, so v0.1.0 is published from the curated notes ([#37](https://github.com/vidurb/pux/issues/37)):
+
+1. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [0.1.0] - YYYY-MM-DD` and merge that change.
+2. `git tag -s v0.1.0 -m v0.1.0 && git push origin v0.1.0`.
+
+After that, release-please opens the next release PR.
+
+### Optional setup
+
+- **CI on release PRs:** a PR opened with `GITHUB_TOKEN` gets no workflow runs. That matters once `main` requires checks ([#45](https://github.com/vidurb/pux/issues/45)). To fix it, create a GitHub App owned by your account with *Contents*, *Pull requests* and *Issues* set to read and write, and install it on this repository. Then store its client ID as the `RELEASE_APP_CLIENT_ID` repository variable and a private key as the `RELEASE_APP_PRIVATE_KEY` secret.
+- **Google Play:** create the app in Play Console and upload the first AAB by hand, since Google rejects API uploads until then. Then create a service account with release permissions for the app, and store its JSON key as the `PLAY_SERVICE_ACCOUNT_JSON` secret. Each release then uploads the AAB to the internal track as a draft. The `PLAY_TRACK` and `PLAY_RELEASE_STATUS` variables override this, for example `PLAY_RELEASE_STATUS=completed` once the app has passed review.
+- **Merge settings:** allow only squash merges, and set the default squash commit message to the PR title (*Settings → General → Pull Requests*). The `pr-title` check assumes this.

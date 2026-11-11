@@ -1,7 +1,8 @@
 name: testflight
 
-# Builds the iOS app and uploads it to TestFlight. Runs on release tags, and by hand
-# from the Actions tab for in-between builds. One-time setup (certificate, profiles,
+# Builds the iOS app and uploads it to TestFlight. Runs on release tags (started by
+# the release-please workflow, or by pushing a tag by hand), and by hand from the
+# Actions tab for in-between builds. One-time setup (certificate, profiles,
 # API key, secrets) is in mobile/ios/README.md.
 
 on:
