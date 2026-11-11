@@ -193,6 +193,7 @@ Decrypted push payloads are JSON with a `type`:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | yes | PostgreSQL connection string |
+| `POOL_SIZE` | no | Database connection pool size (default 10) |
 | `SECRET_KEY_BASE` | yes | Phoenix secret |
 | `LIVE_VIEW_SIGNING_SALT` | yes | LiveView WebSocket signing salt |
 | `COOKIE_SIGNING_SALT` | yes | Session cookie signing salt |
