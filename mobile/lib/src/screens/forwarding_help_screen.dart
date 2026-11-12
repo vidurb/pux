@@ -94,8 +94,8 @@ class ForwardingHelpScreen extends StatelessWidget {
             'Open Settings → See all settings → Forwarding and POP/IMAP.',
             'Choose "Add a forwarding address" and enter $address.',
             'Gmail sends a confirmation to that address. It arrives in pux as '
-                'a notification with the code; enter it in Gmail to verify. '
-                'Leave forwarding itself disabled.',
+                'a notification: tap it to open the confirmation link, or '
+                'enter its code in Gmail. Leave forwarding itself disabled.',
             'In the search bar, open the search options. Fill in From and '
                 'Subject with the values for your bank (see below), then '
                 'choose "Create filter".',

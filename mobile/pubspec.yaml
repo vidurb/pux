@@ -22,6 +22,7 @@ dependencies:
   flutter_riverpod: ^3.5.0
   web_socket_channel: ^3.0.2
   no_screenshot: ^2.0.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
