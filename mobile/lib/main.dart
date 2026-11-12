@@ -19,11 +19,21 @@ Future<void> main() async {
   runApp(const ProviderScope(child: PuxApp()));
 
   // Network work happens after the first frame so an offline device or a bad
-  // Firebase config never leaves the app stuck on the splash screen.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+  // Firebase config never leaves the app stuck on the splash screen. A macOS
+  // app that starts in the menu bar may draw no frame until its window is
+  // shown, so delivery starts after a moment without one.
+  var started = false;
+  void startDelivery() {
+    if (started) return;
+    started = true;
     unawaited(DeliveryController.instance.start());
-  });
+  }
+
+  WidgetsBinding.instance.addPostFrameCallback((_) => startDelivery());
+  Timer(const Duration(seconds: 2), startDelivery);
 
   // Keeps the device registration fresh.
-  AppLifecycleListener(onResume: () => unawaited(DeliveryController.instance.onResume()));
+  AppLifecycleListener(
+    onResume: () => unawaited(DeliveryController.instance.onResume()),
+  );
 }

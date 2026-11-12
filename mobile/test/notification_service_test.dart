@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pux/src/services/desktop_shell.dart';
 import 'package:pux/src/services/notification_service.dart';
 
 const _channel = MethodChannel('dexterous.com/flutter/local_notifications');
@@ -226,6 +227,41 @@ void main() {
     // The plugin sends null as ''.
     expect(shownArguments()['payload'], isEmpty);
     expect(NotificationService.instance.codes.length, 0);
+  });
+
+  group('tapping on macOS', () {
+    late List<String> shellCalls;
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      MacOSFlutterLocalNotificationsPlugin.registerWith();
+      shellCalls = [];
+      messenger.setMockMethodCallHandler(DesktopShell.channel, (call) async {
+        shellCalls.add(call.method);
+        return null;
+      });
+    });
+
+    tearDown(
+      () => messenger.setMockMethodCallHandler(DesktopShell.channel, null),
+    );
+
+    test('a code shows the window from the menu bar', () async {
+      await NotificationService.instance.init();
+
+      await respond();
+
+      expect(shellCalls, ['showWindow']);
+    });
+
+    test('a confirmation opens its link instead', () async {
+      await NotificationService.instance.init();
+
+      await respond(payload: jsonEncode({'url': confirmLink.toString()}));
+
+      expect(opened, [confirmLink]);
+      expect(shellCalls, isEmpty);
+    });
   });
 
   test('Copy code still reads a bare code from an older build', () async {

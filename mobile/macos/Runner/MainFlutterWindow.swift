@@ -4,6 +4,7 @@ import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private let sensitiveClipboard = SensitiveClipboard()
+  private(set) lazy var shell = DesktopShell(window: self)
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -14,6 +15,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     sensitiveClipboard.register(messenger: flutterViewController.engine.binaryMessenger)
     NotificationAuthorization.register(messenger: flutterViewController.engine.binaryMessenger)
+    shell.register(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
   }
