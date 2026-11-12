@@ -22,6 +22,8 @@ The [`release`](../../.github/workflows/release.yml) workflow builds the bundle 
 - `pux-<version>-linux-amd64.deb`, made by [`packaging/build_deb.sh`](packaging/build_deb.sh). It installs the bundle to `/opt/pux`, links `/usr/bin/pux`, and adds a desktop entry (`xyz.vidur.pux.desktop`, matching the GTK application ID) and an icon. `dpkg-shlibdeps` works out the library dependencies, so building on the oldest supported release keeps the package installable there. It recommends a keyring.
 - `pux-<version>-linux-x64.tar.gz`, the bare bundle, for other distributions.
 
+The bundle carries the icon as `data/xyz.vidur.pux.png` (from `assets/icon/macos.png`), and the app sets it on its window, so the tarball shows it too. Wayland compositors ignore window icons and look up the desktop entry instead, so there the tarball has none unless you add an entry yourself; the `.deb`'s entry covers it. `build_deb.sh` takes the icon theme's copy from the bundle.
+
 To build the package locally on Debian or Ubuntu (needs `dpkg-dev`):
 
 ```bash

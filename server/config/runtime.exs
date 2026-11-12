@@ -76,6 +76,11 @@ if config_env() == :prod do
     limit: String.to_integer(env.("RECORD_API_RATE_LIMIT") || "120"),
     scale_ms: 60_000
 
+  config :pux, :test_code_rate_limit,
+    key: "record_test",
+    limit: String.to_integer(env.("TEST_CODE_RATE_LIMIT") || "3"),
+    scale_ms: 60_000
+
   config :pux, :auth_failure_rate_limit,
     limit: String.to_integer(env.("AUTH_FAILURE_RATE_LIMIT") || "300"),
     scale_ms: 60_000

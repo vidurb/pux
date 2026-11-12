@@ -87,6 +87,8 @@ release such as `0.1.0` in production, or `main` for the latest build of the mai
 
 Check that mail reaches the server: create a relay in a desktop app (below), then send an email
 containing `Your OTP is 123456` to its inbox address. Unsigned test mail shows as "(unverified)".
+To check push on its own, tap **Send a test code** on the app's home screen, which asks the server
+(`POST /api/v1/record/test`) to send a made-up code to every device on the relay.
 
 ## Mobile builds for your server
 

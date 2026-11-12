@@ -19,6 +19,23 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Sets the icon that the bundle installs in data/, next to the executable, so
+// the tarball has one too. If it's missing, falls back to the icon theme, where
+// the .deb installs the same image under the application ID. Wayland
+// compositors ignore both and take the icon from the desktop entry instead.
+static void set_window_icon(GtkWindow* window) {
+  g_autofree gchar* executable = g_file_read_link("/proc/self/exe", nullptr);
+  if (executable != nullptr) {
+    g_autofree gchar* directory = g_path_get_dirname(executable);
+    g_autofree gchar* icon =
+        g_build_filename(directory, "data", APPLICATION_ID ".png", nullptr);
+    if (gtk_window_set_icon_from_file(window, icon, nullptr)) {
+      return;
+    }
+  }
+  gtk_window_set_icon_name(window, APPLICATION_ID);
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -53,6 +70,7 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+  set_window_icon(window);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

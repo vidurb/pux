@@ -24,6 +24,11 @@ defmodule PuxWeb.Router do
     plug PuxWeb.Plugs.RecordRateLimit
   end
 
+  # After :record_auth, whose general limit still applies.
+  pipeline :test_code_rate_limit do
+    plug PuxWeb.Plugs.RecordRateLimit, config: :test_code_rate_limit
+  end
+
   scope "/", PuxWeb do
     pipe_through :browser
 
@@ -54,6 +59,13 @@ defmodule PuxWeb.Router do
     delete "/record/devices/:device_id", DeviceController, :delete
     get "/record/deliveries", DeliveryController, :index
     delete "/record/deliveries/:delivery_id", DeliveryController, :delete
+  end
+
+  scope "/api/v1", PuxWeb do
+    pipe_through [:api, :record_auth, :test_code_rate_limit]
+
+    # Sends a push to every device on the relay, so it has a much tighter limit.
+    post "/record/test", RecordController, :test
   end
 
   scope "/", PuxWeb do

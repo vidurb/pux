@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private let sensitiveClipboard = SensitiveClipboard()
@@ -12,8 +13,40 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     sensitiveClipboard.register(messenger: flutterViewController.engine.binaryMessenger)
+    NotificationAuthorization.register(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
+  }
+}
+
+/// Reports whether the user has been asked about notifications yet, which
+/// flutter_local_notifications' checkPermissions can't tell from a denial.
+/// Dart shows its explainer before the system prompt only while this is
+/// "notDetermined".
+private enum NotificationAuthorization {
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "xyz.vidur.pux/notification_permissions", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "getAuthorizationStatus" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      UNUserNotificationCenter.current().getNotificationSettings { settings in
+        let status = NotificationAuthorization.name(of: settings.authorizationStatus)
+        DispatchQueue.main.async { result(status) }
+      }
+    }
+  }
+
+  private static func name(of status: UNAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined: return "notDetermined"
+    case .denied: return "denied"
+    case .authorized: return "authorized"
+    case .provisional: return "provisional"
+    @unknown default: return "unknown"
+    }
   }
 }
 

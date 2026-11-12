@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -37,6 +38,36 @@ class RateLimitedException implements Exception {
 
   @override
   String toString() => 'The server is rate limiting requests';
+}
+
+/// The relay has no registered devices, so a test code has nowhere to go
+/// (409 `no_devices`). Clears up once this device has registered.
+class NoDevicesException implements Exception {
+  const NoDevicesException();
+
+  @override
+  String toString() => 'No device is registered on this relay yet';
+}
+
+/// What `POST /record/test` sent: the code to look for, and how many devices
+/// on the relay it went to.
+@immutable
+class TestCode {
+  const TestCode({required this.otp, required this.devices});
+
+  final String otp;
+  final int devices;
+}
+
+enum ServerHealthState { reachable, unreachable, serverError }
+
+/// The answer to `GET /health`. [reason] says why it isn't reachable.
+@immutable
+class ServerHealth {
+  const ServerHealth(this.state, {this.reason});
+
+  final ServerHealthState state;
+  final String? reason;
 }
 
 class ApiClient {
@@ -197,6 +228,70 @@ class ApiClient {
 
     if (response.statusCode == 401 || response.statusCode == 404) return;
     _check(response, 'Delivery ack');
+  }
+
+  /// Asks the server to send a made-up code to every device on the relay, by
+  /// the same path as a real one, and returns it.
+  Future<TestCode> sendTestCode({required String recordId}) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/test',
+    );
+    final response = await _client
+        .post(uri, headers: {'authorization': 'Bearer $recordId'})
+        .timeout(_timeout);
+
+    if (response.statusCode == 401 || response.statusCode == 404) {
+      throw const RecordNotFoundException();
+    }
+    if (response.statusCode == 409 && _errorCode(response) == 'no_devices') {
+      throw const NoDevicesException();
+    }
+    _check(response, 'Test code');
+
+    final decoded = _decodeObject(response);
+    final otp = decoded?['otp'];
+    final devices = decoded?['devices'];
+    if (otp is! String || devices is! int) {
+      throw Exception('Test code returned an incomplete response');
+    }
+    return TestCode(otp: otp, devices: devices);
+  }
+
+  static const healthTimeout = Duration(seconds: 10);
+
+  /// Whether the server answers `GET /health` with `{"status":"ok"}`. Never
+  /// throws: a failure is an answer too.
+  Future<ServerHealth> checkHealth() async {
+    final http.Response response;
+    try {
+      final uri = Uri.parse('${RecordStore.instance.serverUrl}/health');
+      response = await _client.get(uri).timeout(healthTimeout);
+    } on TimeoutException {
+      return ServerHealth(
+        ServerHealthState.unreachable,
+        reason: 'no answer within ${healthTimeout.inSeconds} s',
+      );
+    } on http.ClientException catch (error) {
+      return ServerHealth(ServerHealthState.unreachable, reason: error.message);
+    } catch (error) {
+      return ServerHealth(
+        ServerHealthState.unreachable,
+        reason: error.toString(),
+      );
+    }
+
+    final status = _decodeObject(response)?['status'];
+    if (response.statusCode == 200 && status == 'ok') {
+      return const ServerHealth(ServerHealthState.reachable);
+    }
+    return ServerHealth(
+      ServerHealthState.serverError,
+      reason: switch (response.statusCode) {
+        503 when status != null => 'its database is unavailable',
+        200 => "the answer isn't from a pux server",
+        final code => 'HTTP $code',
+      },
+    );
   }
 
   /// The record ID goes in the `x-pux-token` header, never the URL, so it

@@ -99,3 +99,5 @@ flutter run -t lib/screenshots/main.dart --dart-define=PUX_SCENE=noSignal
 ```
 
 `test/screenshots_test.dart` lays out every scene at both sizes and fails on overflow.
+
+Google Play and the README use the same scenes, rendered without a simulator by `tool/render_screenshots.sh`; see [`store/README.md`](../../store/README.md#screenshots).

@@ -9,7 +9,6 @@ import '../push_display.dart';
 import 'delivery_controller.dart';
 import 'delivery_service.dart';
 import 'fcm_registration.dart';
-import 'notification_permissions.dart';
 import 'notification_service.dart';
 
 class PushService implements DeliveryService {
@@ -29,9 +28,11 @@ class PushService implements DeliveryService {
     }
 
     final messaging = FirebaseMessaging.instance;
-    // Registration goes ahead whatever the answer: the server keeps this device
-    // alive, and codes reach it as soon as the user allows notifications.
-    await NotificationPermissions.instance.request(messaging.requestPermission);
+    // Never asks for notification permission: NotificationExplainer does, after
+    // saying why. Registration goes ahead whatever the answer, or with none
+    // yet: the server keeps this device alive, and codes reach it as soon as
+    // the user allows notifications. iOS gets its APNs token without
+    // permission too (AppDelegate registers for remote notifications).
     await messaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,

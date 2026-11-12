@@ -1,5 +1,6 @@
 package xyz.vidur.pux
 
+import android.Manifest
 import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -7,6 +8,7 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -66,7 +68,7 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun notificationStatus(): Map<String, Boolean?> {
+    private fun notificationStatus(): Map<String, Any?> {
         val notifications = NotificationManagerCompat.from(this)
         // Null before Android 8, and until the first code creates the channel.
         // The channel has no group, so a blocked group can't hide it.
@@ -80,7 +82,22 @@ class MainActivity : FlutterActivity() {
             // no sound below default. Null while it's off.
             "channelQuiet" to
                 importance?.takeIf { channelEnabled == true }?.let { it < NotificationManagerCompat.IMPORTANCE_HIGH },
+            "permission" to notificationPermission(),
         )
+    }
+
+    // The Android 13+ runtime permission, or null where there is none. Android
+    // can't say whether it has ever been asked for: "notGranted" is either never
+    // asked or denied for good, so Dart keeps its own record of having asked.
+    // "denied" means denied once, and Android would still show its prompt.
+    private fun notificationPermission(): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        return when {
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED -> "granted"
+            shouldShowRequestPermissionRationale(permission) -> "denied"
+            else -> "notGranted"
+        }
     }
 
     // The channel page is only useful once the app's own notifications are on, so

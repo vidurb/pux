@@ -41,6 +41,13 @@ config :pux, :record_rate_limit,
   limit: 120,
   scale_ms: 60_000
 
+# Per-record limit on test codes (POST /api/v1/record/test), on top of the one above. Each
+# sends a push to every device on the relay, and a person checking setup needs only a few.
+config :pux, :test_code_rate_limit,
+  key: "record_test",
+  limit: 3,
+  scale_ms: 60_000
+
 # Per-IP limit on well-formed tokens that match no record. Successes don't count, but while
 # an IP is over the limit nothing from it is looked up, so a carrier NAT's users share the
 # bucket: this has to stay far above what clients with a deleted relay can add up to.

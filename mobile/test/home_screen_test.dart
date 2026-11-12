@@ -43,10 +43,19 @@ void main() {
     RecordStore.instance.setServerUrlForTesting('https://pux.test');
   });
 
-  void respondWith(Future<http.Response> Function(http.Request) handler) {
+  /// Records every request but the server status row's health checks, which
+  /// [health] answers.
+  void respondWith(
+    Future<http.Response> Function(http.Request) handler, {
+    Future<http.Response> Function()? health,
+  }) {
     ApiClient.setInstanceForTesting(
       ApiClient.forTesting(
         client: MockClient((request) {
+          if (request.url.path == '/health') {
+            return health?.call() ??
+                Future.value(http.Response('{"status":"ok"}', 200));
+          }
           requests.add(request);
           return handler(request);
         }),

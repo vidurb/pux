@@ -22,21 +22,46 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    FlutterMethodChannel(
-      name: "xyz.vidur.pux/notification_permissions",
-      binaryMessenger: engineBridge.applicationRegistrar.messenger()
-    ).setMethodCallHandler { call, result in
-      guard call.method == "getStatus" else {
+    NotificationSettingsChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+  }
+}
+
+/// What flutter_local_notifications can't report about notification settings.
+enum NotificationSettingsChannel {
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "xyz.vidur.pux/notification_permissions", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      // pux's notifications aren't time-sensitive, so that setting changes
+      // nothing and isn't reported.
+      case "getStatus":
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          let summary = settings.scheduledDeliverySetting == .enabled
+          DispatchQueue.main.async { result(["scheduledSummary": summary]) }
+        }
+      // Whether the user has been asked yet, which checkPermissions can't tell
+      // from a denial. Dart shows its explainer before the system prompt only
+      // while this is "notDetermined".
+      case "getAuthorizationStatus":
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          let status = name(of: settings.authorizationStatus)
+          DispatchQueue.main.async { result(status) }
+        }
+      default:
         result(FlutterMethodNotImplemented)
-        return
       }
-      // flutter_local_notifications reports the rest of these settings. pux's
-      // notifications aren't time-sensitive, so that setting changes nothing
-      // and isn't reported.
-      UNUserNotificationCenter.current().getNotificationSettings { settings in
-        let summary = settings.scheduledDeliverySetting == .enabled
-        DispatchQueue.main.async { result(["scheduledSummary": summary]) }
-      }
+    }
+  }
+
+  private static func name(of status: UNAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined: return "notDetermined"
+    case .denied: return "denied"
+    case .authorized: return "authorized"
+    case .provisional: return "provisional"
+    case .ephemeral: return "ephemeral"
+    @unknown default: return "unknown"
     }
   }
 }

@@ -6,12 +6,14 @@ import '../platform.dart';
 import '../services/background_restrictions.dart';
 import '../services/notification_permissions.dart';
 import '../services/record_store.dart';
+import 'notification_explainer.dart';
 
 /// Asks the user to fix settings that stop codes from reaching them.
 ///
 /// The home screen is the first thing shown after setup, so this also covers
-/// the first run. It rechecks whenever the app resumes, so a prompt goes away
-/// as soon as the user changes the setting.
+/// the first run. That's also why this opens [NotificationExplainer] if the OS
+/// has never asked about notifications. It rechecks whenever the app resumes,
+/// so a prompt goes away as soon as the user changes the setting.
 ///
 /// Only one prompt shows at a time, so the screen stays usable: notifications
 /// first, because without them no code gets through, then the restrictions,
@@ -23,6 +25,10 @@ import '../services/record_store.dart';
 /// user already chose to ignore. The same goes for the hints that codes would
 /// arrive unnoticed, such as a quiet Android channel or the iOS scheduled
 /// summary: the code still arrives, and the user may have chosen that.
+///
+/// While the OS has never asked ([NotificationAccess.notAsked], after "Not now"
+/// on the explainer), the notification prompt's button asks, since settings
+/// would have nothing to turn on yet.
 ///
 /// The notification prompt can't be dismissed. A restriction is a risk to codes
 /// in the future; this is a certainty now. On a phone the app has no other way to
@@ -51,6 +57,9 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
       _quietDeliveryChanged,
     );
     unawaited(_check());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(NotificationExplainer.showIfNeeded(context));
+    });
   }
 
   @override
@@ -158,6 +167,16 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
   Widget _notificationPrompt(NotificationAccess access) {
     const lost = 'Codes that arrive in the meantime are lost.';
     final (String title, String body) = switch (access) {
+      NotificationAccess.notAsked when isDesktopPlatform => (
+        'Notifications are off',
+        'New codes wait on this screen until you allow notifications, or until '
+            'they expire, up to 15 minutes after arriving.',
+      ),
+      NotificationAccess.notAsked => (
+        'Notifications are off',
+        "pux can only show codes as notifications, so you won't see any until "
+            'you allow them. $lost',
+      ),
       NotificationAccess.channelOff => (
         'OTP code notifications are off',
         'The "OTP codes" notification category is turned off for pux, so you '
@@ -182,11 +201,21 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
       ),
     };
 
+    if (access == NotificationAccess.notAsked) {
+      return _Prompt(
+        title: title,
+        body: body,
+        color: Colors.red,
+        actionLabel: 'Allow notifications',
+        onAction: () => unawaited(NotificationPermissions.instance.ask()),
+      );
+    }
+
     return _Prompt(
       title: title,
       body: body,
       color: access == NotificationAccess.quiet ? Colors.orange : Colors.red,
-      onOpenSettings: () => unawaited(
+      onAction: () => unawaited(
         _openSettings(
           NotificationPermissions.instance.openSettings,
           fallback:
@@ -247,7 +276,7 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
       body: body,
       color: Colors.orange,
       onDismiss: () => unawaited(_dismiss(restriction)),
-      onOpenSettings: () => unawaited(_openSettings(open, fallback: fallback)),
+      onAction: () => unawaited(_openSettings(open, fallback: fallback)),
     );
   }
 }
@@ -257,14 +286,16 @@ class _Prompt extends StatelessWidget {
     required this.title,
     required this.body,
     required this.color,
-    required this.onOpenSettings,
+    required this.onAction,
+    this.actionLabel = 'Open settings',
     this.onDismiss,
   });
 
   final String title;
   final String body;
   final Color color;
-  final VoidCallback onOpenSettings;
+  final VoidCallback onAction;
+  final String actionLabel;
 
   /// Null if this prompt can't be dismissed.
   final VoidCallback? onDismiss;
@@ -294,10 +325,7 @@ class _Prompt extends StatelessWidget {
                       onPressed: onDismiss,
                       child: const Text('Dismiss'),
                     ),
-                  FilledButton(
-                    onPressed: onOpenSettings,
-                    child: const Text('Open settings'),
-                  ),
+                  FilledButton(onPressed: onAction, child: Text(actionLabel)),
                 ],
               ),
             ],

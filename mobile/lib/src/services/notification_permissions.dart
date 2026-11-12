@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'background_restrictions.dart';
+import 'record_store.dart';
 
 /// Whether a code can reach the user as a notification on this device.
 enum NotificationAccess {
@@ -10,10 +11,16 @@ enum NotificationAccess {
   /// permission to check, such as Linux.
   allowed,
 
-  /// Nothing is shown for pux at all: the Android 13+ permission is denied or
-  /// not yet granted, notifications are off for the app on any Android version,
-  /// or iOS or macOS reports anything but authorized or provisional.
+  /// Nothing is shown for pux at all: the Android 13+ permission is denied,
+  /// notifications are off for the app on any Android version, or iOS or macOS
+  /// reports denied. Only the settings app can change this.
   off,
+
+  /// Nothing is shown for pux yet, because the user has never been asked: iOS
+  /// and macOS report "not determined", or the Android 13+ permission isn't
+  /// granted and pux has never asked for it. [NotificationPermissions.ask] shows
+  /// the system prompt, after NotificationExplainer has said why.
+  notAsked,
 
   /// Android only: the `pux_otp` channel is off, though the app's are on.
   channelOff,
@@ -23,14 +30,25 @@ enum NotificationAccess {
   quiet,
 }
 
-/// Reads the current notification state, and tracks it for the home screen.
+extension NotificationAccessHidden on NotificationAccess {
+  /// Whether the OS shows nothing for pux, so a code shown now would be lost.
+  bool get hidesCodes =>
+      this == NotificationAccess.off || this == NotificationAccess.notAsked;
+}
+
+/// Reads the current notification state, tracks it for the home screen, and
+/// asks for it.
+///
+/// Nothing asks at startup: the system prompt only appears from [ask], which
+/// NotificationExplainer calls once it has said why pux needs notifications.
 ///
 /// Android goes through MainActivity, because the channel's state and its
 /// settings page aren't available from a plugin. iOS and macOS use
 /// flutter_local_notifications: firebase_messaging needs Firebase initialised,
-/// which macOS never does and an unconfigured build can't. iOS also asks
-/// AppDelegate, on the same channel name as Android, about the scheduled
-/// summary, which the plugin doesn't report.
+/// which macOS never does and an unconfigured build can't. iOS and macOS also
+/// ask their app delegate or window, on the same channel name as Android, for
+/// "not determined", which the plugin reports as a denial; iOS asks it about
+/// the scheduled summary too, which the plugin doesn't report.
 class NotificationPermissions {
   NotificationPermissions._();
 
@@ -84,6 +102,52 @@ class NotificationPermissions {
       debugPrint('Notification permission request failed: $error');
     }
     await refresh();
+  }
+
+  /// Shows the system prompt where the OS still has one to show
+  /// ([NotificationAccess.notAsked]), then reads what the user decided. Never
+  /// throws.
+  ///
+  /// On Android, also records that pux has asked: afterwards a permission that
+  /// isn't granted is a denial, which only the settings app can undo.
+  Future<void> ask() => request(() async {
+    final answer = await _askPlatform();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await RecordStore.instance.saveNotificationPermissionAsked();
+      } catch (error) {
+        debugPrint(
+          'Could not record the notification permission request: $error',
+        );
+      }
+    }
+    return answer;
+  });
+
+  Future<Object?> _askPlatform() async {
+    if (kIsWeb) return null;
+
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android =>
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.requestNotificationsPermission(),
+      TargetPlatform.iOS =>
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true),
+      TargetPlatform.macOS =>
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+              MacOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true),
+      _ => null,
+    };
   }
 
   /// Opens the settings page that fixes the current state. Returns whether it
@@ -154,8 +218,8 @@ class NotificationPermissions {
       TargetPlatform.android => await _readAndroid(),
       TargetPlatform.iOS => await _readIOS(),
       TargetPlatform.macOS => (
-        _fromAppleOptions(
-          await _plugin
+        await _readApple(
+          () async => _plugin
               .resolvePlatformSpecificImplementation<
                 MacOSFlutterLocalNotificationsPlugin
               >()
@@ -178,7 +242,16 @@ class NotificationPermissions {
       DeliveryRestriction.quietChannel,
       status?['channelQuiet'] as bool?,
     );
-    if (!appEnabled) return (NotificationAccess.off, quiet);
+    if (!appEnabled) {
+      // "notGranted" is also what a permission denied for good looks like, so
+      // only pux's own record tells them apart.
+      final neverAsked =
+          status?['permission'] == 'notGranted' && !await _askedBefore();
+      return (
+        neverAsked ? NotificationAccess.notAsked : NotificationAccess.off,
+        quiet,
+      );
+    }
     // Null before Android 8, and until the first code creates the channel.
     final access = status?['channelEnabled'] == false
         ? NotificationAccess.channelOff
@@ -188,12 +261,45 @@ class NotificationPermissions {
 
   Future<(NotificationAccess?, DeliveryRestrictionStatus?)> _readIOS() async {
     final summary = _readScheduledSummary();
-    final options = await _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
-        ?.checkPermissions();
-    return (_fromAppleOptions(options), await summary);
+    final access = await _readApple(
+      () async => _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions(),
+    );
+    return (access, await summary);
+  }
+
+  Future<NotificationAccess?> _readApple(
+    Future<NotificationsEnabledOptions?> Function() checkPermissions,
+  ) async {
+    if (await _appleNotDetermined()) return NotificationAccess.notAsked;
+    return _fromAppleOptions(await checkPermissions());
+  }
+
+  /// Whether iOS or macOS reports "not determined", from AppDelegate (iOS) or
+  /// MainFlutterWindow (macOS). False where that channel isn't registered, such
+  /// as the FCM background isolate, which never shows the home screen anyway.
+  Future<bool> _appleNotDetermined() async {
+    try {
+      return await channel.invokeMethod<String>('getAuthorizationStatus') ==
+          'notDetermined';
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Whether pux has asked for the Android permission before, counting a
+  /// failed read as yes: that only costs the explainer, while a wrong no would
+  /// offer a prompt Android won't show.
+  Future<bool> _askedBefore() async {
+    try {
+      return await RecordStore.instance.notificationPermissionAsked();
+    } catch (error) {
+      debugPrint('Could not read the notification permission record: $error');
+      return true;
+    }
   }
 
   /// Null if AppDelegate couldn't say, which mustn't lose what the plugin read.
@@ -224,8 +330,9 @@ class NotificationPermissions {
 
   /// `isEnabled` means exactly "authorized", so it's false for provisional,
   /// which is why that's checked first. It's also false for "not determined",
-  /// but both Apple platforms have asked by the time the home screen appears,
-  /// because [NotificationService.init] waits for the answer during startup.
+  /// which nothing asks about at startup any more, so [_readApple] checks for
+  /// that first and only a denial reaches here. Where that check can't run, a
+  /// "not determined" also reads as [NotificationAccess.off].
   NotificationAccess? _fromAppleOptions(NotificationsEnabledOptions? options) {
     if (options == null) return null;
     if (options.isProvisionalEnabled) return NotificationAccess.quiet;
