@@ -119,7 +119,7 @@ If you change the iOS notification service extension's target or build settings,
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please), configured in [`release-please-config.json`](release-please-config.json), with the current version in [`.release-please-manifest.json`](.release-please-manifest.json). The server and apps share one version.
 
-1. Every push to `main` updates an open **chore: release x.y.z** PR. It bumps `server/mix.exs` and `mobile/pubspec.yaml` and adds a `CHANGELOG.md` section written from the commits since the last release. Before 1.0.0, a `feat` raises the minor version, and anything else releasable raises the patch.
+1. Every push to `main` updates an open **chore: release x.y.z** PR. It bumps `server/mix.exs`, `mobile/pubspec.yaml` and the download links in `README.md`, and adds a `CHANGELOG.md` section written from the commits since the last release. Before 1.0.0, a `feat` raises the minor version, and anything else releasable raises the patch.
 2. To release, review the PR and merge it. The changelog in the PR can be edited just before merging. A later push to `main` regenerates the PR and discards the edits.
 3. On merge, release-please tags `vx.y.z`, creates a draft GitHub Release and starts the `release` and `testflight` workflows on the tag.
 

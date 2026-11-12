@@ -6,7 +6,7 @@ After 0.1.0, [release-please](https://github.com/googleapis/release-please) writ
 section from the [Conventional Commit](https://www.conventionalcommits.org/) titles of
 merged PRs; see [CONTRIBUTING.md](CONTRIBUTING.md#releases-maintainers).
 
-## [Unreleased]
+## [0.1.0] - 2026-11-12
 
 ### Security
 
