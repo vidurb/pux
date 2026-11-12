@@ -22,26 +22,34 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    NotificationAuthorization.register(messenger: engineBridge.applicationRegistrar.messenger())
+    NotificationSettingsChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
   }
 }
 
-/// Reports whether the user has been asked about notifications yet, which
-/// flutter_local_notifications' checkPermissions can't tell from a denial.
-/// Dart shows its explainer before the system prompt only while this is
-/// "notDetermined".
-enum NotificationAuthorization {
+/// What flutter_local_notifications can't report about notification settings.
+enum NotificationSettingsChannel {
   static func register(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(
       name: "xyz.vidur.pux/notification_permissions", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
-      guard call.method == "getAuthorizationStatus" else {
+      switch call.method {
+      // pux's notifications aren't time-sensitive, so that setting changes
+      // nothing and isn't reported.
+      case "getStatus":
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          let summary = settings.scheduledDeliverySetting == .enabled
+          DispatchQueue.main.async { result(["scheduledSummary": summary]) }
+        }
+      // Whether the user has been asked yet, which checkPermissions can't tell
+      // from a denial. Dart shows its explainer before the system prompt only
+      // while this is "notDetermined".
+      case "getAuthorizationStatus":
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+          let status = name(of: settings.authorizationStatus)
+          DispatchQueue.main.async { result(status) }
+        }
+      default:
         result(FlutterMethodNotImplemented)
-        return
-      }
-      UNUserNotificationCenter.current().getNotificationSettings { settings in
-        let status = NotificationAuthorization.name(of: settings.authorizationStatus)
-        DispatchQueue.main.async { result(status) }
       }
     }
   }

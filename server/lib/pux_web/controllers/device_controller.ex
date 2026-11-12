@@ -3,7 +3,7 @@ defmodule PuxWeb.DeviceController do
 
   alias Pux.Records
 
-  def create(conn, %{"push_token" => push_token, "platform" => platform})
+  def create(conn, %{"push_token" => push_token, "platform" => platform} = params)
       when is_binary(push_token) do
     record_id = conn.assigns.record_id
 
@@ -11,7 +11,10 @@ defmodule PuxWeb.DeviceController do
       {:ok, platform_atom} ->
         attrs = %{
           push_token: push_token,
-          platform: platform_atom
+          platform: platform_atom,
+          # Optional: the device this app registered before, whose token this one replaces.
+          # Older apps don't send it.
+          replaces: params["device_id"]
         }
 
         register_device_response(conn, record_id, attrs)

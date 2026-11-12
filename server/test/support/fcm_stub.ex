@@ -2,7 +2,7 @@ defmodule Pux.FCMStub do
   @moduledoc """
   A local stand-in for FCM, reached over real HTTP, so tests cover the whole path from job to
   request to classified response. Sends each request to the test process and answers with
-  what the test chose for that token (200 by default).
+  what the test chose for that token or FID (200 by default).
   """
   @behaviour Plug
 
@@ -57,7 +57,8 @@ defmodule Pux.FCMStub do
     request = Jason.decode!(body)
     send(test, {:fcm_request, request})
 
-    {status, reply} = Map.get(responses, request["message"]["token"], {200, ~s({"name":"m"})})
+    target = request["message"]["fid"] || request["message"]["token"]
+    {status, reply} = Map.get(responses, target, {200, ~s({"name":"m"})})
     Plug.Conn.send_resp(conn, status, reply)
   end
 end

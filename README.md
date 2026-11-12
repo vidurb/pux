@@ -67,7 +67,7 @@ To check the relay itself, tap **Send a test code** on the app's home screen: ev
 | Email contents | Never stored: in memory only, while parsing |
 | Sealed envelope in a push job | About 10 minutes after the job finishes |
 | Sealed envelope pending for a desktop | The desktop acknowledges it, or about 15 minutes |
-| Phone: push token, platform, timestamps | You remove it, FCM reports the token dead, or 2 years with no registration and no accepted push |
+| Phone: push token (its Firebase Installation ID), platform, timestamps | You remove it, FCM reports the token dead, or 2 years with no registration and no accepted push |
 | Desktop: generated ID, platform, timestamps | You remove it, or it hasn't registered for 90 days. A running app registers every 12 hours |
 | Relay: record ID, inbox token, public key, timestamps | You delete it, or 30 days after it loses its last device |
 
@@ -133,6 +133,8 @@ Platform targets:
 | macOS / Linux | WebSocket + poll fallback | Import enrollment JSON only |
 | Windows | — | Not supported for now (does not build in CI) |
 
+The app registers with FCM by Firebase Installation ID, which both native SDKs only allow when it is turned on: `firebase_messaging_installation_id_enabled` in `android/app/src/main/AndroidManifest.xml` and `FirebaseMessagingInstallationIdEnabled` in `ios/Runner/Info.plist`. Keep both. With them on, the deprecated `getToken` and `onTokenRefresh` don't work.
+
 Without Firebase config the app still runs, but the home screen says push is not configured. To enable FCM, run `flutterfire configure --project=<id> --out=lib/src/firebase_options.dart --platforms=android,ios` in `mobile/` (this writes `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` and replaces the placeholder options), or pass `--dart-define=FIREBASE_*` values. These files are not secret and can be committed.
 
 #### Testing on an Android phone
@@ -175,11 +177,13 @@ All under `/api/v1`. Every endpoint except `POST /records` works on the relay na
 |----------|---------|-------|
 | `POST /records` | 201 `{"record_id","inbox_address","public_key"}` | Rate-limited per IP (per /64 for IPv6) |
 | `DELETE /record` | 204 | Deletes the record, its devices and pending deliveries; closes its delivery WebSockets |
-| `POST /record/devices` | 201 `{"device_id","platform"}` | 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token is always allowed |
+| `POST /record/devices` | 201 `{"device_id","platform"}` | Body `{"push_token","platform","device_id"?}`, see below. 422 `{"error":"too_many_devices"}` over `MAX_DEVICES_PER_RECORD`; re-registering a known token, or replacing one with `device_id`, is always allowed |
 | `DELETE /record/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
 | `GET /record/deliveries` | 200 `{"deliveries":[{"delivery_id","envelope"}]}` | Oldest 50 |
 | `DELETE /record/deliveries/:delivery_id` | 204 | 404 if unknown |
 | `POST /record/test` | 202 `{"otp","devices"}` | Sends a made-up six-digit code to every device on the relay, by the same path as a real one (an ordinary `otp` payload with `sender` `"pux test"`), and returns it so the app can say what to look for. 409 `{"error":"no_devices"}` if the relay has none. Also limited to `TEST_CODE_RATE_LIMIT` per record per minute |
+
+Phones register with `platform: "fcm"` and their Firebase Installation ID (FID) as `push_token`. The server sends to a value shaped like an FID (22 URL-safe base64 characters) in FCM's `message.fid`, and to anything else, such as the longer registration tokens of builds before FIDs, in `message.token`, which FCM still accepts for both. An FID can change, for example after the app's data is cleared, so the app sends the `device_id` from its last registration with each one: if that phone device is still on the relay, the server replaces its push token instead of adding a second device that would get every code twice. A `device_id` the relay doesn't have, or one of a desktop, is ignored. Servers that predate it ignore it too.
 
 Each registration returns a `device_id`, which the app stores. The home screen menu offers **Remove this device** (`DELETE /api/v1/record/devices/:device_id`, then forget the keys locally) and **Delete relay everywhere** (`DELETE /api/v1/record`, which stops every device). If the server can't be reached the app offers to forget the relay locally anyway.
 

@@ -103,6 +103,46 @@ defmodule PuxWeb.DeviceControllerTest do
              json_response(register(conn, enrollment.record_id, "push-token-1"), 201)
   end
 
+  test "a new push token with the earlier device_id replaces that device's token", %{
+    conn: conn,
+    enrollment: enrollment
+  } do
+    %{"device_id" => device_id} =
+      json_response(register(conn, enrollment.record_id, "old-token:APA91b-abcdef"), 201)
+
+    conn =
+      conn
+      |> auth_conn(enrollment.record_id)
+      |> post("/api/v1/record/devices", %{
+        "push_token" => "cK3xyBMtTnu-Wd_9Q2Zk1a",
+        "platform" => "fcm",
+        "device_id" => device_id
+      })
+
+    assert %{"device_id" => ^device_id, "platform" => "fcm"} = json_response(conn, 201)
+    assert [%{push_token: "cK3xyBMtTnu-Wd_9Q2Zk1a"}] = Records.list_devices(enrollment.record_id)
+  end
+
+  test "an unusable device_id is ignored rather than refused", %{
+    conn: conn,
+    enrollment: enrollment
+  } do
+    for {bad, i} <- Enum.with_index([nil, "not-a-uuid", Ecto.UUID.generate(), 42, %{"a" => 1}]) do
+      conn =
+        conn
+        |> auth_conn(enrollment.record_id)
+        |> post("/api/v1/record/devices", %{
+          "push_token" => "push-token-#{i}",
+          "platform" => "fcm",
+          "device_id" => bad
+        })
+
+      assert %{"device_id" => _} = json_response(conn, 201)
+    end
+
+    assert length(Records.list_devices(enrollment.record_id)) == 5
+  end
+
   test "rejects a non-string push_token", %{conn: conn, enrollment: enrollment} do
     for bad <- [%{"a" => "b"}, ["token-abcdef"], 12_345_678] do
       conn = register(conn, enrollment.record_id, bad)

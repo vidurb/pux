@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'background_restrictions.dart';
 import 'record_store.dart';
 
 /// Whether a code can reach the user as a notification on this device.
@@ -43,9 +44,11 @@ extension NotificationAccessHidden on NotificationAccess {
 ///
 /// Android goes through MainActivity, because the channel's state and its
 /// settings page aren't available from a plugin. iOS and macOS use
-/// flutter_local_notifications, plus the app's own channel for "not
-/// determined", which the plugin reports as a denial: firebase_messaging needs
-/// Firebase initialised, which macOS never does and an unconfigured build can't.
+/// flutter_local_notifications: firebase_messaging needs Firebase initialised,
+/// which macOS never does and an unconfigured build can't. iOS and macOS also
+/// ask their app delegate or window, on the same channel name as Android, for
+/// "not determined", which the plugin reports as a denial; iOS asks it about
+/// the scheduled summary too, which the plugin doesn't report.
 class NotificationPermissions {
   NotificationPermissions._();
 
@@ -66,6 +69,14 @@ class NotificationPermissions {
     NotificationAccess.allowed,
   );
 
+  /// Settings that let codes arrive unnoticed though [access] may be allowed:
+  /// [DeliveryRestriction.quietChannel] on Android and
+  /// [DeliveryRestriction.scheduledSummary] on iOS. A failed check leaves it as
+  /// it was, like [access].
+  final ValueNotifier<DeliveryRestrictionStatus> quietDelivery = ValueNotifier(
+    const DeliveryRestrictionStatus(),
+  );
+
   /// Reads the state again. Never throws.
   Future<void> refresh() => check();
 
@@ -73,8 +84,11 @@ class NotificationPermissions {
   /// within [timeout]. Never throws.
   Future<NotificationAccess?> check({Duration? timeout}) async {
     final check = ++_latestCheck;
-    final current = await _read(timeout);
-    if (current != null && check == _latestCheck) access.value = current;
+    final (current, quiet) = await _read(timeout);
+    if (check == _latestCheck) {
+      if (current != null) access.value = current;
+      if (quiet != null) quietDelivery.value = quiet;
+    }
     return current;
   }
 
@@ -138,16 +152,26 @@ class NotificationPermissions {
 
   /// Opens the settings page that fixes the current state. Returns whether it
   /// opened.
-  Future<bool> openSettings() async {
+  Future<bool> openSettings() => _openSettings(
+    android: access.value == NotificationAccess.channelOff
+        ? 'openChannelSettings'
+        : 'openNotificationSettings',
+  );
+
+  /// Opens the settings page that fixes one of the [quietDelivery]
+  /// restrictions: the channel's own page on Android, where its importance is
+  /// set, and the app's notification page on iOS. Returns whether it opened.
+  Future<bool> openQuietDeliverySettings() =>
+      _openSettings(android: 'openChannelSettings');
+
+  /// On iOS and macOS the plugin opens the app's notification page where it
+  /// can, and the app's settings page otherwise.
+  Future<bool> _openSettings({required String android}) async {
     if (kIsWeb) return false;
 
     try {
       final opened = switch (defaultTargetPlatform) {
-        TargetPlatform.android => await channel.invokeMethod<bool>(
-          access.value == NotificationAccess.channelOff
-              ? 'openChannelSettings'
-              : 'openNotificationSettings',
-        ),
+        TargetPlatform.android => await channel.invokeMethod<bool>(android),
         TargetPlatform.iOS =>
           await _plugin
               .resolvePlatformSpecificImplementation<
@@ -171,40 +195,80 @@ class NotificationPermissions {
     }
   }
 
-  /// The current state, or null if it couldn't be determined.
-  Future<NotificationAccess?> _read(Duration? timeout) async {
+  /// The current state, with null for whatever couldn't be determined.
+  Future<(NotificationAccess?, DeliveryRestrictionStatus?)> _read(
+    Duration? timeout,
+  ) async {
     try {
       final read = _readPlatform();
       return await (timeout == null ? read : read.timeout(timeout));
     } on MissingPluginException {
-      return null;
+      return (null, null);
     } catch (error) {
       debugPrint('Could not read notification settings: $error');
-      return null;
+      return (null, null);
     }
   }
 
-  Future<NotificationAccess?> _readPlatform() async {
-    if (kIsWeb) return NotificationAccess.allowed;
+  Future<(NotificationAccess?, DeliveryRestrictionStatus?)>
+  _readPlatform() async {
+    if (kIsWeb) return (NotificationAccess.allowed, null);
 
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => await _readAndroid(),
-      TargetPlatform.iOS => await _readApple(
-        () async => _plugin
-            .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin
-            >()
-            ?.checkPermissions(),
+      TargetPlatform.iOS => await _readIOS(),
+      TargetPlatform.macOS => (
+        await _readApple(
+          () async => _plugin
+              .resolvePlatformSpecificImplementation<
+                MacOSFlutterLocalNotificationsPlugin
+              >()
+              ?.checkPermissions(),
+        ),
+        null,
       ),
-      TargetPlatform.macOS => await _readApple(
-        () async => _plugin
-            .resolvePlatformSpecificImplementation<
-              MacOSFlutterLocalNotificationsPlugin
-            >()
-            ?.checkPermissions(),
-      ),
-      _ => NotificationAccess.allowed,
+      _ => (NotificationAccess.allowed, null),
     };
+  }
+
+  Future<(NotificationAccess?, DeliveryRestrictionStatus?)>
+  _readAndroid() async {
+    final status = await channel.invokeMapMethod<String, Object?>('getStatus');
+    final appEnabled = status?['appEnabled'] as bool?;
+    if (appEnabled == null) return (null, null);
+    // Null before Android 8, until the first code creates the channel, and
+    // while the channel is off, which the access prompt covers.
+    final quiet = _status(
+      DeliveryRestriction.quietChannel,
+      status?['channelQuiet'] as bool?,
+    );
+    if (!appEnabled) {
+      // "notGranted" is also what a permission denied for good looks like, so
+      // only pux's own record tells them apart.
+      final neverAsked =
+          status?['permission'] == 'notGranted' && !await _askedBefore();
+      return (
+        neverAsked ? NotificationAccess.notAsked : NotificationAccess.off,
+        quiet,
+      );
+    }
+    // Null before Android 8, and until the first code creates the channel.
+    final access = status?['channelEnabled'] == false
+        ? NotificationAccess.channelOff
+        : NotificationAccess.allowed;
+    return (access, quiet);
+  }
+
+  Future<(NotificationAccess?, DeliveryRestrictionStatus?)> _readIOS() async {
+    final summary = _readScheduledSummary();
+    final access = await _readApple(
+      () async => _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions(),
+    );
+    return (access, await summary);
   }
 
   Future<NotificationAccess?> _readApple(
@@ -226,23 +290,6 @@ class NotificationPermissions {
     }
   }
 
-  Future<NotificationAccess?> _readAndroid() async {
-    final status = await channel.invokeMapMethod<String, Object?>('getStatus');
-    final appEnabled = status?['appEnabled'] as bool?;
-    if (appEnabled == null) return null;
-    if (!appEnabled) {
-      // "notGranted" is also what a permission denied for good looks like, so
-      // only pux's own record tells them apart.
-      final neverAsked =
-          status?['permission'] == 'notGranted' && !await _askedBefore();
-      return neverAsked ? NotificationAccess.notAsked : NotificationAccess.off;
-    }
-    // Null before Android 8, and until the first code creates the channel.
-    return status?['channelEnabled'] == false
-        ? NotificationAccess.channelOff
-        : NotificationAccess.allowed;
-  }
-
   /// Whether pux has asked for the Android permission before, counting a
   /// failed read as yes: that only costs the explainer, while a wrong no would
   /// offer a prompt Android won't show.
@@ -254,6 +301,32 @@ class NotificationPermissions {
       return true;
     }
   }
+
+  /// Null if AppDelegate couldn't say, which mustn't lose what the plugin read.
+  Future<DeliveryRestrictionStatus?> _readScheduledSummary() async {
+    try {
+      final status = await channel.invokeMapMethod<String, Object?>(
+        'getStatus',
+      );
+      return _status(
+        DeliveryRestriction.scheduledSummary,
+        status?['scheduledSummary'] as bool?,
+      );
+    } on MissingPluginException {
+      return null;
+    } catch (error) {
+      debugPrint('Could not read the scheduled summary setting: $error');
+      return null;
+    }
+  }
+
+  static DeliveryRestrictionStatus _status(
+    DeliveryRestriction restriction,
+    bool? active,
+  ) => DeliveryRestrictionStatus(
+    active: {if (active == true) restriction},
+    clear: {if (active == false) restriction},
+  );
 
   /// `isEnabled` means exactly "authorized", so it's false for provisional,
   /// which is why that's checked first. It's also false for "not determined",

@@ -112,10 +112,16 @@ class ApiClient {
   }
 
   /// Returns the server's device ID, used to remove this device later.
+  ///
+  /// [replacesDeviceId] is the ID from this phone's last registration. If
+  /// [pushToken] is new, the server replaces that device's token instead of
+  /// adding a second device, which would get every code twice. Servers that
+  /// predate it ignore it.
   Future<String?> registerDevice({
     required String recordId,
     required String pushToken,
     required String platform,
+    String? replacesDeviceId,
   }) async {
     final uri = Uri.parse(
       '${RecordStore.instance.serverUrl}/api/v1/record/devices',
@@ -127,7 +133,11 @@ class ApiClient {
             'authorization': 'Bearer $recordId',
             'content-type': 'application/json',
           },
-          body: jsonEncode({'push_token': pushToken, 'platform': platform}),
+          body: jsonEncode({
+            'push_token': pushToken,
+            'platform': platform,
+            'device_id': ?replacesDeviceId,
+          }),
         )
         .timeout(_timeout);
 

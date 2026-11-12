@@ -1,6 +1,6 @@
 [tools]
-erlang = "27.3.4.16"
-elixir = "1.18.4-otp-27"
+erlang = "29.1.2"
+elixir = "1.20.5-otp-29"
 flutter = "3.47.8"
 # Android Gradle (mobile/android/app/build.gradle.kts targets JVM 17)
 java = "temurin-17.0.21+9"

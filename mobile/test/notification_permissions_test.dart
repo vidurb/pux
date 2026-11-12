@@ -19,6 +19,8 @@ const _offTitle = 'Notifications are off';
 const _channelTitle = 'OTP code notifications are off';
 const _quietTitle = 'Codes may arrive without an alert';
 const _hibernationTitle = 'Keep codes arriving when you rarely open pux';
+const _quietChannelTitle = "Codes don't pop up on screen";
+const _summaryTitle = 'Codes wait for your notification summary';
 const _explainerTitle = 'Allow notifications to see your codes';
 
 const _pluginChannel = MethodChannel(
@@ -37,6 +39,8 @@ class _FakeAndroid {
   /// What iOS and macOS report as UNAuthorizationStatus. Anything but
   /// "notDetermined" leaves the answer to the plugin's checkPermissions.
   String appleStatus = 'authorized';
+  bool? channelQuiet = false;
+  bool? scheduledSummary = false;
   bool settingsOpen = true;
   Object? statusError;
   final calls = <String>[];
@@ -52,9 +56,13 @@ class _FakeAndroid {
           if (!_reads.contains(call.method)) return settingsOpen;
           if (statusError != null) throw statusError!;
           if (call.method == 'getAuthorizationStatus') return appleStatus;
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            return {'scheduledSummary': scheduledSummary};
+          }
           return {
             'appEnabled': appEnabled,
             'channelEnabled': channelEnabled,
+            'channelQuiet': channelQuiet,
             'permission': permission,
           };
         });
@@ -99,8 +107,9 @@ class _FakeApple {
         .setMockMethodCallHandler(_pluginChannel, (call) async {
           calls.add(call);
           if (call.method == 'openAppNotificationSettings') return settingsOpen;
-          if (_requests.contains(call.method))
+          if (_requests.contains(call.method)) {
             return onRequest?.call() ?? false;
+          }
           if (statusError != null) throw statusError!;
           return options;
         });
@@ -135,6 +144,8 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     RecordStore.instance.setServerUrlForTesting('https://pux.test');
     NotificationPermissions.instance.access.value = NotificationAccess.allowed;
+    NotificationPermissions.instance.quietDelivery.value =
+        const DeliveryRestrictionStatus();
     IOSFlutterLocalNotificationsPlugin.registerWith();
   });
 
@@ -546,6 +557,248 @@ void main() {
       expect(find.text(_offTitle), findsNothing);
       expect(find.text(_hibernationTitle), findsNothing);
     });
+  });
+
+  group('a quiet Android channel', () {
+    const cases = <bool?, bool>{true: true, false: false, null: false};
+
+    cases.forEach((quiet, prompts) {
+      testWidgets(
+        'channelQuiet=$quiet ${prompts ? 'prompts' : 'does not prompt'}',
+        (tester) async {
+          android.channelQuiet = quiet;
+
+          await pumpPrompts(tester);
+
+          expect(
+            find.text(_quietChannelTitle),
+            prompts ? findsOneWidget : findsNothing,
+          );
+        },
+      );
+    });
+
+    testWidgets('opens the channel page', (tester) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(android.opened, ['openChannelSettings']);
+      expect(restrictionCalls.where((call) => call != 'getStatus'), isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('says so if settings would not open', (tester) async {
+      android.channelQuiet = true;
+      android.settingsOpen = false;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("Couldn't open settings"), findsOneWidget);
+    });
+
+    testWidgets('waits behind notifications being off', (tester) async {
+      android.appEnabled = false;
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      expect(find.text(_offTitle), findsOneWidget);
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('waits behind a restriction that stops codes', (tester) async {
+      hibernation = 'hibernation';
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      expect(find.text(_hibernationTitle), findsOneWidget);
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+    });
+
+    testWidgets('goes away on resume once the channel alerts again', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      android.channelQuiet = false;
+      await resume(tester);
+
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('dismissing stays dismissed across resumes and restarts', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await pumpPrompts(tester);
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('a dismissal is forgotten once the channel alerts again', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+
+      android.channelQuiet = false;
+      await resume(tester);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), isEmpty);
+
+      android.channelQuiet = true;
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+    });
+
+    testWidgets('a failed check keeps the hint and the dismissals', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      android.statusError = PlatformException(code: 'boom');
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      await resume(tester);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), {
+        'quietChannel',
+      });
+    });
+
+    test('check reports it', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      android.channelQuiet = true;
+
+      await NotificationPermissions.instance.check();
+
+      final quiet = NotificationPermissions.instance.quietDelivery.value;
+      expect(quiet.active, {DeliveryRestriction.quietChannel});
+      expect(quiet.clear, isEmpty);
+    });
+  });
+
+  group('the iOS scheduled summary', () {
+    final ios = TargetPlatformVariant.only(TargetPlatform.iOS);
+
+    testWidgets('prompts while pux is in the summary', (tester) async {
+      android.scheduledSummary = true;
+
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsOneWidget);
+      expect(find.text('Dismiss'), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('shows nothing for immediate delivery', (tester) async {
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+      // Only reads: the explainer's check reads the state again.
+      expect(android.calls.toSet(), {'getStatus', 'getAuthorizationStatus'});
+    }, variant: ios);
+
+    testWidgets('opens the app notification page', (tester) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(apple.methods, contains('openAppNotificationSettings'));
+      expect(android.opened, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    }, variant: ios);
+
+    testWidgets('waits behind notifications that arrive quietly', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      apple.options = _FakeApple.provisional;
+      await pumpPrompts(tester);
+
+      expect(find.text(_quietTitle), findsOneWidget);
+      expect(find.text(_summaryTitle), findsNothing);
+
+      apple.options = _FakeApple.authorized;
+      await resume(tester);
+
+      expect(find.text(_summaryTitle), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('goes away on resume once delivery is immediate', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      android.scheduledSummary = false;
+      await resume(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+    }, variant: ios);
+
+    testWidgets('dismissing stays dismissed across resumes and restarts', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      await resume(tester);
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), {
+        'scheduledSummary',
+      });
+    }, variant: ios);
+
+    testWidgets('a missing channel still reads notification access', (
+      tester,
+    ) async {
+      android.statusError = MissingPluginException();
+      apple.options = _FakeApple.denied;
+
+      await pumpPrompts(tester);
+
+      expect(find.text(_offTitle), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('macOS never asks about the summary', (tester) async {
+      MacOSFlutterLocalNotificationsPlugin.registerWith();
+      android.scheduledSummary = true;
+
+      await pumpPrompts(tester);
+
+      // macOS asks the channel only whether the user has been asked yet.
+      expect(android.calls, isNot(contains('getStatus')));
+      expect(find.text('Open settings'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   group('the request flow', () {

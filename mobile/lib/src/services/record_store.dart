@@ -33,7 +33,8 @@ class RecordStore {
   // keychain-access-groups in Runner.entitlements), so the notification
   // service extension can decrypt pushes, including while the phone is locked.
   // AppDelegate moves items written by older builds into that group.
-  // Android: v10 migrates EncryptedSharedPreferences data to its own ciphers.
+  // Android: v11 custom-cipher storage. v11 dropped the v10 migration from
+  // EncryptedSharedPreferences; no released build used that format.
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(),
     iOptions: IOSOptions(
@@ -109,7 +110,7 @@ class RecordStore {
     await _storage.write(key: _deviceIdKey, value: deviceId);
   }
 
-  /// Which background restriction prompts the user dismissed. [clear] forgets
+  /// Which restriction prompts the user dismissed. [clear] forgets
   /// these along with the enrollment, so setting up again asks again.
   Future<Set<String>> dismissedRestrictionPrompts() async {
     final stored = await _storage.read(key: _dismissedRestrictionPromptsKey);
@@ -143,10 +144,12 @@ class RecordStore {
   /// the current one when absent. Throws [FormatException] if it is unsafe.
   String enrollmentServer(Map<String, dynamic> payload) {
     final server = payload['server'];
-    if (server == null || (server is String && server.isEmpty))
+    if (server == null || (server is String && server.isEmpty)) {
       return serverUrl;
-    if (server is! String)
+    }
+    if (server is! String) {
       throw const FormatException('Invalid server in enrollment');
+    }
     // The build's own default is trusted, so development builds can point anywhere.
     if (server == _defaultServerUrl) return server;
     return validateServerUrl(server);

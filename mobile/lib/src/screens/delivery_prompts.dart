@@ -17,11 +17,14 @@ import 'notification_explainer.dart';
 ///
 /// Only one prompt shows at a time, so the screen stays usable: notifications
 /// first, because without them no code gets through, then the restrictions,
-/// which wait until the one before is fixed or dismissed.
+/// which wait until the one before is fixed or dismissed. Those that stop codes
+/// arriving come before those that only let them arrive unnoticed.
 ///
 /// Dismissing a restriction silences it until it has been lifted and comes back,
 /// or until the relay is set up again: then it's a new problem, not the one the
-/// user already chose to ignore.
+/// user already chose to ignore. The same goes for the hints that codes would
+/// arrive unnoticed, such as a quiet Android channel or the iOS scheduled
+/// summary: the code still arrives, and the user may have chosen that.
 ///
 /// While the OS has never asked ([NotificationAccess.notAsked], after "Not now"
 /// on the explainer), the notification prompt's button asks, since settings
@@ -42,6 +45,7 @@ class DeliveryPrompts extends StatefulWidget {
 class _DeliveryPromptsState extends State<DeliveryPrompts> {
   late final AppLifecycleListener _lifecycle;
   late final Future<Set<DeliveryRestriction>> _dismissed = _loadDismissed();
+  DeliveryRestrictionStatus _background = const DeliveryRestrictionStatus();
   Set<DeliveryRestriction> _active = const {};
   int _latestCheck = 0;
 
@@ -49,6 +53,9 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: () => unawaited(_check()));
+    NotificationPermissions.instance.quietDelivery.addListener(
+      _quietDeliveryChanged,
+    );
     unawaited(_check());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(NotificationExplainer.showIfNeeded(context));
@@ -58,6 +65,9 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
   @override
   void dispose() {
     _lifecycle.dispose();
+    NotificationPermissions.instance.quietDelivery.removeListener(
+      _quietDeliveryChanged,
+    );
     super.dispose();
   }
 
@@ -83,6 +93,8 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
     }
   }
 
+  /// The notification check updates [NotificationPermissions.quietDelivery],
+  /// which [_quietDeliveryChanged] picks up.
   Future<void> _check() async {
     final check = ++_latestCheck;
     unawaited(NotificationPermissions.instance.refresh());
@@ -90,11 +102,29 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
     final status = await BackgroundRestrictions.instance.check();
     if (!mounted || check != _latestCheck) return;
 
-    if (dismissed.intersection(status.clear).isNotEmpty) {
-      dismissed.removeAll(status.clear);
+    _background = status;
+    _update(dismissed);
+  }
+
+  void _quietDeliveryChanged() => unawaited(
+    _dismissed.then((dismissed) {
+      if (mounted) _update(dismissed);
+    }),
+  );
+
+  void _update(Set<DeliveryRestriction> dismissed) {
+    final quiet = NotificationPermissions.instance.quietDelivery.value;
+    final clear = {..._background.clear, ...quiet.clear};
+    if (dismissed.intersection(clear).isNotEmpty) {
+      dismissed.removeAll(clear);
       unawaited(_saveDismissed(dismissed));
     }
-    setState(() => _active = status.active.difference(dismissed));
+    setState(
+      () => _active = {
+        ..._background.active,
+        ...quiet.active,
+      }.difference(dismissed),
+    );
   }
 
   Future<void> _dismiss(DeliveryRestriction restriction) async {
@@ -120,12 +150,14 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
     return ValueListenableBuilder<NotificationAccess>(
       valueListenable: NotificationPermissions.instance.access,
       builder: (context, access, _) {
-        if (access != NotificationAccess.allowed)
+        if (access != NotificationAccess.allowed) {
           return _notificationPrompt(access);
+        }
 
         for (final restriction in DeliveryRestriction.values) {
-          if (_active.contains(restriction))
+          if (_active.contains(restriction)) {
             return _restrictionPrompt(restriction);
+          }
         }
         return const SizedBox.shrink();
       },
@@ -210,6 +242,33 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
             'In App info, open the battery or app battery usage page and allow '
             'background use.',
       ),
+      DeliveryRestriction.quietChannel => (
+        "Codes don't pop up on screen",
+        'The "OTP codes" notification category is set not to pop up on '
+            'screen, so you could miss a code before it expires. Open settings '
+            'and let it make a sound and pop up on screen.',
+      ),
+      DeliveryRestriction.scheduledSummary => (
+        'Codes wait for your notification summary',
+        "iOS holds pux's notifications for your scheduled summary, so codes "
+            'can expire before you see them. Open settings and choose Immediate '
+            'Delivery for pux.',
+      ),
+    };
+
+    final (
+      Future<bool> Function() open,
+      String fallback,
+    ) = switch (restriction) {
+      DeliveryRestriction.hibernation || DeliveryRestriction.backgroundUse => (
+        () => BackgroundRestrictions.instance.openSettings(restriction),
+        "Couldn't open settings. Open App info for pux from Settings.",
+      ),
+      DeliveryRestriction.quietChannel ||
+      DeliveryRestriction.scheduledSummary => (
+        NotificationPermissions.instance.openQuietDeliverySettings,
+        "Couldn't open settings. Find pux in your device's notification settings.",
+      ),
     };
 
     return _Prompt(
@@ -217,13 +276,7 @@ class _DeliveryPromptsState extends State<DeliveryPrompts> {
       body: body,
       color: Colors.orange,
       onDismiss: () => unawaited(_dismiss(restriction)),
-      onAction: () => unawaited(
-        _openSettings(
-          () => BackgroundRestrictions.instance.openSettings(restriction),
-          fallback:
-              "Couldn't open settings. Open App info for pux from Settings.",
-        ),
-      ),
+      onAction: () => unawaited(_openSettings(open, fallback: fallback)),
     );
   }
 }

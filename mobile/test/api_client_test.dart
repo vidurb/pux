@@ -54,6 +54,36 @@ void main() {
     );
   });
 
+  test(
+    'registerDevice sends the device it replaces only when there is one',
+    () async {
+      final bodies = <Map<String, dynamic>>[];
+      final client = ApiClient.forTesting(
+        client: MockClient((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('{"device_id":"dev_1"}', 201);
+        }),
+      );
+
+      await client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      );
+      await client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+        replacesDeviceId: 'dev_1',
+      );
+
+      expect(bodies, [
+        {'push_token': 't', 'platform': 'fcm'},
+        {'push_token': 't', 'platform': 'fcm', 'device_id': 'dev_1'},
+      ]);
+    },
+  );
+
   test('listPendingDeliveries returns parsed deliveries', () async {
     final mockClient = MockClient((request) async {
       expect(request.url.path, '/api/v1/record/deliveries');

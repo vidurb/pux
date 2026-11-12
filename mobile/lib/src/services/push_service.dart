@@ -6,11 +6,10 @@ import 'package:flutter/foundation.dart';
 
 import '../firebase_status.dart';
 import '../push_display.dart';
-import 'api_client.dart';
 import 'delivery_controller.dart';
 import 'delivery_service.dart';
+import 'fcm_registration.dart';
 import 'notification_service.dart';
-import 'record_store.dart';
 
 class PushService implements DeliveryService {
   PushService._();
@@ -18,7 +17,9 @@ class PushService implements DeliveryService {
   static final PushService instance = PushService._();
 
   StreamSubscription<RemoteMessage>? _messages;
-  StreamSubscription<String>? _tokenRefresh;
+  final FcmRegistration _registration = FcmRegistration(
+    onRefreshError: DeliveryController.instance.reportError,
+  );
 
   @override
   Future<void> init() async {
@@ -50,45 +51,14 @@ class PushService implements DeliveryService {
       }
     });
 
-    // getToken and onTokenRefresh are deprecated in favour of register and
-    // onRegistered, which yield a Firebase Installation ID instead of a token.
-    // They keep working until the app opts in to FID mode. That needs a planned
-    // client and server change: a new ID would add a second device row beside
-    // the old token, so one phone could get every code twice.
-    // ignore: deprecated_member_use
-    _tokenRefresh ??= messaging.onTokenRefresh.listen((newToken) async {
-      try {
-        await _register(newToken);
-      } catch (error) {
-        DeliveryController.instance.reportError(error);
-      }
-    });
-
-    // ignore: deprecated_member_use
-    final token = await messaging.getToken();
-    if (token == null) {
-      throw Exception('Firebase returned no push token');
-    }
-    await _register(token);
+    // Registers this phone's Firebase Installation ID, and any later one.
+    await _registration.start();
   }
 
   @override
   Future<void> stop() async {
     await _messages?.cancel();
-    await _tokenRefresh?.cancel();
+    await _registration.stop();
     _messages = null;
-    _tokenRefresh = null;
-  }
-
-  Future<void> _register(String token) async {
-    final recordId = await RecordStore.instance.recordId();
-    if (recordId == null) return;
-
-    final deviceId = await ApiClient.instance.registerDevice(
-      recordId: recordId,
-      pushToken: token,
-      platform: 'fcm',
-    );
-    await RecordStore.instance.saveDeviceId(deviceId);
   }
 }
