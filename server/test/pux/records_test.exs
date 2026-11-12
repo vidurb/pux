@@ -72,6 +72,18 @@ defmodule Pux.RecordsTest do
     assert length(Records.list_devices(enrollment.record_id)) == 10
   end
 
+  test "re-registering a token returns the device's own ID" do
+    {:ok, enrollment} = Records.create_record(Fixtures.public_key())
+    attrs = %{push_token: "fcm-token-again", platform: :fcm}
+
+    {:ok, first} = Records.register_device(enrollment.record_id, attrs)
+    {:ok, again} = Records.register_device(enrollment.record_id, attrs)
+
+    assert again.id == first.id
+    assert [%{id: id}] = Records.list_devices(enrollment.record_id)
+    assert id == first.id
+  end
+
   test "register_device returns not_found for an unknown record" do
     assert {:error, :not_found} =
              Records.register_device(Ecto.UUID.generate(), %{

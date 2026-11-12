@@ -68,6 +68,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan enrollment QR codes from another device.</string>
+	<key>FirebaseMessagingInstallationIdEnabled</key>
+	<true/>
 	<key>PuxKeychainAccessGroup</key>
 	<string>$(AppIdentifierPrefix)xyz.vidur.pux.shared</string>
 	<key>UIBackgroundModes</key>

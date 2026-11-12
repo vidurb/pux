@@ -18,7 +18,10 @@ void main() {
       final body = jsonDecode(request.body);
       expect(body['public_key'], 'test_pub_key');
 
-      return http.Response(jsonEncode({'record_id': 'rec_123', 'inbox_address': 'inbox_456'}), 200);
+      return http.Response(
+        jsonEncode({'record_id': 'rec_123', 'inbox_address': 'inbox_456'}),
+        200,
+      );
     });
 
     final client = ApiClient.forTesting(client: mockClient);
@@ -44,8 +47,42 @@ void main() {
     final client = ApiClient.forTesting(client: mockClient);
     ApiClient.setInstanceForTesting(client);
 
-    await client.registerDevice(recordId: 'rec_123', pushToken: 'token_123', platform: 'ios');
+    await client.registerDevice(
+      recordId: 'rec_123',
+      pushToken: 'token_123',
+      platform: 'ios',
+    );
   });
+
+  test(
+    'registerDevice sends the device it replaces only when there is one',
+    () async {
+      final bodies = <Map<String, dynamic>>[];
+      final client = ApiClient.forTesting(
+        client: MockClient((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('{"device_id":"dev_1"}', 201);
+        }),
+      );
+
+      await client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      );
+      await client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+        replacesDeviceId: 'dev_1',
+      );
+
+      expect(bodies, [
+        {'push_token': 't', 'platform': 'fcm'},
+        {'push_token': 't', 'platform': 'fcm', 'device_id': 'dev_1'},
+      ]);
+    },
+  );
 
   test('listPendingDeliveries returns parsed deliveries', () async {
     final mockClient = MockClient((request) async {
@@ -92,11 +129,17 @@ void main() {
 
   test('registerDevice maps 404 to RecordNotFoundException', () async {
     final client = ApiClient.forTesting(
-      client: MockClient((_) async => http.Response('{"error":"not_found"}', 404)),
+      client: MockClient(
+        (_) async => http.Response('{"error":"not_found"}', 404),
+      ),
     );
 
     expect(
-      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      () => client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      ),
       throwsA(isA<RecordNotFoundException>()),
     );
   });
@@ -108,10 +151,16 @@ void main() {
         http.Response('{"error":"unauthorized"}', 401),
         http.Response('{"error":"not_found"}', 404),
       ]) {
-        final client = ApiClient.forTesting(client: MockClient((_) async => response));
+        final client = ApiClient.forTesting(
+          client: MockClient((_) async => response),
+        );
 
         await expectLater(
-          client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+          client.registerDevice(
+            recordId: 'rec_123',
+            pushToken: 't',
+            platform: 'fcm',
+          ),
           throwsA(isA<RecordNotFoundException>()),
         );
         await expectLater(
@@ -122,18 +171,23 @@ void main() {
     },
   );
 
-  test('deletes and acks treat an unknown relay (401 or 404) as already gone', () async {
-    for (final response in [
-      http.Response('{"error":"unauthorized"}', 401),
-      http.Response('{"error":"not_found"}', 404),
-    ]) {
-      final client = ApiClient.forTesting(client: MockClient((_) async => response));
+  test(
+    'deletes and acks treat an unknown relay (401 or 404) as already gone',
+    () async {
+      for (final response in [
+        http.Response('{"error":"unauthorized"}', 401),
+        http.Response('{"error":"not_found"}', 404),
+      ]) {
+        final client = ApiClient.forTesting(
+          client: MockClient((_) async => response),
+        );
 
-      await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
-      await client.deleteRecord(recordId: 'rec_123');
-      await client.ackDelivery(recordId: 'rec_123', deliveryId: 'del_1');
-    }
-  });
+        await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
+        await client.deleteRecord(recordId: 'rec_123');
+        await client.ackDelivery(recordId: 'rec_123', deliveryId: 'del_1');
+      }
+    },
+  );
 
   test('the record ID is only ever sent in the authorization header', () async {
     const recordId = '3f0c9a52-7a44-4d1e-9b1a-1c2d3e4f5a6b';
@@ -145,7 +199,11 @@ void main() {
       }),
     );
 
-    await client.registerDevice(recordId: recordId, pushToken: 't', platform: 'fcm');
+    await client.registerDevice(
+      recordId: recordId,
+      pushToken: 't',
+      platform: 'fcm',
+    );
     await client.deleteDevice(recordId: recordId, deviceId: 'dev_1');
     await client.deleteRecord(recordId: recordId);
     await client.listPendingDeliveries(recordId: recordId);
@@ -160,10 +218,16 @@ void main() {
   });
 
   test('registerDevice surfaces other failures as retryable errors', () async {
-    final client = ApiClient.forTesting(client: MockClient((_) async => http.Response('', 503)));
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('', 503)),
+    );
 
     expect(
-      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      () => client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      ),
       throwsA(isNot(isA<RecordNotFoundException>())),
     );
   });
@@ -171,41 +235,66 @@ void main() {
   test('registerDevice returns the device_id', () async {
     final client = ApiClient.forTesting(
       client: MockClient(
-        (_) async => http.Response(jsonEncode({'device_id': 'dev_1', 'platform': 'fcm'}), 201),
+        (_) async => http.Response(
+          jsonEncode({'device_id': 'dev_1', 'platform': 'fcm'}),
+          201,
+        ),
       ),
     );
 
     expect(
-      await client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      await client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      ),
       'dev_1',
     );
   });
 
-  test('registerDevice maps 422 too_many_devices to TooManyDevicesException', () async {
-    final client = ApiClient.forTesting(
-      client: MockClient((_) async => http.Response('{"error":"too_many_devices"}', 422)),
-    );
+  test(
+    'registerDevice maps 422 too_many_devices to TooManyDevicesException',
+    () async {
+      final client = ApiClient.forTesting(
+        client: MockClient(
+          (_) async => http.Response('{"error":"too_many_devices"}', 422),
+        ),
+      );
 
-    expect(
-      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
-      throwsA(isA<TooManyDevicesException>()),
-    );
-  });
+      expect(
+        () => client.registerDevice(
+          recordId: 'rec_123',
+          pushToken: 't',
+          platform: 'fcm',
+        ),
+        throwsA(isA<TooManyDevicesException>()),
+      );
+    },
+  );
 
   test('429 responses surface as RateLimitedException', () async {
     final client = ApiClient.forTesting(
-      client: MockClient((_) async => http.Response('{"error":"rate_limit_exceeded"}', 429)),
+      client: MockClient(
+        (_) async => http.Response('{"error":"rate_limit_exceeded"}', 429),
+      ),
     );
 
     expect(
-      () => client.registerDevice(recordId: 'rec_123', pushToken: 't', platform: 'fcm'),
+      () => client.registerDevice(
+        recordId: 'rec_123',
+        pushToken: 't',
+        platform: 'fcm',
+      ),
       throwsA(isA<RateLimitedException>()),
     );
     expect(
       () => client.listPendingDeliveries(recordId: 'rec_123'),
       throwsA(isA<RateLimitedException>()),
     );
-    expect(() => client.deleteRecord(recordId: 'rec_123'), throwsA(isA<RateLimitedException>()));
+    expect(
+      () => client.deleteRecord(recordId: 'rec_123'),
+      throwsA(isA<RateLimitedException>()),
+    );
   });
 
   test('deleteDevice sends DELETE for the device', () async {
@@ -236,7 +325,9 @@ void main() {
 
   test('deletes treat 404 as already gone', () async {
     final client = ApiClient.forTesting(
-      client: MockClient((_) async => http.Response('{"error":"not_found"}', 404)),
+      client: MockClient(
+        (_) async => http.Response('{"error":"not_found"}', 404),
+      ),
     );
 
     await client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1');
@@ -244,22 +335,30 @@ void main() {
   });
 
   test('deletes surface server errors', () async {
-    final client = ApiClient.forTesting(client: MockClient((_) async => http.Response('', 500)));
+    final client = ApiClient.forTesting(
+      client: MockClient((_) async => http.Response('', 500)),
+    );
 
     expect(
       () => client.deleteDevice(recordId: 'rec_123', deviceId: 'dev_1'),
       throwsA(isA<Exception>()),
     );
-    expect(() => client.deleteRecord(recordId: 'rec_123'), throwsA(isA<Exception>()));
+    expect(
+      () => client.deleteRecord(recordId: 'rec_123'),
+      throwsA(isA<Exception>()),
+    );
   });
 
-  test('deliveryWebSocketUrl targets /ws/delivery over wss without the record ID', () {
-    final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl());
-    expect(url.scheme, 'wss');
-    expect(url.host, 'pux.test');
-    expect(url.path, '/ws/delivery');
-    expect(url.hasQuery, isFalse);
-  });
+  test(
+    'deliveryWebSocketUrl targets /ws/delivery over wss without the record ID',
+    () {
+      final url = Uri.parse(ApiClient.forTesting().deliveryWebSocketUrl());
+      expect(url.scheme, 'wss');
+      expect(url.host, 'pux.test');
+      expect(url.path, '/ws/delivery');
+      expect(url.hasQuery, isFalse);
+    },
+  );
 
   test('deliveryWebSocketUrl uses ws for http servers and keeps the port', () {
     RecordStore.instance.setServerUrlForTesting('http://localhost:4000');

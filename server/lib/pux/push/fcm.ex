@@ -6,6 +6,9 @@ defmodule Pux.Push.FCM do
   alert with a generic placeholder and `mutable-content`, which the app's
   Notification Service Extension replaces with the decrypted content. FCM
   delivers the `data` keys to iOS as top-level keys of the APNs payload.
+
+  A device's `push_token` is either a Firebase Installation ID (FID), which current apps
+  register, or a legacy registration token from older builds. See `target/1`.
   """
 
   require Logger
@@ -13,6 +16,7 @@ defmodule Pux.Push.FCM do
   @fcm_url "https://fcm.googleapis.com/v1/projects"
   @fcm_error_type "type.googleapis.com/google.firebase.fcm.v1.FcmError"
   @bad_request_type "type.googleapis.com/google.rpc.BadRequest"
+  @target_fields ["message.token", "message.fid"]
   @ttl_seconds 300
 
   @type result :: :ok | :unregistered | {:error, term()} | {:cancel, term()}
@@ -72,11 +76,25 @@ defmodule Pux.Push.FCM do
     end
   end
 
+  @doc """
+  The HTTP v1 field a push token is sent in: `fid` for a Firebase Installation ID, and
+  `token`, which FCM deprecates in favour of `fid`, for anything else. During FCM's
+  transition `token` also accepts FIDs, so a value that isn't clearly an FID goes there,
+  where it works either way.
+  """
+  @spec target(String.t()) :: :fid | :token
+  def target(push_token) when is_binary(push_token) do
+    # An FID is 128 bits in URL-safe base64 without padding: 22 characters, the first `c`,
+    # `d`, `e` or `f` because the first four bits are 0111. A registration token is far
+    # longer and has a colon in it, after the ID of the instance it was issued to.
+    if Regex.match?(~r/\A[cdef][A-Za-z0-9_-]{21}\z/, push_token), do: :fid, else: :token
+  end
+
   @doc false
   def message(push_token, envelope) do
     %{
       message: %{
-        token: push_token,
+        target(push_token) => push_token,
         data: %{"ciphertext" => envelope["ciphertext"] || envelope[:ciphertext]},
         android: %{priority: "HIGH", ttl: "#{@ttl_seconds}s"},
         apns: %{
@@ -171,11 +189,11 @@ defmodule Pux.Push.FCM do
     end)
   end
 
-  # INVALID_ARGUMENT also covers a bad payload, so it has to blame the token specifically.
+  # INVALID_ARGUMENT also covers a bad payload, so it has to blame the target specifically.
   defp invalid_token?(body) do
     Enum.any?(error_details(body), fn
       %{"@type" => @bad_request_type, "fieldViolations" => violations} when is_list(violations) ->
-        Enum.any?(violations, &match?(%{"field" => "message.token"}, &1))
+        Enum.any?(violations, &match?(%{"field" => field} when field in @target_fields, &1))
 
       _ ->
         false

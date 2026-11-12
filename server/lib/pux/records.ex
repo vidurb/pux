@@ -111,14 +111,22 @@ defmodule Pux.Records do
   @doc """
   Registers (or refreshes) a device. Re-registering an existing push token never
   counts against the per-record device cap.
+
+  A phone whose push token changes (a new Firebase Installation ID, or the move from a
+  registration token to an FID) passes the `device_id` it was given before as `:replaces`.
+  If that FCM device is still on the record, its token is replaced in place, so the phone
+  keeps one device row and gets each code once. That doesn't count against the cap either.
+  An unknown `:replaces`, or one naming a desktop, registers as if it were absent.
   """
   @spec register_device(Ecto.UUID.t(), map()) ::
           {:ok, Device.t()} | {:error, :not_found | :too_many_devices | Ecto.Changeset.t()}
   def register_device(record_id, attrs) do
+    {replaces, attrs} = Map.pop(attrs, :replaces)
+
     Repo.transaction(fn ->
       with %Record{} = record <- lock_record(record_id),
-           :ok <- check_device_cap(record.id, attrs[:push_token]),
-           {:ok, device} <- upsert_device(record, attrs) do
+           {:ok, device} <-
+             register_locked(record, replaced_device(record, attrs, replaces), attrs) do
         touch_record!(record)
         device
       else
@@ -127,6 +135,53 @@ defmodule Pux.Records do
       end
     end)
   end
+
+  defp register_locked(record, nil, attrs) do
+    with :ok <- check_device_cap(record.id, attrs[:push_token]) do
+      upsert_device(record, attrs)
+    end
+  end
+
+  defp register_locked(record, %Device{} = old, attrs) do
+    push_token = attrs[:push_token]
+
+    cond do
+      old.push_token == push_token ->
+        upsert_device(record, attrs)
+
+      # The new token already has its own row, so the old one is the duplicate.
+      token_on_record?(record.id, push_token) ->
+        Repo.delete!(old)
+        upsert_device(record, attrs)
+
+      true ->
+        old
+        |> Device.changeset(%{push_token: push_token, last_seen_at: DateTime.utc_now()})
+        # That check was about the old token.
+        |> Ecto.Changeset.put_change(:token_checked_at, nil)
+        |> Repo.update()
+    end
+  end
+
+  # Only phones change tokens: a desktop's ID is its own and never needs replacing.
+  defp replaced_device(%Record{id: record_id}, %{platform: :fcm}, replaces)
+       when is_binary(replaces) do
+    case Ecto.UUID.cast(replaces) do
+      {:ok, device_id} ->
+        Repo.one(
+          where(
+            Device,
+            [d],
+            d.id == ^device_id and d.record_id == ^record_id and d.platform == :fcm
+          )
+        )
+
+      :error ->
+        nil
+    end
+  end
+
+  defp replaced_device(_record, _attrs, _replaces), do: nil
 
   # Serializes registrations per record so concurrent requests can't overshoot the cap.
   defp lock_record(record_id) do
@@ -137,15 +192,15 @@ defmodule Pux.Records do
   end
 
   defp check_device_cap(record_id, push_token) do
-    existing? =
-      is_binary(push_token) and
-        Repo.exists?(
-          where(Device, [d], d.record_id == ^record_id and d.push_token == ^push_token)
-        )
-
+    existing? = token_on_record?(record_id, push_token)
     count = Repo.aggregate(where(Device, [d], d.record_id == ^record_id), :count)
 
     if existing? or count < max_devices(), do: :ok, else: {:error, :too_many_devices}
+  end
+
+  defp token_on_record?(record_id, push_token) do
+    is_binary(push_token) and
+      Repo.exists?(where(Device, [d], d.record_id == ^record_id and d.push_token == ^push_token))
   end
 
   defp upsert_device(record, attrs) do
@@ -155,7 +210,10 @@ defmodule Pux.Records do
     )
     |> Repo.insert(
       on_conflict: {:replace, [:platform, :last_seen_at, :updated_at]},
-      conflict_target: [:record_id, :push_token]
+      conflict_target: [:record_id, :push_token],
+      # Without this, re-registering returns the ID generated for the insert that didn't
+      # happen, and the app would store a device_id the server doesn't know.
+      returning: true
     )
   end
 
