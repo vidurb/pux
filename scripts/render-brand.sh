@@ -21,6 +21,11 @@ for spec in mdpi:24 hdpi:36 xhdpi:48 xxhdpi:72 xxxhdpi:96; do
   rsvg-convert -w "${spec##*:}" -h "${spec##*:}" brand/app/notification.svg -o "$dir/ic_stat_pux.png"
 done
 
+# macOS menu bar icon (a template image: macOS tints it to match the menu bar)
+menubar=mobile/macos/Runner/Assets.xcassets/MenuBarIcon.imageset
+rsvg-convert -w 18 -h 18 brand/app/notification.svg -o "$menubar/menubar.png"
+rsvg-convert -w 36 -h 36 brand/app/notification.svg -o "$menubar/menubar@2x.png"
+
 # Website
 static=server/priv/static
 mkdir -p "$static/images"

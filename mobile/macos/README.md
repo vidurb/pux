@@ -2,6 +2,20 @@
 
 The macOS app is a desktop client: it imports an enrollment exported from a phone and receives codes over a WebSocket (see the root [README](../../README.md#mobile)). It doesn't use Firebase or APNs, and it doesn't use the camera.
 
+## Menu bar
+
+Codes only arrive while the app runs, so pux stays in the menu bar ([`DesktopShell.swift`](Runner/DesktopShell.swift)). Closing the window hides it and the Dock icon; the menu bar icon, opening pux again, or tapping a code's notification brings it back. **Quit pux** in the menu bar icon's menu (or ⌘Q) quits.
+
+The app's **Desktop settings** screen (the gear on the home screen, or **Settings…** in the menu bar icon's menu) changes this:
+
+| Setting | Default | Stored in |
+|---------|---------|-----------|
+| Open at login | Off | The system, via `SMAppService` (macOS 13+). Also in System Settings → General → Login Items |
+| Start in the menu bar (no window at launch) | Off | `UserDefaults`, `desktop.startHidden` |
+| Quit when the window is closed | Off | `UserDefaults`, `desktop.closeQuits` |
+
+The window is hidden in `MainMenu.xib` (`visibleAtLaunch="NO"`) and shown at launch unless pux starts in the menu bar. The menu bar icon is `brand/app/notification.svg`, rendered by `scripts/render-brand.sh`.
+
 ## Entitlements
 
 | Entitlement | Why |

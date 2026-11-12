@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'crypto_service.dart';
+import 'desktop_shell.dart';
 import 'sensitive_clipboard.dart';
 
 const _copyActionId = 'copy_code';
@@ -329,7 +330,12 @@ class NotificationService {
       }
     } else if (response.actionId == null || response.actionId!.isEmpty) {
       final url = payload.url;
-      if (url != null) await _open(url);
+      if (url != null) {
+        await _open(url);
+      } else {
+        // The window may be hidden in the menu bar; the tap means "show me".
+        await DesktopShell.instance.showWindow();
+      }
     }
   }
 

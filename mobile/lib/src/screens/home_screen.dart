@@ -10,9 +10,11 @@ import '../app.dart';
 import '../services/api_client.dart';
 import '../services/delivery_controller.dart';
 import '../services/desktop_delivery_service.dart';
+import '../services/desktop_shell.dart';
 import '../services/record_store.dart';
 import '../services/sensitive_clipboard.dart';
 import 'delivery_prompts.dart';
+import 'desktop_settings_screen.dart';
 import 'enroll_chooser_screen.dart';
 import 'forwarding_help_screen.dart';
 import 'held_codes.dart';
@@ -233,6 +235,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: () => setState(() => _showQr = !_showQr),
             icon: const Icon(Icons.qr_code),
           ),
+          if (DesktopShell.instance.isSupported)
+            IconButton(
+              tooltip: 'Desktop settings',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DesktopSettingsScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.settings_outlined),
+            ),
           PopupMenuButton<String>(
             enabled: !_removing,
             onSelected: (value) {
