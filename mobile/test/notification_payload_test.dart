@@ -15,7 +15,10 @@ void main() {
     });
 
     test('treats payloads without a type as OTPs', () {
-      final n = RelayNotification.fromPayload({'otp': '123456', 'sender': 'ICICI'});
+      final n = RelayNotification.fromPayload({
+        'otp': '123456',
+        'sender': 'ICICI',
+      });
       expect(n.title, 'OTP from ICICI');
       expect(n.code, '123456');
     });
@@ -43,7 +46,11 @@ void main() {
     });
 
     test('payloads without verified (older servers) carry no marker', () {
-      final n = RelayNotification.fromPayload({'type': 'otp', 'otp': '1', 'sender': 'ICICI'});
+      final n = RelayNotification.fromPayload({
+        'type': 'otp',
+        'otp': '1',
+        'sender': 'ICICI',
+      });
       expect(n.title, 'OTP from ICICI');
     });
 
@@ -81,6 +88,43 @@ void main() {
       });
       expect(n.code, isNull);
       expect(n.body, contains('https://example.test/confirm'));
+      expect(n.url, isNull);
+    });
+
+    test('a forwarding confirmation link from Gmail can be opened', () {
+      for (final url in [
+        'https://mail.google.com/mail/vf-abc',
+        'https://mail-settings.google.com/mail/vf-%5BANGjdJ8%5D-abc',
+      ]) {
+        final n = RelayNotification.fromPayload({
+          'type': 'forward_confirm',
+          'url': url,
+        });
+        expect(n.url, Uri.parse(url));
+      }
+    });
+
+    test('only https links to Gmail can be opened', () {
+      for (final url in [
+        'http://mail.google.com/mail/vf-abc',
+        'https://mail.google.com.example.test/vf-abc',
+        'https://evil.test/mail.google.com',
+        'https://user@mail.google.com/vf-abc',
+        'https://mail.google.com:8443/vf-abc',
+        'javascript:alert(1)',
+        'not a url',
+      ]) {
+        expect(RelayNotification.confirmationUri(url), isNull, reason: url);
+      }
+    });
+
+    test('OTPs have no link', () {
+      final n = RelayNotification.fromPayload({
+        'type': 'otp',
+        'otp': '1',
+        'url': 'https://mail.google.com/mail/vf-abc',
+      });
+      expect(n.url, isNull);
     });
   });
 }

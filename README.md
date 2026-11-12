@@ -42,7 +42,7 @@ Forward only your bank's OTP emails to your pux inbox address, not your whole ma
 **Gmail** (filters can only be created on gmail.com in a browser):
 
 1. Settings → **See all settings** → **Forwarding and POP/IMAP** → **Add a forwarding address**, and enter your inbox address.
-2. Gmail sends a confirmation to that address; pux delivers it to the app as a notification with the code. Enter the code in Gmail. Leave forwarding itself disabled.
+2. Gmail sends a confirmation to that address; pux delivers it to the app as a notification. Tap it to open the confirmation link, or enter its code in Gmail. Leave forwarding itself disabled.
 3. In the search bar, open the search options, fill in **From** and **Subject** for your bank (see below), and choose **Create filter**.
 4. Tick **Forward it to**, pick your inbox address, and create the filter.
 

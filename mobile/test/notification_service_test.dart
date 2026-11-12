@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -13,8 +15,22 @@ void main() {
 
   late List<MethodCall> calls;
   String? clipboard;
+  late List<Uri> opened;
+
+  final confirmLink = Uri.parse('https://mail-settings.google.com/mail/vf-abc');
+  final confirmation = RelayNotification(
+    title: 'Email forwarding confirmation',
+    body: 'Forwarding from someone@gmail.com\nCode: 816235124\n$confirmLink',
+    code: '816235124',
+    url: confirmLink,
+  );
 
   setUp(() {
+    opened = [];
+    NotificationService.instance.openUrl = (url) async {
+      opened.add(url);
+      return true;
+    };
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     AndroidFlutterLocalNotificationsPlugin.registerWith();
     calls = [];
@@ -32,6 +48,7 @@ void main() {
   });
 
   tearDown(() {
+    NotificationService.instance.openUrl = (_) async => false;
     debugDefaultTargetPlatformOverride = null;
     messenger.setMockMethodCallHandler(_channel, null);
     messenger.setMockMethodCallHandler(SystemChannels.platform, null);
@@ -40,6 +57,22 @@ void main() {
   Map<dynamic, dynamic> shownArguments() =>
       calls.singleWhere((call) => call.method == 'show').arguments
           as Map<dynamic, dynamic>;
+
+  Future<void> respond({String? actionId, String? payload}) async {
+    await messenger.handlePlatformMessage(
+      _channel.name,
+      _channel.codec.encodeMethodCall(
+        MethodCall('didReceiveNotificationResponse', {
+          'notificationId': 1,
+          'actionId': ?actionId,
+          'payload': payload,
+          'notificationResponseType': actionId == null ? 0 : 1,
+        }),
+      ),
+      (_) {},
+    );
+    await pumpEventQueue();
+  }
 
   test('Android notifications are private and offer Copy code', () async {
     await NotificationService.instance.show(
@@ -53,7 +86,7 @@ void main() {
     final arguments = shownArguments();
     expect(arguments['title'], 'OTP from Bank');
     expect(arguments['body'], '123456');
-    expect(arguments['payload'], '123456');
+    expect(jsonDecode(arguments['payload'] as String), {'code': '123456'});
 
     final android = arguments['platformSpecifics'] as Map<dynamic, dynamic>;
     expect(android['channelId'], 'pux_otp');
@@ -99,6 +132,85 @@ void main() {
     expect(clipboard, '123456');
   });
 
+  test('Android notifications expand to show the whole body', () async {
+    await NotificationService.instance.show(confirmation);
+
+    final android =
+        shownArguments()['platformSpecifics'] as Map<dynamic, dynamic>;
+    expect(android['style'], AndroidNotificationStyle.bigText.index);
+    final style = android['styleInformation'] as Map<dynamic, dynamic>;
+    expect(style['bigText'], confirmation.body);
+  });
+
+  test('Android confirmations carry the code and link', () async {
+    await NotificationService.instance.show(confirmation);
+
+    expect(jsonDecode(shownArguments()['payload'] as String), {
+      'code': '816235124',
+      'url': confirmLink.toString(),
+    });
+  });
+
+  test('tapping a confirmation opens its link', () async {
+    await NotificationService.instance.init();
+
+    await respond(
+      payload: jsonEncode({'code': '816235124', 'url': confirmLink.toString()}),
+    );
+
+    expect(opened, [confirmLink]);
+    expect(clipboard, isNull);
+  });
+
+  test('Copy code on a confirmation copies without opening', () async {
+    await NotificationService.instance.init();
+
+    await respond(
+      actionId: 'copy_code',
+      payload: jsonEncode({'code': '816235124', 'url': confirmLink.toString()}),
+    );
+
+    expect(clipboard, '816235124');
+    expect(opened, isEmpty);
+  });
+
+  test('a link that is not Gmail\'s is never opened', () async {
+    await NotificationService.instance.init();
+
+    await respond(payload: jsonEncode({'url': 'https://evil.test/vf-abc'}));
+
+    expect(opened, isEmpty);
+  });
+
+  test('a link that fails to open is not an error', () async {
+    NotificationService.instance.openUrl = (_) async =>
+        throw PlatformException(code: 'ACTIVITY_NOT_FOUND');
+    await NotificationService.instance.init();
+
+    await respond(payload: jsonEncode({'url': confirmLink.toString()}));
+  });
+
+  test('iOS confirmations carry the link but not the code', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    IOSFlutterLocalNotificationsPlugin.registerWith();
+
+    await NotificationService.instance.show(confirmation);
+
+    expect(jsonDecode(shownArguments()['payload'] as String), {
+      'url': confirmLink.toString(),
+    });
+  });
+
+  test('tapping a confirmation on iOS opens its link', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    IOSFlutterLocalNotificationsPlugin.registerWith();
+    await NotificationService.instance.init();
+
+    await respond(payload: jsonEncode({'url': confirmLink.toString()}));
+
+    expect(opened, [confirmLink]);
+  });
+
   test('macOS notifications carry no payload', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     MacOSFlutterLocalNotificationsPlugin.registerWith();
@@ -116,23 +228,21 @@ void main() {
     expect(NotificationService.instance.codes.length, 0);
   });
 
+  test('Copy code still reads a bare code from an older build', () async {
+    await NotificationService.instance.init();
+
+    await respond(actionId: 'copy_code', payload: '0123456');
+
+    expect(clipboard, '0123456');
+  });
+
   test('tapping the notification itself does not copy', () async {
     await NotificationService.instance.init();
 
-    await messenger.handlePlatformMessage(
-      _channel.name,
-      _channel.codec.encodeMethodCall(
-        const MethodCall('didReceiveNotificationResponse', {
-          'notificationId': 1,
-          'payload': '123456',
-          'notificationResponseType': 0,
-        }),
-      ),
-      (_) {},
-    );
-    await pumpEventQueue();
+    await respond(payload: '123456');
 
     expect(clipboard, isNull);
+    expect(opened, isEmpty);
   });
 
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
@@ -167,7 +277,11 @@ void main() {
     setUp(() {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       plugin = _FakePlugin();
-      service = NotificationService.forTesting(plugin);
+      service = NotificationService.forTesting(plugin)
+        ..openUrl = (url) async {
+          opened.add(url);
+          return true;
+        };
     });
 
     Future<void> respond(int id, {String? actionId, String? payload}) async {
@@ -276,6 +390,18 @@ void main() {
         expect(service.codes.length, 0);
       },
     );
+
+    test('tapping a confirmation opens its link', () async {
+      await service.init();
+      await service.show(confirmation);
+
+      final shown = plugin.shown.single;
+      expect(jsonDecode(shown.payload!), {'url': confirmLink.toString()});
+
+      await respond(shown.id, payload: shown.payload);
+      expect(opened, [confirmLink]);
+      expect(clipboard, isNull);
+    });
 
     test('a notification that fails to show keeps nothing', () async {
       plugin.failShow = true;

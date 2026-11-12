@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'crypto_service.dart';
 import 'sensitive_clipboard.dart';
@@ -17,7 +19,12 @@ const _copyActionId = 'copy_code';
 /// without the key come from older servers and carry no marker.
 @immutable
 class RelayNotification {
-  const RelayNotification({required this.title, required this.body, this.code});
+  const RelayNotification({
+    required this.title,
+    required this.body,
+    this.code,
+    this.url,
+  });
 
   factory RelayNotification.fromPayload(Map<String, dynamic> payload) {
     final sender = payload['sender'] as String? ?? 'Unknown sender';
@@ -36,6 +43,7 @@ class RelayNotification {
             if (from == null) 'From $sender',
           ].join('\n'),
           code: code,
+          url: confirmationUri(url),
         );
       case 'otp':
       default:
@@ -54,7 +62,40 @@ class RelayNotification {
 
   /// Offered through the "Copy code" action, when present.
   final String? code;
+
+  /// Opened by tapping the notification, when present. Only ever a Gmail
+  /// forwarding confirmation link (see [confirmationUri]).
+  final Uri? url;
+
+  /// Hosts Gmail sends forwarding confirmation links from. The server only
+  /// passes these on from mail with a valid google.com DKIM signature; the
+  /// app checks again, so a link it opens can only lead to Google.
+  static const confirmationHosts = {
+    'mail.google.com',
+    'mail-settings.google.com',
+  };
+
+  /// [url] as a link the app may open, or null.
+  @visibleForTesting
+  static Uri? confirmationUri(String? url) {
+    if (url == null) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasPort ||
+        !confirmationHosts.contains(uri.host)) {
+      return null;
+    }
+    return uri;
+  }
 }
+
+/// Opens a link outside the app. Returns whether it did.
+typedef UrlOpener = Future<bool> Function(Uri url);
+
+Future<bool> _openExternally(Uri url) =>
+    launchUrl(url, mode: LaunchMode.externalApplication);
 
 /// Codes for the "Copy code" action, kept in memory by notification ID so the
 /// code never becomes the plugin's payload. Nothing here is written to disk, so
@@ -112,6 +153,10 @@ class NotificationService {
   @visibleForTesting
   final NotificationCodes codes = NotificationCodes();
 
+  /// Opens a tapped notification's link.
+  @visibleForTesting
+  UrlOpener openUrl = _openExternally;
+
   /// Where the "Copy code" action finds its code.
   ///
   /// - Android: in the payload. The system keeps it in the action's intent, not
@@ -124,6 +169,9 @@ class NotificationService {
   /// - Elsewhere there is no action, so the code isn't passed on at all. macOS
   ///   would keep it in the notification's userInfo, and Windows in the toast's
   ///   launch arguments.
+  ///
+  /// A link goes in the payload everywhere: the body already shows it, so the
+  /// system holds it either way.
   static bool get _codeInPayload =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
@@ -212,6 +260,9 @@ class NotificationService {
       // On a secure lock screen Android shows only "pux" with the contents
       // hidden. flutter_local_notifications cannot set a custom public version.
       visibility: NotificationVisibility.private,
+      // Collapsed, Android shows only the first line; a forwarding
+      // confirmation's code and link come after it.
+      styleInformation: BigTextStyleInformation(notification.body),
       actions: [
         if (notification.code != null)
           const AndroidNotificationAction(
@@ -246,7 +297,10 @@ class NotificationService {
           linux: linuxDetails,
           windows: windowsDetails,
         ),
-        payload: _codeInPayload ? code : null,
+        payload: _payload(
+          code: _codeInPayload ? code : null,
+          url: notification.url,
+        ),
       );
     } catch (_) {
       codes.remove(id);
@@ -261,13 +315,56 @@ class NotificationService {
 
   Future<void> _onResponse(NotificationResponse response) async {
     final id = response.id;
-    // Outside Android the payload is never a code, so it isn't read. A Linux
-    // notification left from before a restart finds nothing and copies nothing.
+    final payload = _readPayload(response.payload);
+    // Outside Android the payload never carries a code, so none is read from
+    // it. A Linux notification left from before a restart finds nothing in
+    // memory and copies nothing.
     final code = _codeInPayload
-        ? response.payload
+        ? payload.code
         : (id == null ? null : codes.take(id));
-    if (response.actionId == _copyActionId && code != null && code.isNotEmpty) {
-      await SensitiveClipboard.instance.copy(code);
+
+    if (response.actionId == _copyActionId) {
+      if (code != null && code.isNotEmpty) {
+        await SensitiveClipboard.instance.copy(code);
+      }
+    } else if (response.actionId == null || response.actionId!.isEmpty) {
+      final url = payload.url;
+      if (url != null) await _open(url);
     }
+  }
+
+  Future<void> _open(Uri url) async {
+    try {
+      if (!await openUrl(url)) debugPrint('No app opened the link');
+    } catch (error) {
+      debugPrint('Failed to open the link: $error');
+    }
+  }
+
+  /// JSON with `code` and `url` when either is set, or null.
+  static String? _payload({String? code, Uri? url}) {
+    if (code == null && url == null) return null;
+    return jsonEncode({'code': ?code, 'url': ?url?.toString()});
+  }
+
+  /// Reads [_payload]'s output. Android notifications from older builds carry
+  /// the bare code. The link is checked again: the payload comes back from the
+  /// system, and Linux keeps it in a file this app doesn't control.
+  static ({String? code, Uri? url}) _readPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return (code: null, url: null);
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) {
+        final code = decoded['code'];
+        final url = decoded['url'];
+        return (
+          code: code is String ? code : null,
+          url: url is String ? RelayNotification.confirmationUri(url) : null,
+        );
+      }
+    } on FormatException {
+      // A bare code.
+    }
+    return (code: payload, url: null);
   }
 }
