@@ -35,4 +35,7 @@ jobs:
             style
           # A one-commit PR is squashed with that commit's message, not the title.
           validateSingleCommit: true
-          validateSingleCommitMatchesPrTitle: true
+          # Dependabot titles a group with one update differently from its commit
+          # ("bump x from 1 to 2 in the y group" vs "bump x"). The commit is still
+          # checked above and is what gets squash-merged, so skip the match there.
+          validateSingleCommitMatchesPrTitle: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
