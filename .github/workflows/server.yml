@@ -67,8 +67,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          elixir-version: "1.18.4"
-          otp-version: "27.3.4.16"
+          elixir-version: "1.20.5"
+          otp-version: "29.1.2"
       - run: sudo apt-get update && sudo apt-get install -y libsodium-dev
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -127,23 +127,16 @@ jobs:
           context: server
           load: true
           tags: pux-server:ci
-      # Booting can't catch this: musl 1.2.6 makes OTP 27 abort on every start on Intel
-      # AMX hosts and never elsewhere, and only about 1 runner in 10 has AMX. So check the
-      # version instead, on both platforms since they build from the same Dockerfile.
-      # Remove this once the image's OTP includes erlang/otp#11810.
-      - name: Both stages use a musl that OTP 27 can start on, on any CPU
+      # Records whether this run landed on an Intel AMX host, where OTP before 29.1 aborted
+      # at start under musl 1.2.6 (#38). Only about 1 runner in 10 has AMX, so a passing
+      # run only covers that case when this says "host has AMX". Informational only.
+      - name: Host CPU
+        continue-on-error: true
         run: |
           uname -m
           grep -m1 -E '^(model name|CPU part)' /proc/cpuinfo || true
-          grep -qw amx_tile /proc/cpuinfo && echo "host has AMX" || echo "host has no AMX"
+          if grep -qw amx_tile /proc/cpuinfo; then echo "host has AMX"; else echo "host has no AMX"; fi
           LD_SHOW_AUXV=1 /bin/true | grep AT_MINSIGSTKSZ || true
-          docker buildx build --target build --load -t pux-server:ci-build server
-          for image in pux-server:ci-build pux-server:ci; do
-            version=$(docker run --rm --entrypoint sh "$image" -c '/lib/ld-musl-*.so.1 2>&1 || true' | sed -n 's/^Version //p')
-            echo "$image: musl $version"
-            test -n "$version"
-            test "$(printf '%s\n1.2.6\n' "$version" | sort -V | head -n 1)" != 1.2.6
-          done
       - name: Release boots as non-root on a read-only filesystem
         run: |
           docker run --rm --read-only --tmpfs /tmp \
