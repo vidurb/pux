@@ -17,6 +17,24 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 
 <img src="brand/screenshots/app-notification.png" alt="App screenshot: a phone lock screen with no mobile service but on Wi-Fi, showing a pux notification with the code 482913 from Northwind Bank" height="360"> <img src="brand/screenshots/app-devices.png" alt="App screenshot: the same code arriving as a notification on a laptop and on a second phone" height="360"> <img src="brand/screenshots/app-forwarding.png" alt="App screenshot: the app's Set up forwarding screen, with the relay's inbox address and the first Gmail filter steps" height="360">
 
+## Download
+
+Builds of the [latest release](https://github.com/vidurb/pux/releases/latest), all set up for the hosted instance:
+
+<!-- x-release-please-start-version -->
+| Platform | Download |
+|----------|----------|
+| Android | [pux-0.1.0-android.apk](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-android.apk) |
+| macOS 12 or later (signed and notarized) | [pux-0.1.0-macos.dmg](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-macos.dmg) |
+| Debian 12, Ubuntu 22.04 or later | [pux-0.1.0-linux-amd64.deb](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-linux-amd64.deb) |
+| Other Linux, x86-64 | [pux-0.1.0-linux-x64.tar.gz](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-linux-x64.tar.gz) |
+| iOS | TestFlight beta, by invitation for now |
+
+Checksums: [SHA256SUMS](https://github.com/vidurb/pux/releases/download/v0.1.0/SHA256SUMS). Server image: `ghcr.io/vidurb/pux-server:0.1.0`.
+<!-- x-release-please-end -->
+
+See [Installing the desktop apps](#installing-the-desktop-apps) for what each desktop build needs.
+
 ## Setting up forwarding
 
 Forward only your bank's OTP emails to your pux inbox address, not your whole mailbox. The app shows these steps under **How to set up forwarding**.
