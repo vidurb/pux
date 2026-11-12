@@ -106,7 +106,7 @@ class RecordStore {
     await _storage.write(key: _deviceIdKey, value: deviceId);
   }
 
-  /// Which background restriction prompts the user dismissed. [clear] forgets
+  /// Which restriction prompts the user dismissed. [clear] forgets
   /// these along with the enrollment, so setting up again asks again.
   Future<Set<String>> dismissedRestrictionPrompts() async {
     final stored = await _storage.read(key: _dismissedRestrictionPromptsKey);

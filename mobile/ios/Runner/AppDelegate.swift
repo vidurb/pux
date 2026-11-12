@@ -22,5 +22,21 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    FlutterMethodChannel(
+      name: "xyz.vidur.pux/notification_permissions",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    ).setMethodCallHandler { call, result in
+      guard call.method == "getStatus" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      // flutter_local_notifications reports the rest of these settings. pux's
+      // notifications aren't time-sensitive, so that setting changes nothing
+      // and isn't reported.
+      UNUserNotificationCenter.current().getNotificationSettings { settings in
+        let summary = settings.scheduledDeliverySetting == .enabled
+        DispatchQueue.main.async { result(["scheduledSummary": summary]) }
+      }
+    }
   }
 }

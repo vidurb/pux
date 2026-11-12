@@ -68,19 +68,24 @@ class MainActivity : FlutterActivity() {
 
     private fun notificationStatus(): Map<String, Boolean?> {
         val notifications = NotificationManagerCompat.from(this)
+        // Null before Android 8, and until the first code creates the channel.
+        // The channel has no group, so a blocked group can't hide it.
+        val importance = notifications.getNotificationChannelCompat(OTP_NOTIFICATION_CHANNEL)?.importance
+        val channelEnabled = importance?.let { it != NotificationManagerCompat.IMPORTANCE_NONE }
         return mapOf(
             // Covers the Android 13+ permission and the per-app switch on every version.
             "appEnabled" to notifications.areNotificationsEnabled(),
-            // Null before Android 8, and until the first code creates the channel.
-            "channelEnabled" to
-                notifications.getNotificationChannelCompat(OTP_NOTIFICATION_CHANNEL)?.let {
-                    it.importance != NotificationManagerCompat.IMPORTANCE_NONE
-                },
+            "channelEnabled" to channelEnabled,
+            // On, but below the high importance it's created with: no pop-up, and
+            // no sound below default. Null while it's off.
+            "channelQuiet" to
+                importance?.takeIf { channelEnabled == true }?.let { it < NotificationManagerCompat.IMPORTANCE_HIGH },
         )
     }
 
     // The channel page is only useful once the app's own notifications are on, so
-    // Dart asks for it only then. Android before 8 has neither page.
+    // Dart asks for it only then: when the channel is off or quiet. Android before 8
+    // has neither page.
     private fun openNotificationSettings(channel: String? = null): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return openAppSettings()
 
