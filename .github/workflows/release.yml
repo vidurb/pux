@@ -89,7 +89,7 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Gradle 8.14 can't run on the runner's default JDK; match mise.toml.
+      # Pin the JDK Gradle and AGP run on (17, as in mise.toml).
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin

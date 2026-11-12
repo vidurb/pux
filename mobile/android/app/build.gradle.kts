@@ -3,7 +3,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    // With android.builtInKotlin=false the Flutter Gradle Plugin applies Kotlin
+    // itself, so it isn't listed here. It must come after the Android plugin.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -21,19 +22,15 @@ fun keystoreProperty(name: String): String =
 
 android {
     namespace = "xyz.vidur.pux"
-    compileSdk = flutter.compileSdkVersion
+    // androidx.core 1.19 (from flutter_local_notifications 23) needs compileSdk
+    // 37, one above Flutter's default. targetSdk stays on Flutter's.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
     }
 
     signingConfigs {
@@ -78,6 +75,12 @@ gradle.taskGraph.whenReady {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+    }
+}
+
 flutter {
     source = "../.."
 }
@@ -86,7 +89,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // PackageManagerCompat and IntentCompat, for app hibernation. Plugins already
     // bring in this version; ListenableFuture is its status call's return type.
-    implementation("androidx.core:core:1.13.1")
+    implementation("androidx.core:core:1.19.0")
     implementation("com.google.guava:listenablefuture:1.0")
 }
 
