@@ -56,6 +56,43 @@ defmodule Pux.Push.FCMTest do
     assert message.data == %{"ciphertext" => "c"}
   end
 
+  describe "the send target" do
+    # Shaped like real ones: an FID is 22 URL-safe base64 characters, and a registration
+    # token is the FID it was issued to, a colon and a long opaque string.
+    @fid "cK3xyBMtTnu-Wd_9Q2Zk1a"
+    @token "cK3xyBMtTnu-Wd_9Q2Zk1a:APA91bH" <> String.duplicate("x", 140)
+
+    test "a Firebase Installation ID is sent as fid" do
+      assert FCM.target(@fid) == :fid
+      assert %{message: %{fid: @fid} = message} = FCM.message(@fid, %{"ciphertext" => "c"})
+      refute Map.has_key?(message, :token)
+    end
+
+    test "a registration token from an older app is still sent as token" do
+      assert FCM.target(@token) == :token
+      assert %{message: %{token: @token} = message} = FCM.message(@token, %{"ciphertext" => "c"})
+      refute Map.has_key?(message, :fid)
+    end
+
+    test "anything that isn't clearly an FID goes to token, which also accepts FIDs" do
+      for value <- [
+            "tok",
+            "fcm-token-xyz",
+            # 22 characters, but not starting with the FID prefix bits
+            "AK3xyBMtTnu-Wd_9Q2Zk1a",
+            # base64 padding or the standard alphabet
+            "cK3xyBMtTnu+Wd/9Q2Zk1a",
+            "cK3xyBMtTnu-Wd_9Q2Zk1=",
+            # one character too few or too many
+            "cK3xyBMtTnu-Wd_9Q2Zk1",
+            "cK3xyBMtTnu-Wd_9Q2Zk1ab",
+            @fid <> "\n"
+          ] do
+        assert FCM.target(value) == :token, value
+      end
+    end
+  end
+
   test "maps FCM responses to job outcomes" do
     capture_log(fn ->
       assert :ok = FCM.classify_response(200, "{}")
@@ -93,6 +130,16 @@ defmodule Pux.Push.FCMTest do
         error_body("INVALID_ARGUMENT", [
           %{"@type" => @fcm_error, "errorCode" => "INVALID_ARGUMENT"},
           %{"@type" => @bad_request, "fieldViolations" => [%{"field" => "message.token"}]}
+        ])
+
+      capture_log(fn -> assert :unregistered = FCM.classify_response(400, body) end)
+    end
+
+    test "a 400 that blames the fid field" do
+      body =
+        error_body("INVALID_ARGUMENT", [
+          %{"@type" => @fcm_error, "errorCode" => "INVALID_ARGUMENT"},
+          %{"@type" => @bad_request, "fieldViolations" => [%{"field" => "message.fid"}]}
         ])
 
       capture_log(fn -> assert :unregistered = FCM.classify_response(400, body) end)

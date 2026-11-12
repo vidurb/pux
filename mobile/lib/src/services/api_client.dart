@@ -43,7 +43,8 @@ class ApiClient {
   ApiClient._({http.Client? client}) : _client = client ?? http.Client();
 
   @visibleForTesting
-  ApiClient.forTesting({http.Client? client}) : _client = client ?? http.Client();
+  ApiClient.forTesting({http.Client? client})
+    : _client = client ?? http.Client();
 
   static ApiClient _instance = ApiClient._();
   static ApiClient get instance => _instance;
@@ -80,24 +81,40 @@ class ApiClient {
   }
 
   /// Returns the server's device ID, used to remove this device later.
+  ///
+  /// [replacesDeviceId] is the ID from this phone's last registration. If
+  /// [pushToken] is new, the server replaces that device's token instead of
+  /// adding a second device, which would get every code twice. Servers that
+  /// predate it ignore it.
   Future<String?> registerDevice({
     required String recordId,
     required String pushToken,
     required String platform,
+    String? replacesDeviceId,
   }) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices');
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/devices',
+    );
     final response = await _client
         .post(
           uri,
-          headers: {'authorization': 'Bearer $recordId', 'content-type': 'application/json'},
-          body: jsonEncode({'push_token': pushToken, 'platform': platform}),
+          headers: {
+            'authorization': 'Bearer $recordId',
+            'content-type': 'application/json',
+          },
+          body: jsonEncode({
+            'push_token': pushToken,
+            'platform': platform,
+            'device_id': ?replacesDeviceId,
+          }),
         )
         .timeout(_timeout);
 
     if (response.statusCode == 401 || response.statusCode == 404) {
       throw const RecordNotFoundException();
     }
-    if (response.statusCode == 422 && _errorCode(response) == 'too_many_devices') {
+    if (response.statusCode == 422 &&
+        _errorCode(response) == 'too_many_devices') {
       throw const TooManyDevicesException();
     }
     _check(response, 'Device registration');
@@ -107,8 +124,13 @@ class ApiClient {
 
   /// Removes one device from the record. A device or record the server no
   /// longer knows counts as removed.
-  Future<void> deleteDevice({required String recordId, required String deviceId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices/$deviceId');
+  Future<void> deleteDevice({
+    required String recordId,
+    required String deviceId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/devices/$deviceId',
+    );
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -133,8 +155,12 @@ class ApiClient {
   /// first, so a full page may have left newer ones out.
   static const pendingPageSize = 50;
 
-  Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries');
+  Future<List<PendingDelivery>> listPendingDeliveries({
+    required String recordId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/deliveries',
+    );
     final response = await _client
         .get(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -158,8 +184,13 @@ class ApiClient {
 
   /// A delivery or record the server no longer knows counts as acknowledged.
   /// The next poll reports a record that is gone.
-  Future<void> ackDelivery({required String recordId, required String deliveryId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries/$deliveryId');
+  Future<void> ackDelivery({
+    required String recordId,
+    required String deliveryId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/deliveries/$deliveryId',
+    );
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -189,7 +220,8 @@ class ApiClient {
     }
   }
 
-  String? _errorCode(http.Response response) => _decodeObject(response)?['error'] as String?;
+  String? _errorCode(http.Response response) =>
+      _decodeObject(response)?['error'] as String?;
 
   Map<String, dynamic>? _decodeObject(http.Response response) {
     try {
