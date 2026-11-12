@@ -20,7 +20,6 @@ bundle=$(cd "$1" && pwd)
 version=${2/-/\~}
 output=$3
 here=$(cd "$(dirname "$0")" && pwd)
-icon="$here/../../assets/icon/macos.png"
 
 case "$(uname -m)" in
   x86_64) arch=amd64 ;;
@@ -38,9 +37,9 @@ install -d "$root/opt/pux" "$root/usr/bin" "$root/DEBIAN" \
 cp -a "$bundle/." "$root/opt/pux/"
 ln -s /opt/pux/pux "$root/usr/bin/pux"
 install -m 644 "$here/xyz.vidur.pux.desktop" "$root/usr/share/applications/"
-# The icon source is 1024px; hicolor has no such size, so declare it as 512 and
-# let the icon theme scale it.
-install -m 644 "$icon" "$root/usr/share/icons/hicolor/512x512/apps/xyz.vidur.pux.png"
+# The bundle carries the window icon (assets/icon/macos.png, 1024px). hicolor
+# has no such size, so declare it as 512 and let the icon theme scale it.
+install -m 644 "$bundle/data/xyz.vidur.pux.png" "$root/usr/share/icons/hicolor/512x512/apps/xyz.vidur.pux.png"
 install -m 644 "$here/copyright" "$root/usr/share/doc/pux/copyright"
 
 # dpkg-shlibdeps wants a debian/control; the libraries in the bundle are private,
@@ -59,7 +58,7 @@ cat > "$root/DEBIAN/control" <<CONTROL
 Package: pux
 Version: $version
 Architecture: $arch
-Maintainer: vidurb <https://github.com/vidurb/pux>
+Maintainer: Vidur Butalia <https://github.com/vidurb/pux>
 Installed-Size: $size
 Depends: $depends
 Recommends: gnome-keyring | kwalletmanager | keepassxc

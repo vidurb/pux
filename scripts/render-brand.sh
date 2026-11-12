@@ -39,3 +39,9 @@ open(sys.argv[2], "wb").write(
 )
 PY
 rm "$static/favicon-32.png.tmp"
+
+# Store listings. Play rejects a feature graphic with an alpha channel, so
+# flatten it onto pine.
+store=brand/store
+mkdir -p "$store"
+rsvg-convert -w 1024 -h 500 -b '#0E3B32' brand/play-feature-graphic.svg -o "$store/play-feature-graphic.png"

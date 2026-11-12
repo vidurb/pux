@@ -43,8 +43,9 @@ class HeldDelivery {
 ///
 /// - `allowed`: show and acknowledge. Linux and Windows always answer this, as
 ///   they have no permission to read, so the OS can still drop a code there.
-/// - `off`: hold, without showing. The code appears in [held] and stays on the
-///   server, and is shown and acknowledged when notifications come back.
+/// - `off` or `notAsked`: hold, without showing. The code appears in [held]
+///   and stays on the server, and is shown and acknowledged when notifications
+///   come back.
 /// - `quiet`, or the read failed: show and also hold, without acknowledging.
 ///   The OS may or may not display it. Nothing blocks on the answer: every code
 ///   is still shown, and the server's expiry bounds what stays unacknowledged.
@@ -410,7 +411,7 @@ class DesktopDeliveryService implements DeliveryService {
       final access = await _checkAccess();
       if (session != _session) return;
 
-      if (access == NotificationAccess.off) {
+      if (access?.hidesCodes ?? false) {
         _hold(deliveryId, notification, notified: false);
         return;
       }
@@ -547,7 +548,7 @@ class DesktopDeliveryService implements DeliveryService {
         if (session != _session) return;
 
         for (final delivery in _holding.values.toList()) {
-          if (access == NotificationAccess.off) {
+          if (access?.hidesCodes ?? false) {
             // Handed over without an answer, then found to be off: it was
             // probably dropped, so show it again when notifications come back.
             delivery.notified = false;

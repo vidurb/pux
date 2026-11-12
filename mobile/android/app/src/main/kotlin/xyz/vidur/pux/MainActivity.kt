@@ -1,5 +1,6 @@
 package xyz.vidur.pux
 
+import android.Manifest
 import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -7,6 +8,7 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -66,7 +68,7 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun notificationStatus(): Map<String, Boolean?> {
+    private fun notificationStatus(): Map<String, Any?> {
         val notifications = NotificationManagerCompat.from(this)
         return mapOf(
             // Covers the Android 13+ permission and the per-app switch on every version.
@@ -76,7 +78,22 @@ class MainActivity : FlutterActivity() {
                 notifications.getNotificationChannelCompat(OTP_NOTIFICATION_CHANNEL)?.let {
                     it.importance != NotificationManagerCompat.IMPORTANCE_NONE
                 },
+            "permission" to notificationPermission(),
         )
+    }
+
+    // The Android 13+ runtime permission, or null where there is none. Android
+    // can't say whether it has ever been asked for: "notGranted" is either never
+    // asked or denied for good, so Dart keeps its own record of having asked.
+    // "denied" means denied once, and Android would still show its prompt.
+    private fun notificationPermission(): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        return when {
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED -> "granted"
+            shouldShowRequestPermissionRationale(permission) -> "denied"
+            else -> "notGranted"
+        }
     }
 
     // The channel page is only useful once the app's own notifications are on, so

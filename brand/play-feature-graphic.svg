@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <!-- Google Play feature graphic. Everything sits at least 64px in from the edges. -->
+  <rect width="1024" height="500" fill="#0E3B32"/>
+  <g fill="#DDF3D6" transform="translate(80 104) scale(.36)">
+    <path fill-rule="evenodd" transform="scale(.6667) translate(-136 -96)" d="M136 96H256A120 120 0 0 1 256 336H208V432H136ZM256 154A42 42 0 0 1 278 232L294 288H218L234 232A42 42 0 0 1 256 154Z"/>
+    <path d="M188 0h48v86a30 30 0 0 0 60 0V0h48v160h-48v-10a78 78 0 0 1-108-64Z"/>
+    <path d="M370 0h56l26 44 26-44h54l-53 80 53 80h-56l-26-43-26 43h-54l53-80Z"/>
+  </g>
+  <text fill="#F5F8F1" font-size="48" font-weight="800" letter-spacing="-.6">
+    <tspan x="80" y="272">Bank OTPs on</tspan>
+    <tspan x="80" y="328">every device.</tspan>
+  </text>
+  <text x="80" y="380" fill="#DDF3D6" font-size="23">Even when your phone has no signal.</text>
+
+  <!-- A second device's copy of the notification, behind the first. -->
+  <rect x="588" y="146" width="356" height="148" rx="28" fill="#0A2C25" stroke="#2C6355" stroke-width="2"/>
+  <!-- The notification, as the app shows it. -->
+  <g transform="translate(560 196)">
+    <rect width="384" height="152" rx="28" fill="#F5F8F1"/>
+    <rect x="24" y="24" width="56" height="56" rx="13" fill="#0E3B32"/>
+    <path fill="#DDF3D6" fill-rule="evenodd" transform="translate(40 35.5) scale(.1) translate(-136 -96)" d="M136 96H256A120 120 0 0 1 256 336H208V432H136ZM256 154A42 42 0 0 1 278 232L294 288H218L234 232A42 42 0 0 1 256 154Z"/>
+    <text x="100" y="44" fill="#47574F" font-size="17" font-weight="600">pux</text>
+    <text x="360" y="44" fill="#47574F" font-size="17" text-anchor="end">now</text>
+    <text x="100" y="74" fill="#0C1F1B" font-size="21" font-weight="600">OTP from Northwind Bank</text>
+    <text x="100" y="124" fill="#0C1F1B" font-size="44" font-weight="700" letter-spacing="4">482913</text>
+  </g>
+</svg>

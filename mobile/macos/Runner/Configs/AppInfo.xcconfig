@@ -11,4 +11,4 @@ PRODUCT_NAME = pux
 PRODUCT_BUNDLE_IDENTIFIER = xyz.vidur.pux
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 xyz.vidur. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Vidur Butalia. Licensed under the GNU AGPL, version 3 or later.

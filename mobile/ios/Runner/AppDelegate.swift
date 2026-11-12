@@ -22,5 +22,38 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    NotificationAuthorization.register(messenger: engineBridge.applicationRegistrar.messenger())
+  }
+}
+
+/// Reports whether the user has been asked about notifications yet, which
+/// flutter_local_notifications' checkPermissions can't tell from a denial.
+/// Dart shows its explainer before the system prompt only while this is
+/// "notDetermined".
+enum NotificationAuthorization {
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "xyz.vidur.pux/notification_permissions", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "getAuthorizationStatus" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      UNUserNotificationCenter.current().getNotificationSettings { settings in
+        let status = NotificationAuthorization.name(of: settings.authorizationStatus)
+        DispatchQueue.main.async { result(status) }
+      }
+    }
+  }
+
+  private static func name(of status: UNAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined: return "notDetermined"
+    case .denied: return "denied"
+    case .authorized: return "authorized"
+    case .provisional: return "provisional"
+    case .ephemeral: return "ephemeral"
+    @unknown default: return "unknown"
+    }
   }
 }

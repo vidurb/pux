@@ -16,6 +16,8 @@ import 'delivery_prompts.dart';
 import 'enroll_chooser_screen.dart';
 import 'forwarding_help_screen.dart';
 import 'held_codes.dart';
+import 'server_status.dart';
+import 'test_code.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -261,6 +263,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const DeliveryPrompts(),
           HeldCodes(held: DesktopDeliveryService.instance.held),
           RecentCodes(recent: DesktopDeliveryService.instance.recent),
+          const ServerStatus(),
           ValueListenableBuilder<DeliveryStatus>(
             valueListenable: DeliveryController.instance.status,
             builder: (context, status, _) => _DeliveryBanner(
@@ -293,6 +296,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               icon: const Icon(Icons.help_outline),
               label: const Text('How to set up forwarding'),
             ),
+            const SizedBox(height: 8),
+            SendTestCodeButton(inbox: _inbox!),
           ],
           const SizedBox(height: 24),
           if (_showQr && _enrollmentJson != null) ...[

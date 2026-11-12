@@ -97,6 +97,12 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
+# The window icon, which my_application.cc loads from here. The .deb also
+# installs it into the icon theme for the desktop entry.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon/macos.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "${APPLICATION_ID}.png"
+  COMPONENT Runtime)
+
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 

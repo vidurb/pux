@@ -16,7 +16,12 @@ class RecordStore {
   static const _serverKey = 'server_url';
   static const _desktopDeviceIdKey = 'desktop_device_id';
   static const _deviceIdKey = 'device_id';
-  static const _dismissedRestrictionPromptsKey = 'dismissed_restriction_prompts';
+  static const _dismissedRestrictionPromptsKey =
+      'dismissed_restriction_prompts';
+  static const _notificationPermissionAskedKey =
+      'notification_permission_asked';
+  static const _notificationExplainerSkippedKey =
+      'notification_explainer_skipped';
 
   static const _cleartextHosts = {'localhost', '127.0.0.1', '10.0.2.2'};
   static final _uuid = RegExp(
@@ -31,7 +36,9 @@ class RecordStore {
   // Android: v10 migrates EncryptedSharedPreferences data to its own ciphers.
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
   );
 
   late String _defaultServerUrl;
@@ -110,15 +117,36 @@ class RecordStore {
     return stored.split(',').toSet();
   }
 
-  Future<void> saveDismissedRestrictionPrompts(Set<String> names) =>
-      _storage.write(key: _dismissedRestrictionPromptsKey, value: names.join(','));
+  Future<void> saveDismissedRestrictionPrompts(Set<String> names) => _storage
+      .write(key: _dismissedRestrictionPromptsKey, value: names.join(','));
+
+  /// Whether pux has asked the OS for notification permission on this device.
+  /// Android 13+ can't tell never asked from denied for good, so this is how
+  /// NotificationPermissions tells them apart. It describes the OS, not the
+  /// relay, so [clear] keeps it: asking again would only show nothing.
+  Future<bool> notificationPermissionAsked() async =>
+      await _storage.read(key: _notificationPermissionAskedKey) == 'true';
+
+  Future<void> saveNotificationPermissionAsked() =>
+      _storage.write(key: _notificationPermissionAskedKey, value: 'true');
+
+  /// Whether the user chose "Not now" on the notification explainer, so it
+  /// doesn't open by itself again. [clear] forgets this, so setting up again
+  /// explains again.
+  Future<bool> notificationExplainerSkipped() async =>
+      await _storage.read(key: _notificationExplainerSkippedKey) == 'true';
+
+  Future<void> saveNotificationExplainerSkipped() =>
+      _storage.write(key: _notificationExplainerSkippedKey, value: 'true');
 
   /// The validated server an enrollment payload points at: its `server`, or
   /// the current one when absent. Throws [FormatException] if it is unsafe.
   String enrollmentServer(Map<String, dynamic> payload) {
     final server = payload['server'];
-    if (server == null || (server is String && server.isEmpty)) return serverUrl;
-    if (server is! String) throw const FormatException('Invalid server in enrollment');
+    if (server == null || (server is String && server.isEmpty))
+      return serverUrl;
+    if (server is! String)
+      throw const FormatException('Invalid server in enrollment');
     // The build's own default is trusted, so development builds can point anywhere.
     if (server == _defaultServerUrl) return server;
     return validateServerUrl(server);
@@ -138,8 +166,13 @@ class RecordStore {
         'Refusing insecure server ${uri.scheme}://${uri.host}: https is required',
       );
     }
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment || uri.path.length > 1) {
-      throw const FormatException('Server URL must not have a path, query or credentials');
+    if (uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.path.length > 1) {
+      throw const FormatException(
+        'Server URL must not have a path, query or credentials',
+      );
     }
     return uri.replace(path: '').toString();
   }
@@ -166,10 +199,31 @@ class RecordStore {
     };
   }
 
-  /// Forgets the enrollment (keys, record, server) on this device only.
+  /// Forgets the enrollment (keys, record, server) on this device only. Keeps
+  /// [notificationPermissionAsked], which is about the device.
   Future<void> clear() async {
+    final asked = await _readOrNull(_notificationPermissionAskedKey);
     await _storage.deleteAll();
     serverUrl = _defaultServerUrl;
+    if (asked != null) {
+      try {
+        await _storage.write(
+          key: _notificationPermissionAskedKey,
+          value: asked,
+        );
+      } catch (error) {
+        debugPrint('Could not keep the notification permission record: $error');
+      }
+    }
+  }
+
+  Future<String?> _readOrNull(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } catch (error) {
+      debugPrint('Could not read $key: $error');
+      return null;
+    }
   }
 
   Map<String, dynamic> parseQr(String raw) {

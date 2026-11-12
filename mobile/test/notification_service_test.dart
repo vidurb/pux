@@ -135,6 +135,31 @@ void main() {
     expect(clipboard, isNull);
   });
 
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+    test('init on ${platform.name} never asks for permission', () async {
+      debugDefaultTargetPlatformOverride = platform;
+      if (platform == TargetPlatform.iOS) {
+        IOSFlutterLocalNotificationsPlugin.registerWith();
+      } else {
+        MacOSFlutterLocalNotificationsPlugin.registerWith();
+      }
+
+      await NotificationService.instance.init();
+
+      // NotificationExplainer asks, after saying why.
+      expect(
+        calls.map((call) => call.method),
+        isNot(contains('requestPermissions')),
+      );
+      final settings =
+          calls.singleWhere((call) => call.method == 'initialize').arguments
+              as Map<dynamic, dynamic>;
+      expect(settings['requestAlertPermission'], isFalse);
+      expect(settings['requestBadgePermission'], isFalse);
+      expect(settings['requestSoundPermission'], isFalse);
+    });
+  }
+
   group('on Linux', () {
     late _FakePlugin plugin;
     late NotificationService service;

@@ -15,6 +15,8 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 
 <img src="brand/screenshots/site-desktop.jpg" alt="The pux website, showing the headline and an example of a sealed code on the server next to the readable code on a device" width="640"> <img src="brand/screenshots/site-mobile-dark.jpg" alt="The pux website on a phone in dark mode" height="360">
 
+<img src="brand/screenshots/app-notification.png" alt="App screenshot: a phone lock screen with no mobile service but on Wi-Fi, showing a pux notification with the code 482913 from Northwind Bank" height="360"> <img src="brand/screenshots/app-devices.png" alt="App screenshot: the same code arriving as a notification on a laptop and on a second phone" height="360"> <img src="brand/screenshots/app-forwarding.png" alt="App screenshot: the app's Set up forwarding screen, with the relay's inbox address and the first Gmail filter steps" height="360">
+
 ## Setting up forwarding
 
 Forward only your bank's OTP emails to your pux inbox address, not your whole mailbox. The app shows these steps under **How to set up forwarding**.
@@ -39,13 +41,14 @@ Known OTP emails (check one in your own inbox first, since banks use different s
 
 Know another? Open a PR adding it here and to `knownOtpSenders` in [`forwarding_help_screen.dart`](mobile/lib/src/screens/forwarding_help_screen.dart).
 
-To check the relay itself, email `Your OTP is 123456` straight to your inbox address.
+To check the relay itself, tap **Send a test code** on the app's home screen: every device on the relay should get "OTP from pux test" with the code the app names. That covers the server and push; to check that mail reaches the relay too, email `Your OTP is 123456` straight to your inbox address. The home screen also shows which server the app uses and whether it can reach it.
 
 ## Architecture
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, website, FCM push)
 - **mobile/** — Flutter app (Android, iOS, macOS, Linux; Windows is not supported for now)
 - **brand/** — logo, palette and icon sources ([guide](brand/README.md))
+- **store/** — store listing copy and privacy form answers ([guide](store/README.md))
 
 ## Security model
 
@@ -176,6 +179,7 @@ All under `/api/v1`. Every endpoint except `POST /records` works on the relay na
 | `DELETE /record/devices/:device_id` | 204 | 404 `{"error":"not_found"}` if the device is not on that record |
 | `GET /record/deliveries` | 200 `{"deliveries":[{"delivery_id","envelope"}]}` | Oldest 50 |
 | `DELETE /record/deliveries/:delivery_id` | 204 | 404 if unknown |
+| `POST /record/test` | 202 `{"otp","devices"}` | Sends a made-up six-digit code to every device on the relay, by the same path as a real one (an ordinary `otp` payload with `sender` `"pux test"`), and returns it so the app can say what to look for. 409 `{"error":"no_devices"}` if the relay has none. Also limited to `TEST_CODE_RATE_LIMIT` per record per minute |
 
 Each registration returns a `device_id`, which the app stores. The home screen menu offers **Remove this device** (`DELETE /api/v1/record/devices/:device_id`, then forget the keys locally) and **Delete relay everywhere** (`DELETE /api/v1/record`, which stops every device). If the server can't be reached the app offers to forget the relay locally anyway.
 
@@ -206,6 +210,7 @@ Decrypted push payloads are JSON with a `type`:
 | `SMTP_TLS_CERTFILE` / `SMTP_TLS_KEYFILE` | no | Enable inbound SMTP STARTTLS when both set (a warning is logged at boot when unset) |
 | `MAX_DEVICES_PER_RECORD` | no | Device cap per record (default 10). Dead push tokens count until found; see [Data retention](#data-retention) |
 | `RECORD_API_RATE_LIMIT` | no | Authenticated API requests per record per minute (default 120) |
+| `TEST_CODE_RATE_LIMIT` | no | Test codes (`POST /api/v1/record/test`) per record per minute, on top of `RECORD_API_RATE_LIMIT` (default 3) |
 | `AUTH_FAILURE_RATE_LIMIT` | no | Failed authentications per client IP (per /64 for IPv6) per minute, across the API and the delivery WebSocket, before that IP gets 429 for the rest of the minute (default 300). Mobile carrier NAT can put many users on one IP, so keep it generous |
 | `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
 | `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
@@ -229,7 +234,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the release pro
 
 ## License
 
-Copyright (C) 2026 vidurb
+Copyright (C) 2026 Vidur Butalia
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for the full text.
 

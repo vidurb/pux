@@ -9,6 +9,45 @@ defmodule Pux.Push do
 
   require Logger
 
+  @test_sender "pux test"
+
+  @doc """
+  Sends a made-up code to every device on the record, by the same path as a real one: the
+  payload is an ordinary OTP (so every app version shows it, as "OTP from #{@test_sender}"),
+  sealed to the record's key and handed to `deliver_to_record/2`. Nothing is stored apart
+  from the sealed envelopes, which expire like any others.
+
+  Returns the code, so the app can say what to look for, and how many devices it went to.
+  A record with no devices gets `{:error, :no_devices}`: nothing could arrive anywhere.
+  """
+  @spec send_test_code(Record.t()) ::
+          {:ok, %{otp: String.t(), devices: pos_integer()}} | {:error, :no_devices}
+  def send_test_code(%Record{} = record) do
+    case length(Records.list_devices(record.id)) do
+      0 ->
+        {:error, :no_devices}
+
+      devices ->
+        otp = test_code()
+
+        payload = %{
+          type: "otp",
+          otp: otp,
+          sender: @test_sender,
+          sender_domain: nil,
+          verified: true,
+          received_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+          parser: "test"
+        }
+
+        :ok = deliver_to_record(record, Jason.encode!(payload))
+        {:ok, %{otp: otp, devices: devices}}
+    end
+  end
+
+  # Six digits with no leading zero, so it reads the same however it's displayed.
+  defp test_code, do: Integer.to_string(100_000 + :rand.uniform(900_000) - 1)
+
   @spec deliver_to_record(Record.t(), iodata()) :: :ok
   def deliver_to_record(%Record{} = record, plaintext) when is_binary(plaintext) do
     case Crypto.seal(plaintext, record.public_key) do

@@ -130,9 +130,17 @@ class NotificationService {
   static bool get _codeInMemory =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
+  /// Sets up the plugin, here and in the FCM background isolate. Never asks for
+  /// permission: the plugin would by default, before the first frame, with no
+  /// word of why. NotificationExplainer does that, through
+  /// NotificationPermissions.ask.
   Future<void> init() async {
     const android = AndroidInitializationSettings('@drawable/ic_stat_pux');
-    const darwin = DarwinInitializationSettings();
+    const darwin = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     const linux = LinuxInitializationSettings(
       defaultActionName: 'Open notification',
     );
@@ -164,30 +172,6 @@ class NotificationService {
       }
     } catch (error) {
       debugPrint('Notification launch details unavailable: $error');
-    }
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-      final iosPlugin = _plugin
-          .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin
-          >();
-      await iosPlugin?.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-    }
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
-      final macPlugin = _plugin
-          .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin
-          >();
-      await macPlugin?.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
     }
   }
 

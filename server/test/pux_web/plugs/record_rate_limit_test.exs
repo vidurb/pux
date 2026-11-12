@@ -26,4 +26,16 @@ defmodule PuxWeb.Plugs.RecordRateLimitTest do
 
     refute call(Ecto.UUID.generate(), opts).halted
   end
+
+  test "takes its limit from another config entry when given one" do
+    record_id = Ecto.UUID.generate()
+    limit = Application.fetch_env!(:pux, :test_code_rate_limit)[:limit]
+    opts = [config: :test_code_rate_limit, key: "record_test_plug"]
+
+    for _ <- 1..limit, do: refute(call(record_id, opts).halted)
+    assert call(record_id, opts).status == 429
+
+    # A separate bucket from the general limit.
+    refute call(record_id, key: "record_api_plug").halted
+  end
 end

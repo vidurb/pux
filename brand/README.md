@@ -15,9 +15,14 @@ The mark is the letter p with a keyhole for a counter. The wordmark uses the sam
 | `pux-wordmark.svg` | Wordmark on light backgrounds |
 | `pux-wordmark-dark.svg` | Wordmark on dark backgrounds |
 | `og-image.svg` | Social share card |
+| `play-feature-graphic.svg` | Google Play feature graphic, 1024 × 500. Rendered to `store/play-feature-graphic.png` |
 | `app/*.svg` | Sources for the platform icons and splash screen |
 
-All of these are drawn as paths, so they need no font. Leave clear space of at least the p's stem width around the logo.
+The logo files are drawn as paths, so they need no font. `og-image.svg` and `play-feature-graphic.svg` set their text in Helvetica Neue, so render them where it is installed, such as macOS. Leave clear space of at least the p's stem width around the logo.
+
+The feature graphic keeps everything at least 64px in from its edges, because Play crops and overlays it in some places, and has a solid background: Play rejects one with transparency, so `render-brand.sh` flattens it.
+
+`screenshots/` holds the README's images: `site-*` are of the website, and `app-*` are rendered from the store screenshot scenes (see [`store/README.md`](../store/README.md#screenshots)).
 
 Below 24px the keyhole stops being readable. The icon still works as a p, but check any new use at its real size.
 

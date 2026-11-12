@@ -63,9 +63,13 @@ enum Scene {
 }
 
 class ScreenshotApp extends StatelessWidget {
-  const ScreenshotApp({super.key, required this.sceneName});
+  const ScreenshotApp({super.key, required this.sceneName, this.theme});
 
   final String sceneName;
+
+  /// Defaults to the app's theme. tool/render_screenshots_test.dart adds a
+  /// fallback font to it, since widget tests have no system fonts.
+  final ThemeData? theme;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +77,7 @@ class ScreenshotApp extends StatelessWidget {
     return MaterialApp(
       title: 'pux',
       debugShowCheckedModeBanner: false,
-      theme: puxTheme(),
+      theme: theme ?? puxTheme(),
       home: scene == null
           ? _UnknownScene(name: sceneName)
           : SceneView(scene: scene),
@@ -259,6 +263,8 @@ class _NotificationCard extends StatelessWidget {
           SizedBox(width: 12 * u),
           Expanded(
             child: Column(
+              // Hug the text: in the devices scene the card has room to grow.
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(

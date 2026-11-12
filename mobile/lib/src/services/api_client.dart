@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -39,11 +40,42 @@ class RateLimitedException implements Exception {
   String toString() => 'The server is rate limiting requests';
 }
 
+/// The relay has no registered devices, so a test code has nowhere to go
+/// (409 `no_devices`). Clears up once this device has registered.
+class NoDevicesException implements Exception {
+  const NoDevicesException();
+
+  @override
+  String toString() => 'No device is registered on this relay yet';
+}
+
+/// What `POST /record/test` sent: the code to look for, and how many devices
+/// on the relay it went to.
+@immutable
+class TestCode {
+  const TestCode({required this.otp, required this.devices});
+
+  final String otp;
+  final int devices;
+}
+
+enum ServerHealthState { reachable, unreachable, serverError }
+
+/// The answer to `GET /health`. [reason] says why it isn't reachable.
+@immutable
+class ServerHealth {
+  const ServerHealth(this.state, {this.reason});
+
+  final ServerHealthState state;
+  final String? reason;
+}
+
 class ApiClient {
   ApiClient._({http.Client? client}) : _client = client ?? http.Client();
 
   @visibleForTesting
-  ApiClient.forTesting({http.Client? client}) : _client = client ?? http.Client();
+  ApiClient.forTesting({http.Client? client})
+    : _client = client ?? http.Client();
 
   static ApiClient _instance = ApiClient._();
   static ApiClient get instance => _instance;
@@ -85,11 +117,16 @@ class ApiClient {
     required String pushToken,
     required String platform,
   }) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices');
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/devices',
+    );
     final response = await _client
         .post(
           uri,
-          headers: {'authorization': 'Bearer $recordId', 'content-type': 'application/json'},
+          headers: {
+            'authorization': 'Bearer $recordId',
+            'content-type': 'application/json',
+          },
           body: jsonEncode({'push_token': pushToken, 'platform': platform}),
         )
         .timeout(_timeout);
@@ -97,7 +134,8 @@ class ApiClient {
     if (response.statusCode == 401 || response.statusCode == 404) {
       throw const RecordNotFoundException();
     }
-    if (response.statusCode == 422 && _errorCode(response) == 'too_many_devices') {
+    if (response.statusCode == 422 &&
+        _errorCode(response) == 'too_many_devices') {
       throw const TooManyDevicesException();
     }
     _check(response, 'Device registration');
@@ -107,8 +145,13 @@ class ApiClient {
 
   /// Removes one device from the record. A device or record the server no
   /// longer knows counts as removed.
-  Future<void> deleteDevice({required String recordId, required String deviceId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/devices/$deviceId');
+  Future<void> deleteDevice({
+    required String recordId,
+    required String deviceId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/devices/$deviceId',
+    );
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -133,8 +176,12 @@ class ApiClient {
   /// first, so a full page may have left newer ones out.
   static const pendingPageSize = 50;
 
-  Future<List<PendingDelivery>> listPendingDeliveries({required String recordId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries');
+  Future<List<PendingDelivery>> listPendingDeliveries({
+    required String recordId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/deliveries',
+    );
     final response = await _client
         .get(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
@@ -158,14 +205,83 @@ class ApiClient {
 
   /// A delivery or record the server no longer knows counts as acknowledged.
   /// The next poll reports a record that is gone.
-  Future<void> ackDelivery({required String recordId, required String deliveryId}) async {
-    final uri = Uri.parse('${RecordStore.instance.serverUrl}/api/v1/record/deliveries/$deliveryId');
+  Future<void> ackDelivery({
+    required String recordId,
+    required String deliveryId,
+  }) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/deliveries/$deliveryId',
+    );
     final response = await _client
         .delete(uri, headers: {'authorization': 'Bearer $recordId'})
         .timeout(_timeout);
 
     if (response.statusCode == 401 || response.statusCode == 404) return;
     _check(response, 'Delivery ack');
+  }
+
+  /// Asks the server to send a made-up code to every device on the relay, by
+  /// the same path as a real one, and returns it.
+  Future<TestCode> sendTestCode({required String recordId}) async {
+    final uri = Uri.parse(
+      '${RecordStore.instance.serverUrl}/api/v1/record/test',
+    );
+    final response = await _client
+        .post(uri, headers: {'authorization': 'Bearer $recordId'})
+        .timeout(_timeout);
+
+    if (response.statusCode == 401 || response.statusCode == 404) {
+      throw const RecordNotFoundException();
+    }
+    if (response.statusCode == 409 && _errorCode(response) == 'no_devices') {
+      throw const NoDevicesException();
+    }
+    _check(response, 'Test code');
+
+    final decoded = _decodeObject(response);
+    final otp = decoded?['otp'];
+    final devices = decoded?['devices'];
+    if (otp is! String || devices is! int) {
+      throw Exception('Test code returned an incomplete response');
+    }
+    return TestCode(otp: otp, devices: devices);
+  }
+
+  static const healthTimeout = Duration(seconds: 10);
+
+  /// Whether the server answers `GET /health` with `{"status":"ok"}`. Never
+  /// throws: a failure is an answer too.
+  Future<ServerHealth> checkHealth() async {
+    final http.Response response;
+    try {
+      final uri = Uri.parse('${RecordStore.instance.serverUrl}/health');
+      response = await _client.get(uri).timeout(healthTimeout);
+    } on TimeoutException {
+      return ServerHealth(
+        ServerHealthState.unreachable,
+        reason: 'no answer within ${healthTimeout.inSeconds} s',
+      );
+    } on http.ClientException catch (error) {
+      return ServerHealth(ServerHealthState.unreachable, reason: error.message);
+    } catch (error) {
+      return ServerHealth(
+        ServerHealthState.unreachable,
+        reason: error.toString(),
+      );
+    }
+
+    final status = _decodeObject(response)?['status'];
+    if (response.statusCode == 200 && status == 'ok') {
+      return const ServerHealth(ServerHealthState.reachable);
+    }
+    return ServerHealth(
+      ServerHealthState.serverError,
+      reason: switch (response.statusCode) {
+        503 when status != null => 'its database is unavailable',
+        200 => "the answer isn't from a pux server",
+        final code => 'HTTP $code',
+      },
+    );
   }
 
   /// The record ID goes in the `x-pux-token` header, never the URL, so it
@@ -189,7 +305,8 @@ class ApiClient {
     }
   }
 
-  String? _errorCode(http.Response response) => _decodeObject(response)?['error'] as String?;
+  String? _errorCode(http.Response response) =>
+      _decodeObject(response)?['error'] as String?;
 
   Map<String, dynamic>? _decodeObject(http.Response response) {
     try {
