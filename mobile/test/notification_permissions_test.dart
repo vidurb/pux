@@ -18,27 +18,41 @@ const _offTitle = 'Notifications are off';
 const _channelTitle = 'OTP code notifications are off';
 const _quietTitle = 'Codes may arrive without an alert';
 const _hibernationTitle = 'Keep codes arriving when you rarely open pux';
+const _quietChannelTitle = "Codes don't pop up on screen";
+const _summaryTitle = 'Codes wait for your notification summary';
 
-const _pluginChannel = MethodChannel('dexterous.com/flutter/local_notifications');
+const _pluginChannel = MethodChannel(
+  'dexterous.com/flutter/local_notifications',
+);
 
-/// MainActivity's side of the notification channel.
+/// MainActivity's side of the notification channel, and AppDelegate's on iOS,
+/// which only reports the scheduled summary.
 class _FakeAndroid {
   bool appEnabled = true;
   bool? channelEnabled = true;
+  bool? channelQuiet = false;
+  bool? scheduledSummary = false;
   bool settingsOpen = true;
   Object? statusError;
   final calls = <String>[];
 
   void install() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      NotificationPermissions.channel,
-      (call) async {
-        calls.add(call.method);
-        if (call.method != 'getStatus') return settingsOpen;
-        if (statusError != null) throw statusError!;
-        return {'appEnabled': appEnabled, 'channelEnabled': channelEnabled};
-      },
-    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(NotificationPermissions.channel, (
+          call,
+        ) async {
+          calls.add(call.method);
+          if (call.method != 'getStatus') return settingsOpen;
+          if (statusError != null) throw statusError!;
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            return {'scheduledSummary': scheduledSummary};
+          }
+          return {
+            'appEnabled': appEnabled,
+            'channelEnabled': channelEnabled,
+            'channelQuiet': channelQuiet,
+          };
+        });
   }
 
   Iterable<String> get opened => calls.where((call) => call != 'getStatus');
@@ -59,18 +73,19 @@ class _FakeApple {
     'isProvisionalEnabled': true,
     'isAlertEnabled': true,
   };
-  static const authorizedAlertsOff = {'isEnabled': true, 'isAlertEnabled': false};
+  static const authorizedAlertsOff = {
+    'isEnabled': true,
+    'isAlertEnabled': false,
+  };
 
   void install() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      _pluginChannel,
-      (call) async {
-        calls.add(call.method);
-        if (call.method == 'openAppNotificationSettings') return settingsOpen;
-        if (statusError != null) throw statusError!;
-        return options;
-      },
-    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_pluginChannel, (call) async {
+          calls.add(call.method);
+          if (call.method == 'openAppNotificationSettings') return settingsOpen;
+          if (statusError != null) throw statusError!;
+          return options;
+        });
   }
 }
 
@@ -81,12 +96,15 @@ void main() {
   String hibernation = 'off';
 
   setUp(() {
-    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     android = _FakeAndroid()..install();
     apple = _FakeApple()..install();
     restrictionCalls = [];
     hibernation = 'off';
-    messenger.setMockMethodCallHandler(BackgroundRestrictions.channel, (call) async {
+    messenger.setMockMethodCallHandler(BackgroundRestrictions.channel, (
+      call,
+    ) async {
       restrictionCalls.add(call.method);
       if (call.method != 'getStatus') return true;
       return {'hibernation': hibernation, 'backgroundRestricted': false};
@@ -94,11 +112,14 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     RecordStore.instance.setServerUrlForTesting('https://pux.test');
     NotificationPermissions.instance.access.value = NotificationAccess.allowed;
+    NotificationPermissions.instance.quietDelivery.value =
+        const DeliveryRestrictionStatus();
     IOSFlutterLocalNotificationsPlugin.registerWith();
   });
 
   tearDown(() {
-    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(NotificationPermissions.channel, null);
     messenger.setMockMethodCallHandler(_pluginChannel, null);
     messenger.setMockMethodCallHandler(BackgroundRestrictions.channel, null);
@@ -106,7 +127,9 @@ void main() {
 
   Future<void> pumpPrompts(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: DeliveryPrompts())));
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: DeliveryPrompts())),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -138,7 +161,9 @@ void main() {
     ];
 
     for (final (app, channel, title, page) in cases) {
-      testWidgets('app=$app channel=$channel shows ${title ?? 'nothing'}', (tester) async {
+      testWidgets('app=$app channel=$channel shows ${title ?? 'nothing'}', (
+        tester,
+      ) async {
         android.appEnabled = app;
         android.channelEnabled = channel;
 
@@ -187,7 +212,10 @@ void main() {
         'authorized': (_FakeApple.authorized, null),
         'denied or not determined': (_FakeApple.denied, _offTitle),
         'provisional': (_FakeApple.provisional, _quietTitle),
-        'authorized with alerts off': (_FakeApple.authorizedAlertsOff, _quietTitle),
+        'authorized with alerts off': (
+          _FakeApple.authorizedAlertsOff,
+          _quietTitle,
+        ),
       };
 
       cases.forEach((name, expected) {
@@ -206,7 +234,9 @@ void main() {
         }, variant: variant);
       });
 
-      testWidgets('the off prompt says what happens to codes here', (tester) async {
+      testWidgets('the off prompt says what happens to codes here', (
+        tester,
+      ) async {
         apple.options = _FakeApple.denied;
 
         await pumpPrompts(tester);
@@ -216,7 +246,10 @@ void main() {
           find.textContaining('New codes wait on this screen'),
           desktop ? findsOneWidget : findsNothing,
         );
-        expect(find.textContaining('are lost'), desktop ? findsNothing : findsOneWidget);
+        expect(
+          find.textContaining('are lost'),
+          desktop ? findsNothing : findsOneWidget,
+        );
       }, variant: variant);
 
       testWidgets('the button opens the app notification page', (tester) async {
@@ -227,11 +260,13 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(apple.calls, contains('openAppNotificationSettings'));
-        expect(android.calls, isEmpty);
+        expect(android.opened, isEmpty);
         expect(find.byType(SnackBar), findsNothing);
       }, variant: variant);
 
-      testWidgets('the prompt goes away on resume once allowed', (tester) async {
+      testWidgets('the prompt goes away on resume once allowed', (
+        tester,
+      ) async {
         apple.options = _FakeApple.denied;
         await pumpPrompts(tester);
 
@@ -241,7 +276,9 @@ void main() {
         expect(find.text(_offTitle), findsNothing);
       }, variant: variant);
 
-      testWidgets('a provisional state that becomes authorized clears', (tester) async {
+      testWidgets('a provisional state that becomes authorized clears', (
+        tester,
+      ) async {
         apple.options = _FakeApple.provisional;
         await pumpPrompts(tester);
         expect(find.text(_quietTitle), findsOneWidget);
@@ -281,7 +318,9 @@ void main() {
   }
 
   for (final platform in [TargetPlatform.linux, TargetPlatform.windows]) {
-    testWidgets('${platform.name} checks nothing and shows nothing', (tester) async {
+    testWidgets('${platform.name} checks nothing and shows nothing', (
+      tester,
+    ) async {
       android.appEnabled = false;
       apple.options = _FakeApple.denied;
 
@@ -299,8 +338,14 @@ void main() {
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       android.appEnabled = false;
 
-      expect(await NotificationPermissions.instance.check(), NotificationAccess.off);
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+      expect(
+        await NotificationPermissions.instance.check(),
+        NotificationAccess.off,
+      );
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.off,
+      );
     });
 
     test('returns null on failure, keeping the last state', () async {
@@ -311,19 +356,25 @@ void main() {
       android.statusError = PlatformException(code: 'boom');
 
       expect(await NotificationPermissions.instance.check(), isNull);
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.off,
+      );
     });
 
     test('returns null if the OS never answers', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        NotificationPermissions.channel,
-        (_) => Completer<Object?>().future,
-      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            NotificationPermissions.channel,
+            (_) => Completer<Object?>().future,
+          );
 
       expect(
-        await NotificationPermissions.instance.check(timeout: const Duration(milliseconds: 5)),
+        await NotificationPermissions.instance.check(
+          timeout: const Duration(milliseconds: 5),
+        ),
         isNull,
       );
     });
@@ -331,10 +382,11 @@ void main() {
     test('returns null if the answer is malformed', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        NotificationPermissions.channel,
-        (_) async => {'appEnabled': 'yes'},
-      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            NotificationPermissions.channel,
+            (_) async => {'appEnabled': 'yes'},
+          );
 
       expect(await NotificationPermissions.instance.check(), isNull);
     });
@@ -344,13 +396,18 @@ void main() {
         debugDefaultTargetPlatformOverride = platform;
         addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
-        expect(await NotificationPermissions.instance.check(), NotificationAccess.allowed);
+        expect(
+          await NotificationPermissions.instance.check(),
+          NotificationAccess.allowed,
+        );
       });
     }
   });
 
   group('state on resume', () {
-    testWidgets('appears when notifications are turned off while away', (tester) async {
+    testWidgets('appears when notifications are turned off while away', (
+      tester,
+    ) async {
       await pumpPrompts(tester);
       expect(find.text(_offTitle), findsNothing);
 
@@ -360,14 +417,20 @@ void main() {
       expect(find.text(_offTitle), findsOneWidget);
     });
 
-    testWidgets('goes away once allowed, and the channel prompt takes over', (tester) async {
+    testWidgets('goes away once allowed, and the channel prompt takes over', (
+      tester,
+    ) async {
       android.appEnabled = false;
       android.channelEnabled = false;
       await pumpPrompts(tester);
       expect(find.text(_offTitle), findsOneWidget);
 
       await resume(tester);
-      expect(find.text(_offTitle), findsOneWidget, reason: 'setting not changed yet');
+      expect(
+        find.text(_offTitle),
+        findsOneWidget,
+        reason: 'setting not changed yet',
+      );
 
       android.appEnabled = true;
       await resume(tester);
@@ -379,7 +442,9 @@ void main() {
       expect(find.text(_channelTitle), findsNothing);
     });
 
-    testWidgets('a failed check keeps a warning already showing', (tester) async {
+    testWidgets('a failed check keeps a warning already showing', (
+      tester,
+    ) async {
       android.appEnabled = false;
       await pumpPrompts(tester);
 
@@ -391,7 +456,9 @@ void main() {
   });
 
   group('dismissal and order', () {
-    testWidgets('notifications off offers no way to dismiss it', (tester) async {
+    testWidgets('notifications off offers no way to dismiss it', (
+      tester,
+    ) async {
       android.appEnabled = false;
       await pumpPrompts(tester);
 
@@ -407,7 +474,9 @@ void main() {
       expect(find.text(_offTitle), findsOneWidget);
     });
 
-    testWidgets('it replaces other prompts, which return once it is fixed', (tester) async {
+    testWidgets('it replaces other prompts, which return once it is fixed', (
+      tester,
+    ) async {
       android.appEnabled = false;
       hibernation = 'hibernation';
       await pumpPrompts(tester);
@@ -423,17 +492,20 @@ void main() {
       expect(find.text(_hibernationTitle), findsOneWidget);
     });
 
-    testWidgets('its button opens notification settings, not a restriction page', (tester) async {
-      android.appEnabled = false;
-      hibernation = 'hibernation';
-      await pumpPrompts(tester);
+    testWidgets(
+      'its button opens notification settings, not a restriction page',
+      (tester) async {
+        android.appEnabled = false;
+        hibernation = 'hibernation';
+        await pumpPrompts(tester);
 
-      await tester.tap(find.text('Open settings'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open settings'));
+        await tester.pumpAndSettle();
 
-      expect(android.opened, ['openNotificationSettings']);
-      expect(restrictionCalls.where((call) => call != 'getStatus'), isEmpty);
-    });
+        expect(android.opened, ['openNotificationSettings']);
+        expect(restrictionCalls.where((call) => call != 'getStatus'), isEmpty);
+      },
+    );
 
     testWidgets('it does not disturb a dismissed restriction', (tester) async {
       hibernation = 'hibernation';
@@ -452,19 +524,265 @@ void main() {
     });
   });
 
+  group('a quiet Android channel', () {
+    const cases = <bool?, bool>{true: true, false: false, null: false};
+
+    cases.forEach((quiet, prompts) {
+      testWidgets(
+        'channelQuiet=$quiet ${prompts ? 'prompts' : 'does not prompt'}',
+        (tester) async {
+          android.channelQuiet = quiet;
+
+          await pumpPrompts(tester);
+
+          expect(
+            find.text(_quietChannelTitle),
+            prompts ? findsOneWidget : findsNothing,
+          );
+        },
+      );
+    });
+
+    testWidgets('opens the channel page', (tester) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(android.opened, ['openChannelSettings']);
+      expect(restrictionCalls.where((call) => call != 'getStatus'), isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('says so if settings would not open', (tester) async {
+      android.channelQuiet = true;
+      android.settingsOpen = false;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("Couldn't open settings"), findsOneWidget);
+    });
+
+    testWidgets('waits behind notifications being off', (tester) async {
+      android.appEnabled = false;
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      expect(find.text(_offTitle), findsOneWidget);
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('waits behind a restriction that stops codes', (tester) async {
+      hibernation = 'hibernation';
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      expect(find.text(_hibernationTitle), findsOneWidget);
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+    });
+
+    testWidgets('goes away on resume once the channel alerts again', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      android.channelQuiet = false;
+      await resume(tester);
+
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('dismissing stays dismissed across resumes and restarts', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsNothing);
+
+      await pumpPrompts(tester);
+      expect(find.text(_quietChannelTitle), findsNothing);
+    });
+
+    testWidgets('a dismissal is forgotten once the channel alerts again', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+
+      android.channelQuiet = false;
+      await resume(tester);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), isEmpty);
+
+      android.channelQuiet = true;
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+    });
+
+    testWidgets('a failed check keeps the hint and the dismissals', (
+      tester,
+    ) async {
+      android.channelQuiet = true;
+      await pumpPrompts(tester);
+
+      android.statusError = PlatformException(code: 'boom');
+      await resume(tester);
+      expect(find.text(_quietChannelTitle), findsOneWidget);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      await resume(tester);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), {
+        'quietChannel',
+      });
+    });
+
+    test('check reports it', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      android.channelQuiet = true;
+
+      await NotificationPermissions.instance.check();
+
+      final quiet = NotificationPermissions.instance.quietDelivery.value;
+      expect(quiet.active, {DeliveryRestriction.quietChannel});
+      expect(quiet.clear, isEmpty);
+    });
+  });
+
+  group('the iOS scheduled summary', () {
+    final ios = TargetPlatformVariant.only(TargetPlatform.iOS);
+
+    testWidgets('prompts while pux is in the summary', (tester) async {
+      android.scheduledSummary = true;
+
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsOneWidget);
+      expect(find.text('Dismiss'), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('shows nothing for immediate delivery', (tester) async {
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+      expect(android.calls, ['getStatus']);
+    }, variant: ios);
+
+    testWidgets('opens the app notification page', (tester) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+
+      expect(apple.calls, contains('openAppNotificationSettings'));
+      expect(android.opened, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    }, variant: ios);
+
+    testWidgets('waits behind notifications that arrive quietly', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      apple.options = _FakeApple.provisional;
+      await pumpPrompts(tester);
+
+      expect(find.text(_quietTitle), findsOneWidget);
+      expect(find.text(_summaryTitle), findsNothing);
+
+      apple.options = _FakeApple.authorized;
+      await resume(tester);
+
+      expect(find.text(_summaryTitle), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('goes away on resume once delivery is immediate', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      android.scheduledSummary = false;
+      await resume(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+    }, variant: ios);
+
+    testWidgets('dismissing stays dismissed across resumes and restarts', (
+      tester,
+    ) async {
+      android.scheduledSummary = true;
+      await pumpPrompts(tester);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+      await resume(tester);
+      await pumpPrompts(tester);
+
+      expect(find.text(_summaryTitle), findsNothing);
+      expect(await RecordStore.instance.dismissedRestrictionPrompts(), {
+        'scheduledSummary',
+      });
+    }, variant: ios);
+
+    testWidgets('a missing channel still reads notification access', (
+      tester,
+    ) async {
+      android.statusError = MissingPluginException();
+      apple.options = _FakeApple.denied;
+
+      await pumpPrompts(tester);
+
+      expect(find.text(_offTitle), findsOneWidget);
+    }, variant: ios);
+
+    testWidgets('macOS never asks', (tester) async {
+      MacOSFlutterLocalNotificationsPlugin.registerWith();
+      android.scheduledSummary = true;
+
+      await pumpPrompts(tester);
+
+      expect(android.calls, isEmpty);
+      expect(find.text('Open settings'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+  });
+
   group('the request flow', () {
     test('a granted reply is not believed over what the OS reports', () async {
       android.appEnabled = false;
 
       await NotificationPermissions.instance.request(() async => 'granted');
 
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.off,
+      );
     });
 
     test('a denied reply is not believed over what the OS reports', () async {
       await NotificationPermissions.instance.request(() async => 'denied');
 
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.allowed);
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.allowed,
+      );
     });
 
     test('checks only after the request has finished', () async {
@@ -477,7 +795,10 @@ void main() {
       });
 
       expect(android.calls, ['getStatus']);
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.allowed);
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.allowed,
+      );
     });
 
     test('a failed request still checks, and does not throw', () async {
@@ -487,42 +808,61 @@ void main() {
         () async => throw PlatformException(code: 'request-in-progress'),
       );
 
-      expect(NotificationPermissions.instance.access.value, NotificationAccess.off);
+      expect(
+        NotificationPermissions.instance.access.value,
+        NotificationAccess.off,
+      );
     });
 
-    testWidgets('an answer that arrives while the home screen shows updates it', (tester) async {
-      await pumpPrompts(tester);
-      expect(find.text(_offTitle), findsNothing);
+    testWidgets(
+      'an answer that arrives while the home screen shows updates it',
+      (tester) async {
+        await pumpPrompts(tester);
+        expect(find.text(_offTitle), findsNothing);
 
-      android.appEnabled = false;
-      await tester.runAsync(() => NotificationPermissions.instance.request(() async => null));
-      await tester.pumpAndSettle();
+        android.appEnabled = false;
+        await tester.runAsync(
+          () => NotificationPermissions.instance.request(() async => null),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text(_offTitle), findsOneWidget);
-    });
+        expect(find.text(_offTitle), findsOneWidget);
+      },
+    );
   });
 
   group('the home screen', () {
     tearDown(() {
-      DeliveryController.instance.status.value = const DeliveryStatus(DeliveryState.idle);
+      DeliveryController.instance.status.value = const DeliveryStatus(
+        DeliveryState.idle,
+      );
     });
 
     Future<void> pumpHome(WidgetTester tester) async {
-      await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: HomeScreen())));
+      await tester.pumpWidget(
+        const ProviderScope(child: MaterialApp(home: HomeScreen())),
+      );
       await tester.pumpAndSettle();
     }
 
     testWidgets('warns even though delivery is ready', (tester) async {
       android.appEnabled = false;
-      DeliveryController.instance.status.value = const DeliveryStatus(DeliveryState.ready);
+      DeliveryController.instance.status.value = const DeliveryStatus(
+        DeliveryState.ready,
+      );
 
       await pumpHome(tester);
 
-      expect(DeliveryController.instance.status.value.state, DeliveryState.ready);
+      expect(
+        DeliveryController.instance.status.value.state,
+        DeliveryState.ready,
+      );
       expect(find.text(_offTitle), findsOneWidget);
     });
 
-    testWidgets('puts it above a delivery problem, and keeps both usable', (tester) async {
+    testWidgets('puts it above a delivery problem, and keeps both usable', (
+      tester,
+    ) async {
       android.appEnabled = false;
       DeliveryController.instance.status.value = const DeliveryStatus(
         DeliveryState.retrying,
@@ -537,8 +877,12 @@ void main() {
       expect(find.text('Retry now'), findsOneWidget);
     });
 
-    testWidgets('shows nothing extra when notifications are allowed', (tester) async {
-      DeliveryController.instance.status.value = const DeliveryStatus(DeliveryState.ready);
+    testWidgets('shows nothing extra when notifications are allowed', (
+      tester,
+    ) async {
+      DeliveryController.instance.status.value = const DeliveryStatus(
+        DeliveryState.ready,
+      );
 
       await pumpHome(tester);
 
