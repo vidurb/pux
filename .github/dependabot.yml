@@ -21,11 +21,6 @@ updates:
     directory: /mobile
     schedule:
       interval: weekly
-    ignore:
-      # v11 drops the Android EncryptedSharedPreferences migration, so hold it
-      # until existing installs have run a build on v10.
-      - dependency-name: flutter_secure_storage
-        update-types: ["version-update:semver-major"]
     groups:
       pub:
         patterns: ["*"]

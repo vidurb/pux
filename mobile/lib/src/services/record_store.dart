@@ -16,7 +16,8 @@ class RecordStore {
   static const _serverKey = 'server_url';
   static const _desktopDeviceIdKey = 'desktop_device_id';
   static const _deviceIdKey = 'device_id';
-  static const _dismissedRestrictionPromptsKey = 'dismissed_restriction_prompts';
+  static const _dismissedRestrictionPromptsKey =
+      'dismissed_restriction_prompts';
 
   static const _cleartextHosts = {'localhost', '127.0.0.1', '10.0.2.2'};
   static final _uuid = RegExp(
@@ -28,10 +29,13 @@ class RecordStore {
   // keychain-access-groups in Runner.entitlements), so the notification
   // service extension can decrypt pushes, including while the phone is locked.
   // AppDelegate moves items written by older builds into that group.
-  // Android: v10 migrates EncryptedSharedPreferences data to its own ciphers.
+  // Android: v11 custom-cipher storage. v11 dropped the v10 migration from
+  // EncryptedSharedPreferences; no released build used that format.
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
   );
 
   late String _defaultServerUrl;
@@ -110,15 +114,19 @@ class RecordStore {
     return stored.split(',').toSet();
   }
 
-  Future<void> saveDismissedRestrictionPrompts(Set<String> names) =>
-      _storage.write(key: _dismissedRestrictionPromptsKey, value: names.join(','));
+  Future<void> saveDismissedRestrictionPrompts(Set<String> names) => _storage
+      .write(key: _dismissedRestrictionPromptsKey, value: names.join(','));
 
   /// The validated server an enrollment payload points at: its `server`, or
   /// the current one when absent. Throws [FormatException] if it is unsafe.
   String enrollmentServer(Map<String, dynamic> payload) {
     final server = payload['server'];
-    if (server == null || (server is String && server.isEmpty)) return serverUrl;
-    if (server is! String) throw const FormatException('Invalid server in enrollment');
+    if (server == null || (server is String && server.isEmpty)) {
+      return serverUrl;
+    }
+    if (server is! String) {
+      throw const FormatException('Invalid server in enrollment');
+    }
     // The build's own default is trusted, so development builds can point anywhere.
     if (server == _defaultServerUrl) return server;
     return validateServerUrl(server);
@@ -138,8 +146,13 @@ class RecordStore {
         'Refusing insecure server ${uri.scheme}://${uri.host}: https is required',
       );
     }
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment || uri.path.length > 1) {
-      throw const FormatException('Server URL must not have a path, query or credentials');
+    if (uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.path.length > 1) {
+      throw const FormatException(
+        'Server URL must not have a path, query or credentials',
+      );
     }
     return uri.replace(path: '').toString();
   }
