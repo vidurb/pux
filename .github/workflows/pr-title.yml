@@ -1,0 +1,38 @@
+name: pr-title
+
+# PRs are squash-merged, and release-please reads the resulting commit message
+# to pick the next version and write the changelog, so the title must be a
+# Conventional Commit: `type(scope): summary`. See CONTRIBUTING.md.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            revert
+            docs
+            refactor
+            test
+            build
+            ci
+            chore
+            style
+          # A one-commit PR is squashed with that commit's message, not the title.
+          validateSingleCommit: true
+          validateSingleCommitMatchesPrTitle: true

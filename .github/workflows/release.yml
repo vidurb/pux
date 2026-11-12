@@ -1,11 +1,13 @@
 name: release
 
-# Push a tag like v0.1.0 (or v0.2.0-rc.1 for a pre-release). The tag must match the
-# versions in server/mix.exs and mobile/pubspec.yaml; see CONTRIBUTING.md.
+# Normally started by the release-please workflow: merging its release PR tags
+# vX.Y.Z (with a draft GitHub Release) and runs this workflow on that tag. A tag
+# pushed by hand (v0.2.0-rc.1 for a pre-release) runs it too. The tag must match
+# the versions in server/mix.exs and mobile/pubspec.yaml; see CONTRIBUTING.md.
 #
-# Run it by hand from the Actions tab to try the builds, signing and notarization
-# without a release: the artifacts are attached to the run, and nothing is
-# published.
+# Run it by hand on a branch from the Actions tab to try the builds, signing and
+# notarization without a release: the artifacts are attached to the run, and
+# nothing is published.
 
 on:
   workflow_dispatch:
@@ -17,6 +19,9 @@ permissions:
 
 env:
   PUX_SERVER_URL: https://pux.vidur.xyz
+  # Android versionCode and macOS CFBundleVersion. Monotonic across runs of this
+  # workflow, which is what Google Play needs; renaming this file resets it.
+  BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:
   version:
@@ -29,7 +34,7 @@ jobs:
       - id: check
         run: |
           server=$(sed -nE 's/^ *version: "([^"]+)",/\1/p' server/mix.exs)
-          mobile=$(sed -nE 's/^version: ([^+]+)\+.*/\1/p' mobile/pubspec.yaml)
+          mobile=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' mobile/pubspec.yaml)
           if [ "$GITHUB_REF_TYPE" != tag ]; then
             # A trial run: name the artifacts after the app version and the run.
             echo "version=$mobile-dev.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
@@ -110,10 +115,10 @@ jobs:
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > android/key.properties
       - run: flutter pub get
-      - run: flutter build apk --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - run: flutter build apk --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
-      - run: flutter build appbundle --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - run: flutter build appbundle --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
       - name: Collect
@@ -193,7 +198,7 @@ jobs:
           echo "PROFILE=$RUNNER_TEMP/developer_id.provisionprofile" >> "$GITHUB_ENV"
 
       - run: flutter pub get
-      - run: flutter build macos --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - run: flutter build macos --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
 
       - name: Sign
         run: macos/scripts/sign_app.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
@@ -273,7 +278,7 @@ jobs:
           cache: true
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
-      - run: flutter build linux --release --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - run: flutter build linux --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
       - name: Package
         env:
           VERSION: ${{ needs.version.outputs.version }}
@@ -316,11 +321,53 @@ jobs:
             echo "Server image: \`ghcr.io/vidurb/pux-server:$VERSION\`"
           } >> notes.md
           (cd dist && sha256sum -- * > SHA256SUMS)
-      - name: Create release
+      # release-please has already made a draft release for this tag; attach the
+      # builds and publish it. A tag pushed by hand has no release yet.
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
-          flags=(--verify-tag --title "pux $GITHUB_REF_NAME" --notes-file notes.md)
-          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"
+          flags=(--title "pux $GITHUB_REF_NAME" --notes-file notes.md)
+          if gh release view "$GITHUB_REF_NAME" --json isDraft > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+            gh release edit "$GITHUB_REF_NAME" "${flags[@]}" --prerelease="$PRERELEASE" --draft=false
+          else
+            if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag "${flags[@]}"
+          fi
+
+  # Uploads the AAB to Google Play once PLAY_SERVICE_ACCOUNT_JSON is set; skipped
+  # until then. Google only accepts API uploads after the first AAB has been
+  # uploaded by hand in Play Console. Setup is in CONTRIBUTING.md.
+  play:
+    needs: [version, publish]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        id: config
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::PLAY_SERVICE_ACCOUNT_JSON is not set, so the AAB was not uploaded to Google Play."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.config.outputs.enabled == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android
+          path: dist
+      - if: steps.config.outputs.enabled == 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: xyz.vidur.pux
+          releaseFiles: dist/pux-${{ needs.version.outputs.version }}-android.aab
+          releaseName: ${{ needs.version.outputs.version }}
+          # internal by default; "draft" until the app's first review is done.
+          track: ${{ vars.PLAY_TRACK || 'internal' }}
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'draft' }}

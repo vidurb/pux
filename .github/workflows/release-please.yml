@@ -1,0 +1,87 @@
+name: release-please
+
+# Keeps a release PR open that collects the Conventional Commits merged to main
+# since the last release. It bumps server/mix.exs and mobile/pubspec.yaml to the
+# next semantic version and adds a CHANGELOG.md section:
+#
+#   feat:                            minor (0.1.0 -> 0.2.0)
+#   fix:, perf:, revert:             patch (0.1.0 -> 0.1.1)
+#   feat!: or BREAKING CHANGE: footer minor before 1.0.0, then major
+#   docs:, chore:, ci:, build:, ...  no release on their own
+#
+# Merging the release PR tags vX.Y.Z with a draft GitHub Release and starts the
+# release and testflight workflows on the tag. release.yml publishes the draft
+# once every build is attached. Configuration: release-please-config.json.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # start release.yml and testflight.yml on the new tag
+      contents: write # tags, releases and the release PR branch
+      issues: write # labels on the release PR
+      pull-requests: write
+    steps:
+      # v0.1.0 is cut by hand from the curated CHANGELOG (see #37 and
+      # CONTRIBUTING.md); release-please takes over from the first release.
+      - name: Wait for the first release
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq length)" = 0 ]; then
+            echo "::notice::No release yet. Tag v0.1.0 by hand (CONTRIBUTING.md); release-please starts after it."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Releases are made with GITHUB_TOKEN, whose tag pushes don't trigger other
+      # workflows, so the builds below start exactly once.
+      - id: release
+        if: steps.gate.outputs.ready == 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ github.token }}
+          skip-github-pull-request: true
+
+      - name: Start release builds
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          gh workflow run testflight.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          echo "Started the release and testflight workflows on $TAG." >> "$GITHUB_STEP_SUMMARY"
+
+      # A release PR opened with GITHUB_TOKEN gets no CI runs. With a GitHub App
+      # configured (RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY), checks run
+      # on it like any other PR; see CONTRIBUTING.md.
+      - id: app-token
+        if: steps.gate.outputs.ready == 'true' && vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      - if: steps.gate.outputs.ready == 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
+          skip-github-release: true

@@ -1,8 +1,10 @@
 # Changelog
 
-All notable changes to pux are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/). The server and apps share one version number.
+All notable changes to pux are recorded here. Versions follow
+[Semantic Versioning](https://semver.org/), and the server and apps share one version number.
+After 0.1.0, [release-please](https://github.com/googleapis/release-please) writes each
+section from the [Conventional Commit](https://www.conventionalcommits.org/) titles of
+merged PRs; see [CONTRIBUTING.md](CONTRIBUTING.md#releases-maintainers).
 
 ## [Unreleased]
 

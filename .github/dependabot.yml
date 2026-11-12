@@ -1,4 +1,8 @@
 version: 2
+
+# Commit prefixes feed release-please (see release-please-config.json): updates
+# that ship in the server image or the apps are fixes, so they go in the next
+# patch release; CI-only updates don't trigger one.
 updates:
   - package-ecosystem: mix
     directory: /server
@@ -7,6 +11,11 @@ updates:
     groups:
       mix:
         patterns: ["*"]
+    commit-message:
+      prefix: fix
+      # Test and tooling dependencies don't ship, so they don't cut a release.
+      prefix-development: chore
+      include: scope
 
   - package-ecosystem: pub
     directory: /mobile
@@ -20,6 +29,11 @@ updates:
     groups:
       pub:
         patterns: ["*"]
+    commit-message:
+      prefix: fix
+      # Test and tooling dependencies don't ship, so they don't cut a release.
+      prefix-development: chore
+      include: scope
 
   - package-ecosystem: github-actions
     directory: /
@@ -28,11 +42,17 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+    commit-message:
+      prefix: ci
+      include: scope
 
   - package-ecosystem: docker
     directory: /server
     schedule:
       interval: weekly
+    commit-message:
+      prefix: fix
+      include: scope
     ignore:
       # hexpm/elixir has about a million tags, so listing them times out (504) and
       # fails every job. Skip the lookup and bump this image by hand.

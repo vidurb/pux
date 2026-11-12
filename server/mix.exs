@@ -4,7 +4,9 @@ defmodule Pux.MixProject do
   def project do
     [
       app: :pux,
+      # x-release-please-start-version
       version: "0.1.0",
+      # x-release-please-end
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
