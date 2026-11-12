@@ -120,7 +120,7 @@ defmodule PuxWeb.PageControllerTest do
   end
 
   describe "legal pages" do
-    test "name the operator and the governing law", %{conn: conn} do
+    test "name the operator, the governing law and the minimum age", %{conn: conn} do
       for path <- ["/privacy", "/terms"] do
         body = html_response(get(conn, path), 200)
 
@@ -129,6 +129,7 @@ defmodule PuxWeb.PageControllerTest do
         assert body =~ "laws of India"
         assert body =~ "National Capital Territory of Delhi"
         assert body =~ "privacy@vidur.xyz"
+        assert body =~ "You must be at least 18 to use pux."
         refute body =~ "<script"
       end
     end
