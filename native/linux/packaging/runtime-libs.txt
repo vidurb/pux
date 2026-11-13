@@ -1,0 +1,38 @@
+# Shared libraries the pux binary may link (DT_NEEDED), and how users get each.
+# check_tar.sh fails the tarball build on any other library, so a new dependency
+# cannot ship without being listed here and in tarball-README.txt (and in the
+# install table of the top-level README.md).
+#
+#   baseline  present on any glibc 2.35+ desktop install
+#   system    installed from the distribution; named in tarball-README.txt
+#
+# A third column of "documented" means tarball-README.txt must contain the exact
+# soname the binary links (for example libsodium.so.23), so the guidance cannot
+# drift from the library versions the release build was linked against.
+#
+# <soname glob>            <class>    <documented?>
+libc.so.6                  baseline   -
+libm.so.6                  baseline   -
+libdl.so.2                 baseline   -
+libpthread.so.0            baseline   -
+librt.so.1                 baseline   -
+libgcc_s.so.1              baseline   -
+libstdc++.so.6             baseline   -
+ld-linux-x86-64.so.2       baseline   -
+ld-linux-aarch64.so.1      baseline   -
+libgtk-3.so.0              system     documented
+libgdk-3.so.0              system     -
+libgdk_pixbuf-2.0.so.0     system     -
+libglib-2.0.so.0           system     documented
+libgobject-2.0.so.0        system     -
+libgio-2.0.so.0            system     -
+libcairo.so.2              system     -
+libcairo-gobject.so.2      system     -
+libpango-1.0.so.0          system     -
+libpangocairo-1.0.so.0     system     -
+libharfbuzz.so.0           system     -
+libatk-1.0.so.0            system     -
+libsecret-1.so.0           system     documented
+libcurl.so.4               system     documented
+libssl.so.3                system     documented
+libcrypto.so.3             system     documented

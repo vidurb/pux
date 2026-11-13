@@ -1,0 +1,7 @@
+build/
+bin/
+*.o
+*.a
+*.so
+pux
+pux_linux_tests

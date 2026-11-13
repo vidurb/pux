@@ -65,6 +65,7 @@ To check the relay itself, tap **Send a test code** on the app's home screen: ev
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, website, FCM push)
 - **mobile/** — Flutter app (Android, iOS, macOS, Linux; Windows is not supported for now)
+- **native/** — native Android, iOS, macOS and Linux clients; see [native/README.md](native/README.md) for CI and release status
 - **brand/** — logo, palette and icon sources ([guide](brand/README.md))
 - **store/** — store listing copy and privacy form answers ([guide](store/README.md))
 
@@ -179,7 +180,7 @@ Each [release](https://github.com/vidurb/pux/releases) has these desktop builds:
 |--------|------|---------|
 | macOS 12 or later, Apple silicon or Intel | `pux-<version>-macos.dmg` | Open it and drag pux to Applications. It is signed and notarized |
 | Debian 12, Ubuntu 22.04 or later, x86-64 | `pux-<version>-linux-amd64.deb` | `sudo apt install ./pux-<version>-linux-amd64.deb`, which also installs what it needs |
-| Other Linux, x86-64, glibc 2.35 or later | `pux-<version>-linux-x64.tar.gz` | Extract it anywhere and run `./pux`. It needs GTK 3, libsecret, and EGL and OpenGL ES from Mesa, which desktop installs usually have already. For example `sudo dnf install gtk3 libsecret mesa-libEGL mesa-libGLES` (Fedora) or `sudo pacman -S gtk3 libsecret mesa` (Arch) |
+| Other Linux, x86-64, glibc 2.35 or later | `pux-<version>-linux-x64.tar.gz` | Extract it anywhere and run `./pux`. It needs GTK 3, libsecret, libcurl and OpenSSL 3 from your distribution, which desktop installs usually have already. For example `sudo dnf install gtk3 libsecret libcurl openssl-libs` (Fedora) or `sudo pacman -S gtk3 libsecret curl openssl` (Arch). The tarball links the library versions of Ubuntu 22.04 (`libssl.so.3`), so a distribution that has moved to newer ones can't run it: `ldd ./pux \| grep "not found"` shows the gap, and the `.deb` or a [source build](native/linux/README.md) is the way around it. The tarball's `README.txt` has the same guidance |
 
 On Linux, pux keeps its keys in the Secret Service, so a keyring has to be running in your session: GNOME Keyring (most desktops), KWallet (KDE Plasma), or KeePassXC with Secret Service integration turned on. Without one, pux fails at startup. Codes appear through the desktop's notification service.
 

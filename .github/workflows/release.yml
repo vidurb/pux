@@ -86,52 +86,50 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mobile
+        working-directory: native/android
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Pin the JDK Gradle and AGP run on (17, as in mise.toml).
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
-          java-version: "17"
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          channel: stable
-          flutter-version: "3.47.8" # keep in step with mise.toml
-          cache: true
-      - name: Release keystore
+          java-version: "21"
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Prepare release keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"; exit 1; }
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::$name is not set"; exit 1; fi
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           {
-            echo "storeFile=$RUNNER_TEMP/release.jks"
-            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
-            echo "keyAlias=$ANDROID_KEY_ALIAS"
-            echo "keyPassword=$ANDROID_KEY_PASSWORD"
-          } > android/key.properties
-      - run: flutter pub get
-      - run: flutter build apk --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+            printf 'storeFile=%s\n' "$RUNNER_TEMP/release.jks"
+            printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+          } > "$RUNNER_TEMP/android-key.properties"
+      - name: Build release APK and AAB
         env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
-      - run: flutter build appbundle --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
-        env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
-      - name: Collect
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
+          ./gradlew --no-daemon assembleRelease bundleRelease lintVitalRelease \
+            -PkeyProperties="$RUNNER_TEMP/android-key.properties" \
+            -PversionCode="$BUILD_NUMBER" -PversionName="$VERSION" -PpuxServerUrl="$PUX_SERVER_URL"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/pux-${{ needs.version.outputs.version }}-android.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "dist/pux-${{ needs.version.outputs.version }}-android.aab"
-          rm -f android/key.properties "$RUNNER_TEMP/release.jks"
+          cp app/build/outputs/apk/release/*.apk "dist/pux-$VERSION-android.apk"
+          cp app/build/outputs/bundle/release/*.aab "dist/pux-$VERSION-android.aab"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
-          path: mobile/dist/*
+          path: native/android/dist/*
           if-no-files-found: error
+      - name: Clean up signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/android-key.properties"
 
   macos:
     needs: version
@@ -139,17 +137,12 @@ jobs:
     timeout-minutes: 60
     defaults:
       run:
-        working-directory: mobile
+        working-directory: native/macos
     env:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-      APP: build/macos/Build/Products/Release/pux.app
+      APP: build/pux.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          channel: stable
-          flutter-version: "3.47.8" # keep in step with mise.toml
-          cache: true
 
       # Signed with Developer ID and notarized, so Gatekeeper opens it without a
       # warning. One-time setup is in mobile/macos/README.md.
@@ -197,17 +190,19 @@ jobs:
           echo "$MACOS_DEVELOPER_ID_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/developer_id.provisionprofile"
           echo "PROFILE=$RUNNER_TEMP/developer_id.provisionprofile" >> "$GITHUB_ENV"
 
-      - run: flutter pub get
-      - run: flutter build macos --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - name: Build universal native app
+        env:
+          PUX_BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/bundle_app.sh release
 
       - name: Sign
-        run: macos/scripts/sign_app.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
+        run: scripts/sign_app.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
 
       # The app keeps its keys in the data protection keychain, which refuses
       # programs without a keychain access group. Prove this signature has one
       # before shipping an app that can't save an enrollment.
       - name: Check keychain access
-        run: macos/scripts/keychain_probe.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
+        run: ../../mobile/macos/scripts/keychain_probe.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
 
       - name: Notarize and package
         env:
@@ -242,7 +237,7 @@ jobs:
 
           dmg="$PWD/dist/pux-$VERSION-macos.dmg"
           mkdir -p dist
-          macos/scripts/make_dmg.sh "$APP" "$dmg"
+          ../../mobile/macos/scripts/make_dmg.sh "$APP" "$dmg"
           codesign --sign "$SIGNING_IDENTITY" --timestamp "$dmg"
           notarize "$dmg"
           xcrun stapler staple "$dmg"
@@ -251,7 +246,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos
-          path: mobile/dist/*
+          path: native/macos/dist/*
           if-no-files-found: error
 
       - name: Clean up signing material
@@ -262,37 +257,30 @@ jobs:
 
   linux:
     needs: version
-    # The oldest supported runner, so the binaries and the .deb's dependencies
-    # work on Ubuntu 22.04 and Debian 12 as well as newer releases.
     runs-on: ubuntu-22.04
-    defaults:
-      run:
-        working-directory: mobile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev dpkg-dev
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          channel: stable
-          flutter-version: "3.47.8" # keep in step with mise.toml
-          cache: true
-      - run: flutter config --enable-linux-desktop
-      - run: flutter pub get
-      - run: flutter build linux --release --build-number="$BUILD_NUMBER" --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libsodium-dev libcurl4-openssl-dev libssl-dev dpkg-dev
+      - name: Build native Linux client
+        run: |
+          cmake -S native/linux -B native/linux/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/linux/build
       - name: Package
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           mkdir -p dist
-          bundle=build/linux/x64/release/bundle
-          # The app can't decrypt anything without it, and nothing else notices.
-          test -f "$bundle/lib/libsodium.so" || { echo "::error::libsodium.so is missing from the bundle"; exit 1; }
-          tar -C "$bundle" -czf "dist/pux-$VERSION-linux-x64.tar.gz" .
-          linux/packaging/build_deb.sh "$bundle" "$VERSION" "dist/pux-$VERSION-linux-amd64.deb"
+          native/linux/packaging/build_deb.sh native/linux/build/pux "$VERSION" "dist/pux-$VERSION-linux-amd64.deb"
+          native/linux/packaging/build_tar.sh native/linux/build/pux "$VERSION" "dist/pux-$VERSION-linux-x64.tar.gz"
+          dpkg-deb --info "dist/pux-$VERSION-linux-amd64.deb"
+          tar -tzf "dist/pux-$VERSION-linux-x64.tar.gz"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux
-          path: mobile/dist/*
+          path: dist/*
           if-no-files-found: error
 
   publish:
