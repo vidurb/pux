@@ -1,0 +1,149 @@
+name: native
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - 'mobile/pubspec.yaml'
+      - 'mobile/assets/icon/**'
+      - 'server/test/pux/crypto_test.exs'
+      - '.github/workflows/native.yml'
+      - '.github/scripts/native-linux-test.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: native/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Test and build
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Build trial release with a disposable key
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/trial.jks" -storepass trial-password -keypass trial-password -alias trial -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=CI trial'
+          printf 'storeFile=%s\nstorePassword=trial-password\nkeyAlias=trial\nkeyPassword=trial-password\n' "$RUNNER_TEMP/trial.jks" > "$RUNNER_TEMP/trial.properties"
+          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' ../../mobile/pubspec.yaml)
+          test -n "$version"
+          ./gradlew --no-daemon assembleRelease bundleRelease lintVitalRelease -PkeyProperties="$RUNNER_TEMP/trial.properties" -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version"
+      - name: Remove trial signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/trial.jks" "$RUNNER_TEMP/trial.properties"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-android-debug
+          path: native/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-android-trial-release-do-not-distribute
+          path: |
+            native/android/app/build/outputs/apk/release/*.apk
+            native/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Swift package tests
+        working-directory: native/ios
+        run: swift test --disable-sandbox
+      - name: Build app and extension for simulator
+        run: >-
+          xcodebuild -project native/ios/Pux.xcodeproj -scheme Pux
+          -configuration Debug -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build-for-testing
+      - name: Run simulator tests
+        run: |
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next((x["udid"] for group in d.values() for x in group if x["name"].startswith("iPhone")), ""))')
+          test -n "$device" || { echo '::error::No available iPhone simulator'; exit 1; }
+          xcodebuild -project native/ios/Pux.xcodeproj -scheme Pux -configuration Debug \
+            -destination "platform=iOS Simulator,id=$device" \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO test
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Test
+        run: native/macos/scripts/test.sh
+      - name: Build universal app
+        env:
+          PUX_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          native/macos/scripts/bundle_app.sh release
+          archs=$(lipo -archs native/macos/build/pux.app/Contents/MacOS/pux)
+          [[ " $archs " == *" arm64 "* && " $archs " == *" x86_64 "* ]]
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' native/macos/build/pux.app/Contents/Info.plist)" = 12.0
+          ditto -c -k --keepParent native/macos/build/pux.app "$RUNNER_TEMP/pux-macos-unsigned.zip"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-macos-unsigned
+          path: ${{ runner.temp }}/pux-macos-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libsodium-dev libcurl4-openssl-dev libssl-dev libjson-c-dev gnome-keyring dbus-x11 xvfb xauth openssl dpkg-dev
+      - name: Build
+        run: |
+          cmake -S native/linux -B native/linux/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/linux/build
+      - name: Test with isolated keyring
+        run: .github/scripts/native-linux-test.sh
+      - name: Test Linux package guidance
+        env:
+          PUX_REQUIRE_PACKAGING_ELF: '1'
+        run: ctest --test-dir native/linux/build -R '^pux_packaging_checks$' --output-on-failure
+      - name: Package
+        run: |
+          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' mobile/pubspec.yaml)
+          test -n "$version"
+          mkdir -p "$RUNNER_TEMP/native-linux"
+          native/linux/packaging/build_deb.sh native/linux/build/pux "$version" "$RUNNER_TEMP/native-linux/pux-linux-amd64.deb"
+          native/linux/packaging/build_tar.sh native/linux/build/pux "$version" "$RUNNER_TEMP/native-linux/pux-linux-x64.tar.gz"
+          dpkg-deb --info "$RUNNER_TEMP/native-linux/pux-linux-amd64.deb"
+          tar -tzf "$RUNNER_TEMP/native-linux/pux-linux-x64.tar.gz"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-linux-trial
+          path: ${{ runner.temp }}/native-linux/*
+          if-no-files-found: error
+          retention-days: 14
+
+  native-ok:
+    if: always()
+    needs: [android, ios, macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all native jobs to pass
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: exit 1
+      - run: echo 'All native checks passed.'

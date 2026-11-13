@@ -27,18 +27,13 @@ jobs:
     timeout-minutes: 60
     defaults:
       run:
-        working-directory: mobile
+        working-directory: native/ios
     env:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       # Monotonic across runs of this workflow, which is what App Store Connect needs.
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          channel: stable
-          flutter-version: "3.47.8" # keep in step with mise.toml
-          cache: true
 
       - name: Check configuration
         env:
@@ -97,22 +92,19 @@ jobs:
       - name: Switch app targets to manual signing
         run: |
           gem install xcodeproj --version 1.28.1 --no-document
-          ruby ios/scripts/ci_manual_signing.rb "$APPLE_TEAM_ID" "$APP_PROFILE_NAME" "$EXTENSION_PROFILE_NAME"
+          ruby scripts/ci_manual_signing.rb "$APPLE_TEAM_ID" "$APP_PROFILE_NAME" "$EXTENSION_PROFILE_NAME"
 
-      - run: flutter pub get
-      - name: Generate Flutter build config
+      - name: Archive native iOS app
         run: |
-          flutter build ios --config-only --release --build-number="$BUILD_NUMBER" \
-            --dart-define=PUX_SERVER_URL="$PUX_SERVER_URL"
-
-      - name: Archive
-        run: |
+          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' ../../mobile/pubspec.yaml)
+          test -n "$version"
           xcodebuild archive \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
+            -project Pux.xcodeproj \
+            -scheme Pux \
             -configuration Release \
             -destination generic/platform=iOS \
-            -archivePath "$RUNNER_TEMP/pux.xcarchive"
+            -archivePath "$RUNNER_TEMP/pux.xcarchive" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" MARKETING_VERSION="$version"
 
       - name: Export and upload to App Store Connect
         env:

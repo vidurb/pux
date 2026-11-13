@@ -1,0 +1,6 @@
+The C sources and wslay.h are copied without modification from
+https://github.com/tatsuhiro-t/wslay at commit
+0e7d106ff89ad6638090fd811a9b2e4c5dda8d40 (2022-08-25).
+LICENSE is upstream COPYING (MIT). config.h and wslayver.h are locally
+generated compatibility headers. The latter is not an upstream release tag.
+This snapshot is pinned; check upstream for fixes before updating it.
