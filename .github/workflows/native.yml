@@ -146,3 +146,14 @@ jobs:
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: exit 1
       - run: echo 'All native checks passed.'
+
+  # Retain the existing required check while native CI replaces Flutter CI.
+  mobile-ok:
+    if: always()
+    needs: [native-ok]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require native checks to pass
+        if: needs.native-ok.result != 'success'
+        run: exit 1
+      - run: echo 'All native checks passed.'
