@@ -2,7 +2,7 @@ name: pux
 description: Encrypted OTP relay client for pux.
 publish_to: "none"
 # The build number comes from CI (--build-number), so only the version is kept here.
-version: 0.2.1 # x-release-please-version
+version: 0.2.2 # x-release-please-version
 
 environment:
   sdk: ^3.12.0
