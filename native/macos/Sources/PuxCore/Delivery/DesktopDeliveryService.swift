@@ -1412,21 +1412,22 @@ public final class DesktopDeliveryService: @unchecked Sendable {
             break
         }
 
-        defer {
-            let deferred = endFlushOwnership(session: session, epoch: startedEpoch)
-            for pending in deferred {
-                scheduleDeferredFlush(session: pending)
-            }
-            if hasCoalescedFlushRetry(for: session),
-               hasUnexpiredHeldWork(),
-               await !permissionAccessGate.hasIncompleteProbe(for: session)
-            {
-                scheduleDeferredFlush(session: session)
-            } else if hasCoalescedFlushRetry(for: session), !hasUnexpiredHeldWork() {
-                parkCoalescedFlushRetry(for: session)
-            }
-        }
+        await performFlushHeld(session: session, startedEpoch: startedEpoch)
 
+        let deferred = endFlushOwnership(session: session, epoch: startedEpoch)
+        for pending in deferred {
+            scheduleDeferredFlush(session: pending)
+        }
+        if hasCoalescedFlushRetry(for: session), hasUnexpiredHeldWork() {
+            if await !permissionAccessGate.hasIncompleteProbe(for: session) {
+                scheduleDeferredFlush(session: session)
+            }
+        } else if hasCoalescedFlushRetry(for: session) {
+            parkCoalescedFlushRetry(for: session)
+        }
+    }
+
+    private func performFlushHeld(session: Int, startedEpoch: UInt) async {
         var coalescedPassCount = 0
         flushLoop: while true {
             var expired = purgeExpiredHeld()

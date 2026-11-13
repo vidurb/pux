@@ -180,6 +180,7 @@ TEST(app_window_survives_repeated_view_refresh) {
     ASSERT_TRUE(window.test_content_child_count() > 0);
 
     delivery->stop();
+    gtk_widget_destroy(GTK_WIDGET(window.gtk_window()));
 
     g_application_release(G_APPLICATION(app));
     g_object_unref(app);
@@ -220,6 +221,7 @@ TEST(app_window_enrollment_editor_has_explicit_accessible_name) {
         // The editor is rebuilt on every refresh; the name must come back each time.
         window.refresh_views();
         check_editor_name();
+        gtk_widget_destroy(GTK_WIDGET(window.gtk_window()));
     }
     delivery->stop();
     g_application_release(G_APPLICATION(app));
@@ -276,6 +278,7 @@ TEST(app_window_device_limit_banner_retry_reregisters_after_slot_freed) {
 
         delivery->set_status_callback(nullptr);
         delivery->stop();
+        gtk_widget_destroy(GTK_WIDGET(window.gtk_window()));
     }
     g_application_release(G_APPLICATION(app));
     g_object_unref(app);
