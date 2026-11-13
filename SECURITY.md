@@ -27,7 +27,7 @@ pux is pre-1.0. Only the latest release, and the `main` branch, receive security
 In scope:
 
 - The server in `server/`: inbound SMTP, OTP parsing, DKIM verification, the HTTP API, the delivery WebSocket, push dispatch.
-- The apps in `mobile/`: key generation and storage, decryption, enrollment (QR / JSON import), notifications and clipboard handling, the iOS notification service extension.
+- The apps in `native/`: key generation and storage, decryption, enrollment (QR / JSON import), notifications and clipboard handling, the iOS notification service extension.
 - The build and release pipeline in `.github/` and `server/Dockerfile`.
 - The hosted instance at `pux.vidur.xyz`. Don't degrade it for other users while testing: no load testing, no spam, and only use relays you created yourself.
 

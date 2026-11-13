@@ -17,21 +17,20 @@ verification) need a design discussion before code.
 | Path | What |
 |------|------|
 | `server/` | Phoenix/Elixir service: inbound SMTP, OTP parsing, DKIM, HTTP API, push |
-| `mobile/` | Flutter app for Android, iOS, macOS and Linux, plus the iOS notification service extension |
 | `deploy/` | Docker Compose setup for self-hosting |
 | `brand/` | Logo sources and identity guide; `scripts/render-brand.sh` renders the PNGs from them |
 | `.github/` | CI, release workflow, Dependabot |
 
 ## Toolchains
 
-From the repo root, [mise](https://mise.jdx.dev) installs pinned Erlang/OTP, Elixir, Flutter, and JDK 17:
+From the repo root, [mise](https://mise.jdx.dev) installs pinned Erlang/OTP, Elixir and JDK 21:
 
 ```bash
 mise install
 mise run setup
 ```
 
-See [`mise.toml`](mise.toml). `mise run setup` installs hk git hooks (Elixir/Dart format checks and `jactionlint` on workflows). Use `hk check` before pushing; full `mix test` / `flutter test` remain CI and manual.
+See [`mise.toml`](mise.toml). `mise run setup` installs hk git hooks (Elixir format checks and `jactionlint` on workflows). Use `hk check` before pushing; full server and native tests remain CI and manual.
 
 You still need PostgreSQL, libsodium, and per-platform mobile SDKs.
 
@@ -88,20 +87,9 @@ To bump:
    mise and CI may pin a shorter OTP version than the Dockerfile, but they must be on the same Elixir release and OTP major and minor version.
 4. Open a PR (`fix(server): …`, since the image ships). The `image` job builds and smoke-tests the image on amd64 and arm64.
 
-## Mobile
+## Native clients
 
-Flutter comes from mise (same stable line CI uses). Building for a platform also needs that platform's toolchain: Android SDK, and Xcode for iOS and macOS. Every iOS and macOS plugin is a Swift package, so neither build needs CocoaPods.
-
-```bash
-cd mobile
-flutter pub get
-flutter analyze
-flutter test
-```
-
-Point the app at a local server with `--dart-define=PUX_SERVER_URL=http://10.0.2.2:4000` (Android emulator) or `http://localhost:4000`. Firebase setup and iOS push are described in the [README](README.md#mobile).
-
-If you change the iOS notification service extension's target or build settings, edit `mobile/ios/scripts/add_notification_service.rb` and re-run it rather than editing `project.pbxproj` by hand.
+See [native/README.md](native/README.md) and the platform READMEs for build and test instructions.
 
 ## Pull requests
 
@@ -119,11 +107,11 @@ If you change the iOS notification service extension's target or build settings,
 
 Releases are cut by [release-please](https://github.com/googleapis/release-please), configured in [`release-please-config.json`](release-please-config.json), with the current version in [`.release-please-manifest.json`](.release-please-manifest.json). The server and apps share one version.
 
-1. Every push to `main` updates an open **chore: release x.y.z** PR. It bumps `server/mix.exs`, `mobile/pubspec.yaml` and the download links in `README.md`, and adds a `CHANGELOG.md` section written from the commits since the last release. Before 1.0.0, a `feat` raises the minor version, and anything else releasable raises the patch.
+1. Every push to `main` updates an open **chore: release x.y.z** PR. It bumps `server/mix.exs` and the release manifest, and adds a `CHANGELOG.md` section written from the commits since the last release. Before 1.0.0, a `feat` raises the minor version, and anything else releasable raises the patch.
 2. To release, review the PR and merge it. The changelog in the PR can be edited just before merging. A later push to `main` regenerates the PR and discards the edits.
 3. On merge, release-please tags `vx.y.z`, creates a draft GitHub Release and starts the `release` and `testflight` workflows on the tag.
 
-The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z` (and `x.y`). It builds a signed Android APK and AAB, a signed and notarized macOS disk image (setup in [mobile/macos/README.md](mobile/macos/README.md#one-time-setup)), and a Linux `.deb` and tarball ([mobile/linux/README.md](mobile/linux/README.md)). It attaches all of these and `SHA256SUMS` to the draft, then publishes it with the changelog section as notes. If any build fails, the release stays a draft and nothing is announced. Re-run the failed jobs. If the failure needs a code fix, merge it as a `fix:`, release the next patch version, and delete the unpublished draft. The `testflight` workflow uploads an iOS build to TestFlight (setup in [mobile/ios/README.md](mobile/ios/README.md#testflight)). Android and macOS build numbers come from the `release` workflow's run number, and iOS build numbers from the `testflight` workflow's.
+The `release` workflow checks that the tag matches both versions. It then publishes the server image as `ghcr.io/vidurb/pux-server:x.y.z` (and `x.y`). It builds a signed Android APK and AAB, a signed and notarized macOS disk image (setup in [native/macos/README.md](native/macos/README.md#release-signing-setup)), and a Linux `.deb` and tarball ([native/linux/README.md](native/linux/README.md)). It attaches all of these and `SHA256SUMS` to the draft, then publishes it with the changelog section as notes. If any build fails, the release stays a draft and nothing is announced. Re-run the failed jobs. If the failure needs a code fix, merge it as a `fix:`, release the next patch version, and delete the unpublished draft. The `testflight` workflow uploads an iOS build to TestFlight (setup in [native/ios/README.md](native/ios/README.md#testflight-setup)). Android and macOS build numbers come from the `release` workflow's run number, and iOS build numbers from the `testflight` workflow's.
 
 Other cases:
 

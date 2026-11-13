@@ -6,8 +6,7 @@ on:
     branches: [main]
     paths:
       - 'native/**'
-      - 'mobile/pubspec.yaml'
-      - 'mobile/assets/icon/**'
+      - '.release-please-manifest.json'
       - 'server/test/pux/crypto_test.exs'
       - '.github/workflows/native.yml'
       - '.github/scripts/native-linux-test.sh'
@@ -38,7 +37,7 @@ jobs:
         run: |
           keytool -genkeypair -keystore "$RUNNER_TEMP/trial.jks" -storepass trial-password -keypass trial-password -alias trial -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=CI trial'
           printf 'storeFile=%s\nstorePassword=trial-password\nkeyAlias=trial\nkeyPassword=trial-password\n' "$RUNNER_TEMP/trial.jks" > "$RUNNER_TEMP/trial.properties"
-          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' ../../mobile/pubspec.yaml)
+          version=$(python3 -c 'import json; print(json.load(open("../../.release-please-manifest.json"))["."])')
           test -n "$version"
           ./gradlew --no-daemon assembleRelease bundleRelease lintVitalRelease -PkeyProperties="$RUNNER_TEMP/trial.properties" -PversionCode="$GITHUB_RUN_NUMBER" -PversionName="$version"
       - name: Remove trial signing material
@@ -124,7 +123,7 @@ jobs:
         run: ctest --test-dir native/linux/build -R '^pux_packaging_checks$' --output-on-failure
       - name: Package
         run: |
-          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' mobile/pubspec.yaml)
+          version=$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')
           test -n "$version"
           mkdir -p "$RUNNER_TEMP/native-linux"
           native/linux/packaging/build_deb.sh native/linux/build/pux "$version" "$RUNNER_TEMP/native-linux/pux-linux-amd64.deb"

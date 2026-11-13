@@ -42,7 +42,7 @@ cp "$script_dir/../Resources/Release.entitlements" "$entitlements"
 if [ -n "$team_id" ]; then
   app_id="$team_id.$bundle_id"
   # PlistBuddy, not plutil: plutil reads the dots in these keys as a key path.
-  # Matches released Flutter client (mobile/macos/scripts/sign_app.sh:45-50):
+  # Matches the released Flutter client:
   # only the concrete application-identifier group ($app_id) is granted.
   /usr/libexec/PlistBuddy \
     -c "Add :com.apple.application-identifier string $app_id" \

@@ -26,3 +26,11 @@ A device registration request that times out can still arrive after removal
 and recreate a server device row. An empty database removes existing rows but
 does not fence future in-flight requests; a server ordering mechanism would be
 needed to guarantee device removal.
+
+Before the native rollout, exercise signed in-place upgrades from the released
+clients on Android, iOS and macOS, including existing enrollment and device IDs,
+protected storage, notification decryption, background delivery, removal and
+recovery. Verify Linux migration against a real Secret Service keyring. Check
+camera, clipboard, notification actions and accessibility on the target OSes.
+Keep a rollback and re-enrollment plan, and do not treat fixture or simulator
+tests as proof of hardware behavior.

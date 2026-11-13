@@ -1,30 +1,7 @@
 #!/usr/bin/env bash
 # Renders the PNGs derived from brand/ SVGs. Needs rsvg-convert (brew install librsvg) and python3.
-# After this, regenerate the platform sets from mobile/:
-#   flutter pub run flutter_launcher_icons && flutter pub run flutter_native_splash:create
-# Review the result as brand/README.md describes: the generators also change files they should not.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-# Mobile inputs for flutter_launcher_icons and flutter_native_splash
-icons=mobile/assets/icon
-mkdir -p "$icons"
-for name in ios macos adaptive-foreground adaptive-monochrome splash; do
-  rsvg-convert -w 1024 -h 1024 "brand/app/$name.svg" -o "$icons/$name.png"
-done
-
-# Android notification icon, by density
-res=mobile/android/app/src/main/res
-for spec in mdpi:24 hdpi:36 xhdpi:48 xxhdpi:72 xxxhdpi:96; do
-  dir="$res/drawable-${spec%%:*}"
-  mkdir -p "$dir"
-  rsvg-convert -w "${spec##*:}" -h "${spec##*:}" brand/app/notification.svg -o "$dir/ic_stat_pux.png"
-done
-
-# macOS menu bar icon (a template image: macOS tints it to match the menu bar)
-menubar=mobile/macos/Runner/Assets.xcassets/MenuBarIcon.imageset
-rsvg-convert -w 18 -h 18 brand/app/notification.svg -o "$menubar/menubar.png"
-rsvg-convert -w 36 -h 36 brand/app/notification.svg -o "$menubar/menubar@2x.png"
 
 # Website
 static=server/priv/static

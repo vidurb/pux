@@ -38,7 +38,7 @@ install -m 644 "$here/copyright" "$root/usr/share/doc/pux/copyright"
 
 # Icon (required)
 repo_root=$(cd "$here/../../.." && pwd)
-icon_src="$repo_root/mobile/assets/icon/macos.png"
+icon_src="$repo_root/native/linux/packaging/assets/pux.png"
 if [ ! -f "$icon_src" ]; then
   echo "error: icon missing at $icon_src" >&2
   exit 1

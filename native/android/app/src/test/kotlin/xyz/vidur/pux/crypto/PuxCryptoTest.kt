@@ -8,7 +8,7 @@ import org.json.JSONObject
 
 class PuxCryptoTest {
 
-    // Fixture from server test/pux/crypto_test.exs and mobile/test/crypto_service_test.dart
+    // Fixture from server test/pux/crypto_test.exs and the former Flutter crypto tests
     private val serverPrPublicKey = "6_SQ3WcbCBRRy0xu9yCMatZKbk29McalZTBo3gGzplw"
     private val serverPrSecretKey = "vfIJ42agVVRyDVVmTMtIHPL02MMvNyXMuYf8BgviqDI"
     private val serverPrCiphertext =
@@ -16,7 +16,7 @@ class PuxCryptoTest {
         "tCLJrk6Dyqe1J60Fu13SM6Ci1fISV_VAN9fI0WxPAdzUOBLSqhoVNlmvDg60KTX6k-ubO7gtRDmh8Jit8g3O" +
         "MYhKV_KLn45FJKGjqF5ERXM6cmyCouvd2feDRw"
 
-    // Fixture from mobile/test/crypto_service_test.dart
+    // Fixture from the former Flutter crypto tests
     private val mobileFixturePublicKey = "oVaRfoaaBI7h10MCUauxYiPWaLQaAjN_oklwaOO682M"
     private val mobileFixturePrivateKey = "3h7LhAw9e7EtYS5TeRJsQqYI8v4LtpH49buqnScv9qU"
     private val mobileFixtureCiphertext =

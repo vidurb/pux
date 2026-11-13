@@ -13,19 +13,7 @@ steps {
     glob = List("**/*.{ex,exs,heex}")
     exclude = List("deps/**")
   }
-  ["dart-format"] {
-    workspace_indicator = "pubspec.yaml"
-    dir = "{{workspace}}"
-    glob = List("**/*.dart")
-    check = "dart format --output=none --set-exit-if-changed {{files}}"
-    fix = "dart format {{files}}"
-  }
-  ["dart-analyze"] {
-    workspace_indicator = "pubspec.yaml"
-    dir = "{{workspace}}"
-    glob = List("lib/**/*.dart", "test/**/*.dart")
-    check = "dart analyze {{files}}"
-  }
+
 }
 
 hooks {

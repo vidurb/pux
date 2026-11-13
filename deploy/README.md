@@ -98,7 +98,7 @@ The apps default to the server they were built for. To use yours:
   enrollment JSON whose `server` is your URL (the app shows the server and asks before saving).
 - **Android/iOS push:**
   1. Create a Firebase project.
-  2. Run `flutterfire configure` in `mobile/`, as described in the main [README](../README.md#mobile).
+  2. Replace the native Android and iOS Firebase client configuration as described in the [README](../README.md#native-clients).
   3. Build the app with `--dart-define=PUX_SERVER_URL=https://pux.example.com`.
   4. Put the project's service account JSON in `FCM_SERVICE_ACCOUNT_JSON`, on one line.
 

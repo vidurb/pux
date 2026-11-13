@@ -70,6 +70,8 @@ native/android/app/src/main/kotlin/xyz/vidur/pux/
 
 ## 3. Flutter Secure Storage Migration (v11)
 
+The removed Flutter client documented that no released build used the v10 EncryptedSharedPreferences format. The native migrator targets the v11 custom-cipher format; confirm that release history and test a real signed upgrade before distribution.
+
 The app inspects and migrates existing Flutter storage upon startup:
 - Flutter Secure Storage v11 on Android stores the wrapped AES key in shared preferences file `FlutterSecureKeyStorage` (with legacy fallback to `FlutterSecureStorage`) under key `AESVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK`.
 - The wrapping key in Android Keystore uses alias `${context.packageName}.FlutterSecureStoragePluginKeyOAEP` with RSA/ECB/OAEPWithSHA-256AndMGF1Padding.
@@ -126,7 +128,7 @@ cd native/android
 ```
 A template is available at `native/android/key.properties.example`. Release packaging requires `key.properties`; it fails when signing configuration is absent. Relative `storeFile` paths are resolved from the properties file directory.
 
-**Release blocker (CI wiring):** Native release APKs/AABs must pass the workflow run number as `-PversionCode` (Flutter uses `github.run_number` in `.github/workflows/release.yml`). Release builds fail if `versionCode` is omitted (debug may default to `1`).
+**Release build numbers:** The release workflow passes its run number as `-PversionCode`. Verify that it exceeds all previously published build numbers before distribution. Release builds fail if `versionCode` is omitted (debug may default to `1`).
 
 **Default server URL:** Override at build time with `-PpuxServerUrl=https://…` (BuildConfig `DEFAULT_SERVER_URL`, default `https://pux.vidur.xyz`, same as Flutter’s `PUX_SERVER_URL` default). Enrollment still trusts the server URL stored at enroll time.
 
@@ -185,7 +187,7 @@ Following independent reviews (thread `thr_ys5t4waw5f`), the following actionabl
 
 - **Physical Device Protection:** Connected physical device `0A111FDD4002P2` has the production Flutter client (`package:xyz.vidur.pux`) installed with live user credentials. Overwriting via `adb install` was strictly omitted to prevent signature mismatch (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) and secret erasure. Visual on-device testing was not performed on this device.
 - **Signed In-Place Upgrade Requirements:** Upgrading an installed production Flutter build in-place on a user device requires:
-  1. Signing the native release APK with the identical release keystore (configured via `native/android/key.properties` matching `mobile/android/key.properties`).
+  1. Signing the native release APK with the identical release keystore (configured via `native/android/key.properties`).
   2. Setting a `versionCode` strictly greater than the currently installed Flutter client (passed via `-PversionCode=<int>` or `-PbuildNumber=<int>`).
   An incompatible signing key prevents an upgrade; an insufficient version code is also rejected. The production upgrade has not been tested.
 - **Live Push Interoperability Boundary:** Verified through unit test mocks and FID registration state machines. End-to-end receipt of live incoming FCM pushes from the production server requires an active enrolled device connected to Google Play Services.

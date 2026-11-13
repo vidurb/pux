@@ -3,7 +3,7 @@ name: testflight
 # Builds the iOS app and uploads it to TestFlight. Runs on release tags (started by
 # the release-please workflow, or by pushing a tag by hand), and by hand from the
 # Actions tab for in-between builds. One-time setup (certificate, profiles,
-# API key, secrets) is in mobile/ios/README.md.
+# API key, secrets) is in native/ios/README.md.
 
 on:
   workflow_dispatch:
@@ -49,7 +49,7 @@ jobs:
           for name in APPLE_TEAM_ID IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD \
             IOS_APP_PROFILE_BASE64 IOS_EXTENSION_PROFILE_BASE64 \
             APP_STORE_CONNECT_API_KEY APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
-            if [ -z "${!name}" ]; then echo "::error::$name is not set (see mobile/ios/README.md)"; missing=1; fi
+            if [ -z "${!name}" ]; then echo "::error::$name is not set (see native/ios/README.md)"; missing=1; fi
           done
           exit "$missing"
 
@@ -96,8 +96,12 @@ jobs:
 
       - name: Archive native iOS app
         run: |
-          version=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' ../../mobile/pubspec.yaml)
+          version=$(python3 -c 'import json; print(json.load(open("../../.release-please-manifest.json"))["."])')
           test -n "$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Release tag does not match manifest version $version"
+            exit 1
+          fi
           xcodebuild archive \
             -project Pux.xcodeproj \
             -scheme Pux \

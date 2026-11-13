@@ -1,5 +1,5 @@
 // Writes, reads and deletes one item in the data protection keychain, the way
-// flutter_secure_storage does on macOS. See keychain_probe.sh.
+// flutter_secure_storage does on macOS. See release_keychain_probe.sh.
 import Foundation
 import Security
 

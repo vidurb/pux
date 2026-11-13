@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import json
 import os
 
 PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -13,14 +14,8 @@ def make_id(name: str) -> str:
 def get_marketing_version() -> str:
     if "MARKETING_VERSION" in os.environ:
         return os.environ["MARKETING_VERSION"]
-    pubspec = os.path.join(REPO_ROOT, "mobile", "pubspec.yaml")
-    if os.path.exists(pubspec):
-        with open(pubspec, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip().startswith("version:"):
-                    parts = line.split(":", 1)[1].split("#")[0].strip()
-                    return parts
-    return "0.1.0"
+    with open(os.path.join(REPO_ROOT, ".release-please-manifest.json"), encoding="utf-8") as f:
+        return json.load(f)["."]
 
 def get_build_number() -> str:
     return os.environ.get("CURRENT_PROJECT_VERSION", os.environ.get("BUILD_NUMBER", "1"))

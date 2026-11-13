@@ -19,14 +19,9 @@ MIX_ENV=test mix compile --warnings-as-errors
 mix test
 ```
 
-**Mobile checks** (from `mobile/`):
+**Native checks:** see [native/README.md](native/README.md) and the platform READMEs.
 
-```bash
-flutter analyze
-flutter test
-```
-
-CI workflows (`.github/workflows/server.yml`, `mobile.yml`) still install their own toolchains; switching them to `jdx/mise-action` is optional follow-up.
+CI workflows (`.github/workflows/server.yml`, `native.yml`) still install their own toolchains; switching them to `jdx/mise-action` is optional follow-up.
 
 # Commit messages and PR titles
 
@@ -44,6 +39,6 @@ type(scope): summary
 
 Keep the PR title in the same format, because PRs are squash-merged with the title as the commit message. A one-commit PR is squashed with its commit message instead, so that message must match the title exactly. The `pr-title` workflow checks both.
 
-Don't edit `CHANGELOG.md`, the `version:` in `server/mix.exs` or `mobile/pubspec.yaml`, or `.release-please-manifest.json` by hand; the release PR does that. The exception is cutting v0.1.0 (CONTRIBUTING.md).
+Don't edit `CHANGELOG.md`, the `version:` in `server/mix.exs`, or `.release-please-manifest.json` by hand; the release PR does that. The exception is cutting v0.1.0 (CONTRIBUTING.md).
 
 The hk `commit-msg` hook rejects messages that don't parse. `mise run setup` installs it; in an existing checkout run `hk install --mise` once. If a commit is rejected, fix the message and commit again. Don't bypass the hook with `--no-verify` or `HK=0`.
