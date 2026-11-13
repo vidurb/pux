@@ -3,7 +3,7 @@ name: release
 # Normally started by the release-please workflow: merging its release PR tags
 # vX.Y.Z (with a draft GitHub Release) and runs this workflow on that tag. A tag
 # pushed by hand (v0.2.0-rc.1 for a pre-release) runs it too. The tag must match
-# the versions in server/mix.exs and mobile/pubspec.yaml; see CONTRIBUTING.md.
+# the versions in server/mix.exs and .release-please-manifest.json; see CONTRIBUTING.md.
 #
 # Run it by hand on a branch from the Actions tab to try the builds, signing and
 # notarization without a release: the artifacts are attached to the run, and
@@ -34,17 +34,19 @@ jobs:
       - id: check
         run: |
           server=$(sed -nE 's/^ *version: "([^"]+)",/\1/p' server/mix.exs)
-          mobile=$(sed -nE 's/^version: ([^ +#]+).*/\1/p' mobile/pubspec.yaml)
+          app_version=$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')
+          test -n "$server" && test -n "$app_version" || { echo "::error::Missing release version"; exit 1; }
+          test "$server" = "$app_version" || { echo "::error::server and manifest versions differ"; exit 1; }
           if [ "$GITHUB_REF_TYPE" != tag ]; then
             # A trial run: name the artifacts after the app version and the run.
-            echo "version=$mobile-dev.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "version=$app_version-dev.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           version="${GITHUB_REF_NAME#v}"
-          echo "tag=$version server=$server mobile=$mobile"
+          echo "tag=$version server=$server app=$app_version"
           test "$version" = "$server" || { echo "::error::server/mix.exs is $server, tag is $version"; exit 1; }
-          test "$version" = "$mobile" || { echo "::error::mobile/pubspec.yaml is $mobile, tag is $version"; exit 1; }
+          test "$version" = "$app_version" || { echo "::error::.release-please-manifest.json is $app_version, tag is $version"; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$version] section"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$version" == *-* ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi >> "$GITHUB_OUTPUT"
@@ -146,7 +148,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Signed with Developer ID and notarized, so Gatekeeper opens it without a
-      # warning. One-time setup is in mobile/macos/README.md.
+      # warning. One-time setup is in native/macos/README.md.
       - name: Check configuration
         env:
           MACOS_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_CERT_P12_BASE64 }}
@@ -160,7 +162,7 @@ jobs:
           for name in APPLE_TEAM_ID MACOS_DEVELOPER_ID_CERT_P12_BASE64 MACOS_DEVELOPER_ID_CERT_PASSWORD \
             MACOS_DEVELOPER_ID_PROFILE_BASE64 \
             APP_STORE_CONNECT_API_KEY APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
-            if [ -z "${!name}" ]; then echo "::error::$name is not set (see mobile/macos/README.md)"; missing=1; fi
+            if [ -z "${!name}" ]; then echo "::error::$name is not set (see native/macos/README.md)"; missing=1; fi
           done
           exit "$missing"
 
@@ -203,7 +205,7 @@ jobs:
       # programs without a keychain access group. Prove this signature has one
       # before shipping an app that can't save an enrollment.
       - name: Check keychain access
-        run: ../../mobile/macos/scripts/keychain_probe.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
+        run: scripts/release_keychain_probe.sh "$APP" "$SIGNING_IDENTITY" "$APPLE_TEAM_ID" "$PROFILE"
 
       - name: Notarize and package
         env:
@@ -238,7 +240,7 @@ jobs:
 
           dmg="$PWD/dist/pux-$VERSION-macos.dmg"
           mkdir -p dist
-          ../../mobile/macos/scripts/make_dmg.sh "$APP" "$dmg"
+          scripts/make_dmg.sh "$APP" "$dmg"
           codesign --sign "$SIGNING_IDENTITY" --timestamp "$dmg"
           notarize "$dmg"
           xcrun stapler staple "$dmg"

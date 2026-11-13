@@ -53,12 +53,7 @@ cp "$thin_bin" "$app_bundle/Contents/MacOS/pux"
 rm -f "$thin_bin"
 cp "$macos_dir/Resources/Info.plist" "$app_bundle/Contents/Info.plist"
 
-pubspec="$repo_root/mobile/pubspec.yaml"
-if [ -f "$pubspec" ]; then
-  marketing=$(grep -E '^version:' "$pubspec" | head -1 | sed -E 's/^version:[[:space:]]*([^[:space:]#+]+).*/\1/')
-else
-  marketing="${PUX_MARKETING_VERSION:-0.1.0}"
-fi
+marketing="${PUX_MARKETING_VERSION:-$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["."])' "$repo_root/.release-please-manifest.json")}"
 build_number="${PUX_BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $marketing" "$app_bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app_bundle/Contents/Info.plist"

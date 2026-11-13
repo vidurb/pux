@@ -22,7 +22,7 @@ The logo files are drawn as paths, so they need no font. `og-image.svg` and `pla
 
 The feature graphic keeps everything at least 64px in from its edges, because Play crops and overlays it in some places, and has a solid background: Play rejects one with transparency, so `render-brand.sh` flattens it.
 
-`screenshots/` holds the README's images: `site-*` are of the website, and `app-*` are rendered from the store screenshot scenes (see [`store/README.md`](../store/README.md#screenshots)).
+`screenshots/` holds the README's images: `site-*` are of the website, (see [`store/README.md`](../store/README.md#screenshots) for store captures).
 
 Below 24px the keyhole stops being readable. The icon still works as a p, but check any new use at its real size.
 
@@ -52,13 +52,6 @@ System fonts only, so the site loads nothing from a third party.
 
 ```bash
 ./scripts/render-brand.sh                 # needs rsvg-convert
-cd mobile
-flutter pub run flutter_launcher_icons
-flutter pub run flutter_native_splash:create
 ```
 
-Then revert what the generators change beyond the images, because these break or bloat the iOS build:
-
-- `ios/Runner.xcodeproj/project.pbxproj`: `flutter_launcher_icons` sets a wrong asset-symbol setting.
-- `ios/Runner/Info.plist`: `flutter_native_splash` reformats the file and hides the status bar.
-- `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json`, along with the legacy 50, 57 and 72 point PNGs it adds. Restore the macOS `Contents.json` too.
+Native platform icon assets are maintained in their respective platform directories.

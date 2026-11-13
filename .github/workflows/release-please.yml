@@ -1,7 +1,7 @@
 name: release-please
 
 # Keeps a release PR open that collects the Conventional Commits merged to main
-# since the last release. It bumps server/mix.exs and mobile/pubspec.yaml to the
+# since the last release. It bumps server/mix.exs and the release manifest to the
 # next semantic version and adds a CHANGELOG.md section:
 #
 #   feat:                            minor (0.1.0 -> 0.2.0)

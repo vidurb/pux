@@ -15,7 +15,7 @@ import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
 
 /**
- * Migrates stored enrollment data from Flutter secure-storage (v11.2.0 pinned in mobile/pubspec.lock).
+ * Migrates stored enrollment data from Flutter secure-storage (legacy flutter_secure_storage format).
  *
  * In flutter_secure_storage 11.2.0:
  * - Data SharedPreferences: "FlutterSecureStorage"

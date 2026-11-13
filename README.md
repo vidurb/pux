@@ -6,7 +6,7 @@
 </h1>
 
 [![server](https://github.com/vidurb/pux/actions/workflows/server.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/server.yml)
-[![mobile](https://github.com/vidurb/pux/actions/workflows/mobile.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/mobile.yml)
+[![native](https://github.com/vidurb/pux/actions/workflows/native.yml/badge.svg)](https://github.com/vidurb/pux/actions/workflows/native.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 Get your bank OTPs on your computer and every phone you add, even when your phone has no signal. pux takes the OTP from the email your bank sends, end-to-end encrypts it, and pushes it to your devices over any internet connection.
@@ -15,7 +15,6 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 
 <img src="brand/screenshots/site-desktop.jpg" alt="The pux website, showing the headline and an example of a sealed code on the server next to the readable code on a device" width="640"> <img src="brand/screenshots/site-mobile-dark.jpg" alt="The pux website on a phone in dark mode" height="360">
 
-<img src="brand/screenshots/app-notification.png" alt="App screenshot: a phone lock screen with no mobile service but on Wi-Fi, showing a pux notification with the code 482913 from Northwind Bank" height="360"> <img src="brand/screenshots/app-devices.png" alt="App screenshot: the same code arriving as a notification on a laptop and on a second phone" height="360"> <img src="brand/screenshots/app-forwarding.png" alt="App screenshot: the app's Set up forwarding screen, with the relay's inbox address and the first Gmail filter steps" height="360">
 
 ## Download
 
@@ -55,14 +54,13 @@ Known OTP emails (check one in your own inbox first, since banks use different s
 | HSBC (credit card) | `hsbc@hsbc.bank.in` | `Your HSBC Credit Card OTP` |
 | RBL Bank | `alerts@rbl.bank.in` | `One-Time Password for your online transaction` |
 
-Know another? Open a PR adding it here and to `knownOtpSenders` in [`forwarding_help_screen.dart`](mobile/lib/src/screens/forwarding_help_screen.dart).
+Know another? Open a PR adding it here and to the native clients’ forwarding guides.
 
 To check the relay itself, tap **Send a test code** on the app's home screen: every device on the relay should get "OTP from pux test" with the code the app names. That covers the server and push; to check that mail reaches the relay too, email `Your OTP is 123456` straight to your inbox address. The home screen also shows which server the app uses and whether it can reach it.
 
 ## Architecture
 
 - **server/** — Phoenix/Elixir service (inbound SMTP, website, FCM push)
-- **mobile/** — Flutter app (Android, iOS, macOS, Linux; Windows is not supported for now)
 - **native/** — native Android, iOS, macOS and Linux clients; see [native/README.md](native/README.md) for CI and release status
 - **brand/** — logo, palette and icon sources ([guide](brand/README.md))
 - **store/** — store listing copy and privacy form answers ([guide](store/README.md))
@@ -114,7 +112,7 @@ mise install
 mise run setup
 ```
 
-That pins Erlang/OTP, Elixir, Flutter, Temurin JDK 17 (for Android builds), [hk](https://hk.jdx.dev), and [jactionlint](https://github.com/jdx/jactionlint) per [`mise.toml`](mise.toml). `mise run setup` installs hk pre-commit hooks (format/check on staged Elixir, Dart, and workflow files). Run `hk check` anytime for the same checks without committing.
+That pins Erlang/OTP, Elixir, Temurin JDK 21 (for Android builds), [hk](https://hk.jdx.dev), and [jactionlint](https://github.com/jdx/jactionlint) per [`mise.toml`](mise.toml). `mise run setup` installs hk pre-commit hooks (format/check on staged Elixir and workflow files). Run `hk check` anytime for the same checks without committing.
 
 You still need PostgreSQL and libsodium for the server, and platform SDKs (Xcode, Android SDK, etc.) for mobile targets.
 
@@ -131,44 +129,9 @@ SMTP listens on port 2525 (`SMTP_PORT`) in every environment; map public port 25
 
 Tests need PostgreSQL (`DATABASE_URL`) and libsodium. The SMTP integration test talks to the real listener on port 2526 and the WebSocket tests to the endpoint on 4002 (override with `PUX_TEST_SMTP_PORT` / `PUX_TEST_HTTP_PORT`). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full set of checks CI runs.
 
-### Mobile
+### Native clients
 
-```bash
-cd mobile
-flutter pub get
-flutter run
-```
-
-Set `PUX_SERVER_URL` via `--dart-define=PUX_SERVER_URL=http://10.0.2.2:4000` for the Android emulator.
-
-Platform targets:
-
-| Platform | Delivery | Onboarding |
-|----------|----------|------------|
-| Android | FCM push | Create relay or QR scan |
-| iOS | FCM push (APNs) | Create relay or QR scan |
-| macOS / Linux | WebSocket + poll fallback | Import enrollment JSON only |
-| Windows | — | Not supported for now (does not build in CI) |
-
-The app registers with FCM by Firebase Installation ID, which both native SDKs only allow when it is turned on: `firebase_messaging_installation_id_enabled` in `android/app/src/main/AndroidManifest.xml` and `FirebaseMessagingInstallationIdEnabled` in `ios/Runner/Info.plist`. Keep both. With them on, the deprecated `getToken` and `onTokenRefresh` don't work.
-
-Without Firebase config the app still runs, but the home screen says push is not configured. To enable FCM, run `flutterfire configure --project=<id> --out=lib/src/firebase_options.dart --platforms=android,ios` in `mobile/` (this writes `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` and replaces the placeholder options), or pass `--dart-define=FIREBASE_*` values. These files are not secret and can be committed.
-
-#### Testing on an Android phone
-
-1. Configure Firebase as above and make sure the server has the matching `FCM_SERVICE_ACCOUNT_JSON`.
-2. Build and install: `flutter build apk --debug --dart-define=PUX_SERVER_URL=https://pux.vidur.xyz`, then `adb install build/app/outputs/flutter-apk/app-debug.apk` (or `flutter run -d <device> --dart-define=...`). CI also uploads a debug APK as the `pux-android-debug-apk` artifact of the `mobile` workflow, but it is built without Firebase config, so it cannot receive pushes.
-3. Open the app, tap **Create new relay**, allow notifications, and forward a test email (`Your OTP is 123456`) to the inbox address shown.
-
-#### iOS push
-
-iOS throttles data-only pushes and drops them for force-quit apps, so the server's FCM message also carries an `apns` alert: a generic "New code / Open pux to view" placeholder with `mutable-content: 1` (Android ignores it and stays data-only). The `NotificationService` app extension reads the keypair from a keychain group shared with the app (`$(AppIdentifierPrefix)xyz.vidur.pux.shared`, readable after first unlock), opens the sealed `ciphertext` and rewrites the title and body; if anything fails, the placeholder is shown. The app does not show its own copy of FCM messages on iOS. Before shipping:
-
-1. Upload an APNs auth key to Firebase (Project settings → Cloud Messaging).
-2. In the Apple Developer account, enable Push Notifications for `xyz.vidur.pux` and register `xyz.vidur.pux.NotificationService`. Set your team on both targets in Xcode (automatic signing creates the profiles; the keychain group needs no registration).
-3. Debug builds use the APNs sandbox; Release and Profile use production (`Runner/RunnerRelease.entitlements`).
-
-The extension target is added by `ruby ios/scripts/add_notification_service.rb` (needs the `xcodeproj` gem, which ships with CocoaPods); re-running it is safe. All iOS plugins are Swift packages, so the iOS build does not need CocoaPods.
+See [native/README.md](native/README.md) and the platform READMEs for build and test instructions. Android and iOS use Firebase Cloud Messaging; desktop clients use WebSocket delivery with polling fallback. For your own Firebase project, replace `native/android/app/google-services.json` and `native/ios/Sources/PuxApp/GoogleService-Info.plist` with matching client configuration and configure the server service account. iOS also requires an APNs key in Firebase.
 
 #### Installing the desktop apps
 
@@ -236,12 +199,6 @@ Decrypted push payloads are JSON with a `type`:
 | `SMTP_REQUIRE_TLS` | no | `true` to refuse `MAIL` before `STARTTLS` (`530 5.7.0`); only applies when STARTTLS is configured (default `false`) |
 | `SMTP_INBOUND_RATE_LIMIT` / `SMTP_INBOUND_RATE_SCALE_MS` | no | Max OTP deliveries per record per window; extra mail is accepted and dropped (default 20 per `600000` ms) |
 | `FCM_SERVICE_ACCOUNT_JSON` | no | Firebase service account JSON for push |
-
-### Mobile release signing
-
-Copy `mobile/android/key.properties.example` to `mobile/android/key.properties` and create a release keystore. Without `key.properties`, release builds fail with an error instead of falling back to the debug key; debug builds (`flutter build apk --debug`, used in CI) don't need it.
-
-Android backups and device-to-device transfer are disabled for the app, so keys never leave the device that way. OTP notifications are hidden on a secure lock screen, and copied codes and enrollment JSON are marked sensitive and cleared from the clipboard after a minute if still there (not on iOS).
 
 ## Deployment
 

@@ -1,4 +1,0 @@
-storePassword=change-me
-keyPassword=change-me
-keyAlias=pux
-storeFile=../keystore/pux-release.jks

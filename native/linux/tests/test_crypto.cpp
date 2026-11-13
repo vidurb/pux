@@ -3,7 +3,7 @@
 
 namespace {
 
-// Fixtures from mobile/test/crypto_service_test.dart and server test vectors:
+// Fixtures from the former Flutter crypto tests and server test vectors:
 const char* kFixturePublicKey = "oVaRfoaaBI7h10MCUauxYiPWaLQaAjN_oklwaOO682M";
 const char* kFixturePrivateKey = "3h7LhAw9e7EtYS5TeRJsQqYI8v4LtpH49buqnScv9qU";
 const char* kFixtureCiphertext =
