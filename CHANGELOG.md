@@ -6,6 +6,19 @@ After 0.1.0, [release-please](https://github.com/googleapis/release-please) writ
 section from the [Conventional Commit](https://www.conventionalcommits.org/) titles of
 merged PRs; see [CONTRIBUTING.md](CONTRIBUTING.md#releases-maintainers).
 
+## [0.2.0](https://github.com/vidurb/pux/compare/v0.1.0...v0.2.0) (2026-11-13)
+
+
+### Added
+
+* **macos:** keep pux in the menu bar and add desktop settings ([#80](https://github.com/vidurb/pux/issues/80)) ([56dcbb2](https://github.com/vidurb/pux/commit/56dcbb24a3dd705867e4f01ddd0e4233647cc4a6))
+* **mobile:** ship native clients across supported platforms ([#81](https://github.com/vidurb/pux/issues/81)) ([112dcb9](https://github.com/vidurb/pux/commit/112dcb9a891ed1bcda705114a64c87443a1b510b))
+
+
+### Fixed
+
+* **mobile:** open gmail forwarding confirmation links from the notification ([#79](https://github.com/vidurb/pux/issues/79)) ([ba3ba45](https://github.com/vidurb/pux/commit/ba3ba453c7a00dc00e6f4e4c3f5fa17e585b63ec))
+
 ## [0.1.0] - 2026-11-12
 
 ### Security
