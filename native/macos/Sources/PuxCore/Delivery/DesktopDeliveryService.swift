@@ -720,7 +720,12 @@ public final class DesktopDeliveryService: @unchecked Sendable {
             guard let self = self, self.isCurrentSession(session) else { return }
 
             let ws = NativeWebSocketConnection(url: wsUrl, headers: ["x-pux-token": recordId])
-            self.withLock { self.activeWebSocket = ws }
+            let installed = self.withLock { () -> Bool in
+                guard !self._stopped, self._session == session else { return false }
+                self.activeWebSocket = ws
+                return true
+            }
+            guard installed else { return }
             ws.connect()
 
             lastPongAt = nil
