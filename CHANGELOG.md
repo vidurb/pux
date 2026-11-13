@@ -6,6 +6,13 @@ After 0.1.0, [release-please](https://github.com/googleapis/release-please) writ
 section from the [Conventional Commit](https://www.conventionalcommits.org/) titles of
 merged PRs; see [CONTRIBUTING.md](CONTRIBUTING.md#releases-maintainers).
 
+## [0.2.2](https://github.com/vidurb/pux/compare/v0.2.1...v0.2.2) (2026-11-13)
+
+
+### Fixed
+
+* **ios:** declare exempt encryption for apple apps ([#85](https://github.com/vidurb/pux/issues/85)) ([392e746](https://github.com/vidurb/pux/commit/392e746b2baffaf9e98fccea1582a150c8cd0194))
+
 ## [0.2.1](https://github.com/vidurb/pux/compare/v0.2.0...v0.2.1) (2026-11-13)
 
 
