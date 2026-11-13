@@ -4,13 +4,16 @@ import XCTest
 final class NotificationCodesTests: PuxTestCase {
     func testExpiryOccursWithoutReadingAndReplacementSurvivesOldTimer() async throws {
         let codes = NotificationCodes()
+        defer { codes.clear() }
         codes.put(id: "old", code: "secret", lifetime: 0.03)
         codes.put(id: "replacement", code: "first", lifetime: 0.03)
-        codes.put(id: "replacement", code: "second", lifetime: 1)
-        try await Task.sleep(nanoseconds: 150_000_000)
-        let entries = Mirror(reflecting: codes).children.first { $0.label == "codes" }?.value as? [String: String]
-        XCTAssertNil(entries?["old"])
-        XCTAssertEqual(entries?["replacement"], "second")
+        codes.put(id: "replacement", code: "second", lifetime: 30)
+        let deadline = Date().addingTimeInterval(5)
+        while codes.storedCodeForTesting(id: "old") != nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNil(codes.storedCodeForTesting(id: "old"))
+        XCTAssertEqual(codes.storedCodeForTesting(id: "replacement"), "second")
         codes.clear()
         XCTAssertNil(codes.take(id: "replacement"))
     }

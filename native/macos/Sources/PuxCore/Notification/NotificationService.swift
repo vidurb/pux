@@ -70,6 +70,15 @@ public final class NotificationCodes: @unchecked Sendable {
         expiry.removeAll()
     }
 
+    #if DEBUG
+    // Observe the cache without triggering expiry; used to test scheduled cleanup.
+    func storedCodeForTesting(id: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return codes[id]
+    }
+    #endif
+
     private func cleanExpired() {
         let now = Date()
         let expiredKeys = expiry.filter { $0.value < now }.map(\.key)
