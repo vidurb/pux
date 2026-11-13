@@ -23,6 +23,7 @@ public final class NativeWebSocketConnection: WebSocketConnection, @unchecked Se
     private var session: URLSession?
     private var task: URLSessionWebSocketTask?
     private let lock = NSLock()
+    private var disconnected = false
 
     public init(url: URL, headers: [String: String] = [:]) {
         self.url = url
@@ -30,6 +31,9 @@ public final class NativeWebSocketConnection: WebSocketConnection, @unchecked Se
     }
 
     public func connect() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !disconnected, session == nil else { return }
         var request = URLRequest(url: url)
         for (k, v) in headers {
             request.setValue(v, forHTTPHeaderField: k)
@@ -43,6 +47,7 @@ public final class NativeWebSocketConnection: WebSocketConnection, @unchecked Se
 
     public func disconnect() {
         lock.lock()
+        disconnected = true
         task?.cancel(with: .normalClosure, reason: nil)
         task = nil
         session?.invalidateAndCancel()
