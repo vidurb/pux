@@ -6,6 +6,13 @@ After 0.1.0, [release-please](https://github.com/googleapis/release-please) writ
 section from the [Conventional Commit](https://www.conventionalcommits.org/) titles of
 merged PRs; see [CONTRIBUTING.md](CONTRIBUTING.md#releases-maintainers).
 
+## [0.2.1](https://github.com/vidurb/pux/compare/v0.2.0...v0.2.1) (2026-11-13)
+
+
+### Fixed
+
+* **macos:** prevent websocket shutdown race ([#83](https://github.com/vidurb/pux/issues/83)) ([7f375b7](https://github.com/vidurb/pux/commit/7f375b7921ee2e000860057d3fb883502ce56b8d))
+
 ## [0.2.0](https://github.com/vidurb/pux/compare/v0.1.0...v0.2.0) (2026-11-13)
 
 
