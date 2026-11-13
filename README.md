@@ -21,17 +21,15 @@ Use the hosted instance at [pux.vidur.xyz](https://pux.vidur.xyz) or [run your o
 
 Builds of the [latest release](https://github.com/vidurb/pux/releases/latest), all set up for the hosted instance:
 
-<!-- x-release-please-start-version -->
 | Platform | Download |
 |----------|----------|
-| Android | [pux-0.2.0](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-android.apk) |
-| macOS 12 or later (signed and notarized) | [pux-0.2.0](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-macos.dmg) |
-| Debian 12, Ubuntu 22.04 or later | [pux-0.2.0-amd64.deb](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-linux-amd64.deb) |
-| Other Linux, x86-64 | [pux-0.2.0-x64.tar.gz](https://github.com/vidurb/pux/releases/download/v0.1.0/pux-0.1.0-linux-x64.tar.gz) |
+| Android | [APK](https://github.com/vidurb/pux/releases/latest) |
+| macOS 12 or later (signed and notarized) | [DMG](https://github.com/vidurb/pux/releases/latest) |
+| Debian 12, Ubuntu 22.04 or later | [x86-64 DEB](https://github.com/vidurb/pux/releases/latest) |
+| Other Linux, x86-64 | [tar.gz](https://github.com/vidurb/pux/releases/latest) |
 | iOS | TestFlight beta, by invitation for now |
 
-Checksums: [SHA256SUMS](https://github.com/vidurb/pux/releases/download/v0.2.0/SHA256SUMS). Server image: `ghcr.io/vidurb/pux-server:0.1.0`.
-<!-- x-release-please-end -->
+The release page includes SHA256 checksums. Server image: `ghcr.io/vidurb/pux-server:latest`.
 
 See [Installing the desktop apps](#installing-the-desktop-apps) for what each desktop build needs.
 
