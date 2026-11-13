@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -70,19 +72,23 @@ class CreateRelayControllerRecreationTest {
     @Test
     fun replacementActivitySeesCompletedCreateRelay() {
         runBlocking {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"record_id":"12345678-1234-1234-1234-123456789abc","inbox_address":"new@pux.xyz"}""")
-                .setBodyDelay(50, TimeUnit.MILLISECONDS)
-        )
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                check(release.await(10, TimeUnit.SECONDS)) { "Timed out waiting for recreation" }
+                return MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{"record_id":"12345678-1234-1234-1234-123456789abc","inbox_address":"new@pux.xyz"}""")
+            }
+        }
         val activity = Robolectric.buildActivity(CreateRelayObserverActivity::class.java).setup()
         shadowOf(Looper.getMainLooper()).idle()
         owner.start()
+        shadowOf(Looper.getMainLooper()).idle()
         assertEquals(CreateRelayState.Running, activity.get().observed)
         activity.recreate()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(CreateRelayState.Running, activity.get().observed)
+        release.countDown()
         kotlinx.coroutines.withTimeout(5000) {
             while (owner.state.value != CreateRelayState.Completed) {
                 kotlinx.coroutines.delay(10)

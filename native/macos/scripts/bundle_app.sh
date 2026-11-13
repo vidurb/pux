@@ -110,66 +110,48 @@ if [ "$sodium_filename" != "$base_dylib" ]; then
   ln -sf "$sodium_filename" "$app_bundle/Contents/Frameworks/$base_dylib"
 fi
 
-raw_dep=$(otool -L "$app_bundle/Contents/MacOS/pux" | grep libsodium | awk '{print $1}' || true)
-
 install_name_tool -id "@rpath/$sodium_filename" "$app_bundle/Contents/Frameworks/$sodium_filename"
-
-chmod +w "$app_bundle/Contents/MacOS/pux"
-if [ -n "$raw_dep" ]; then
-  install_name_tool -change "$raw_dep" "@executable_path/../Frameworks/$sodium_filename" "$app_bundle/Contents/MacOS/pux"
-fi
 
 list_rpaths() {
   otool -l "$1" | awk '/cmd LC_RPATH/{show=1; next} show&&$1=="path"{print $2; show=0}'
 }
 
-strip_rpaths() {
-  local binary=$1
-  set +e
-  for _ in $(seq 1 32); do
-    local changed=0
-    while IFS= read -r rpath; do
-      [ -n "$rpath" ] || continue
-      case "$rpath" in
-        @executable_path/../Frameworks) continue ;;
-      esac
-      install_name_tool -delete_rpath "$rpath" "$binary"
-      if [ $? -eq 0 ]; then changed=1; fi
-    done < <(list_rpaths "$binary")
-    [ "$changed" -eq 1 ] || break
-  done
-  set -e
-}
-strip_rpaths "$app_bundle/Contents/MacOS/pux"
-
-if otool -l "$app_bundle/Contents/MacOS/pux" | awk '/cmd LC_RPATH/{show=1; next} show&&$1=="path"{print $2; show=0}' | grep -qE '^/Applications/Xcode\.app/'; then
-  echo "error: absolute Xcode toolchain LC_RPATH remains in shipped binary" >&2
-  exit 1
-fi
-
-if ! otool -l "$app_bundle/Contents/MacOS/pux" | grep -A2 LC_RPATH | grep -q "@executable_path/../Frameworks"; then
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$app_bundle/Contents/MacOS/pux"
-fi
-
-codesign -f -s - "$app_bundle/Contents/Frameworks/$sodium_filename"
-codesign -f -s - "$app_bundle/Contents/MacOS/pux"
-
-chmod +w "$app_bundle/Contents/MacOS/pux"
-strip_rpaths "$app_bundle/Contents/MacOS/pux"
-if ! otool -l "$app_bundle/Contents/MacOS/pux" | grep -A2 LC_RPATH | grep -q "@executable_path/../Frameworks"; then
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$app_bundle/Contents/MacOS/pux"
-fi
-codesign -f -s - "$app_bundle/Contents/MacOS/pux"
-
+# Edit each architecture separately: Xcode versions can emit different rpaths
+# in each slice, and install_name_tool cannot delete a path missing from a slice.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+binary="$app_bundle/Contents/MacOS/pux"
 for arch in x86_64 arm64; do
-  if ! lipo -verify_arch "$arch" "$app_bundle/Contents/MacOS/pux"; then
-    echo "error: pux binary lacks $arch" >&2
+  thin="$work/pux-$arch"
+  lipo "$binary" -thin "$arch" -output "$thin"
+  raw_dep=$(otool -L "$thin" | awk '/libsodium/{print $1; exit}')
+  if [ -z "$raw_dep" ]; then
+    echo "error: $arch executable does not link libsodium" >&2
     exit 1
   fi
-  if ! lipo -verify_arch "$arch" "$app_bundle/Contents/Frameworks/$sodium_filename"; then
-    echo "error: bundled libsodium lacks $arch" >&2
-    exit 1
+  install_name_tool -change "$raw_dep" "@executable_path/../Frameworks/$sodium_filename" "$thin"
+  while IFS= read -r rpath; do
+    [ -n "$rpath" ] || continue
+    case "$rpath" in
+      @executable_path/../Frameworks) continue ;;
+    esac
+    install_name_tool -delete_rpath "$rpath" "$thin"
+  done < <(list_rpaths "$thin" | sort -u)
+  if ! list_rpaths "$thin" | grep -qxF '@executable_path/../Frameworks'; then
+    install_name_tool -add_rpath '@executable_path/../Frameworks' "$thin"
   fi
+done
+lipo -create "$work/pux-x86_64" "$work/pux-arm64" -output "$work/pux-universal"
+cp "$work/pux-universal" "$binary"
+chmod 755 "$binary"
+codesign -f -s - "$app_bundle/Contents/Frameworks/$sodium_filename"
+codesign -f -s - "$binary"
+
+binary_archs=$(lipo -archs "$binary")
+sodium_archs=$(lipo -archs "$app_bundle/Contents/Frameworks/$sodium_filename")
+for arch in x86_64 arm64; do
+  case " $binary_archs " in *" $arch "*) ;; *) echo "error: pux binary lacks $arch" >&2; exit 1 ;; esac
+  case " $sodium_archs " in *" $arch "*) ;; *) echo "error: bundled libsodium lacks $arch" >&2; exit 1 ;; esac
   minos=$(otool -arch "$arch" -l "$app_bundle/Contents/Frameworks/$sodium_filename" | awk '
     $1 == "cmd" { command = $2 }
     command == "LC_BUILD_VERSION" && $1 == "minos" { print $2; exit }
@@ -188,7 +170,7 @@ lipo -info "$app_bundle/Contents/MacOS/pux"
 echo "Verifying bundled binary dependencies:"
 otool -L "$app_bundle/Contents/MacOS/pux"
 
-if otool -l "$app_bundle/Contents/MacOS/pux" | awk '/cmd LC_RPATH/{show=1; next} show&&$1=="path"{print $2; show=0}' | grep -qE '^/Applications/Xcode\.app/'; then
+if otool -l "$app_bundle/Contents/MacOS/pux" | awk '/cmd LC_RPATH/{show=1; next} show&&$1=="path"{print $2; show=0}' | grep -qE '^/Applications/Xcode[^/]*/'; then
   echo "error: absolute Xcode toolchain LC_RPATH remains after packaging" >&2
   exit 1
 fi
