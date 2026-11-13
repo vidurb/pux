@@ -2186,8 +2186,13 @@ extension DesktopDeliveryServiceTests {
             notificationPermissions: permissions
         )
         service.startForTesting(session: 1)
-        let slowProbe = Task { await service.checkNotificationAccessForTesting(timeout: 0.5) }
-        try await Task.sleep(nanoseconds: 20_000_000)
+        let slowProbe = Task { await service.checkNotificationAccessForTesting(timeout: 2) }
+        for _ in 0..<100 {
+            if await permissions.startedCount() > 0 { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let startedBeforeFastProbe = await permissions.startedCount()
+        XCTAssertEqual(startedBeforeFastProbe, 1)
         let fastProbe = Task { await service.checkNotificationAccessForTesting(timeout: 0.05) }
         let fastResult = await fastProbe.value
         await permissions.releaseAll()

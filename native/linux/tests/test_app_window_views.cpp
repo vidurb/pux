@@ -114,13 +114,24 @@ bool pump_gtk_until(std::chrono::milliseconds limit, Pred done) {
 }
 
 GtkApplication* register_test_application() {
-    GtkApplication* app = gtk_application_new("xyz.vidur.pux.test.views", G_APPLICATION_NON_UNIQUE);
-    GError* error = nullptr;
-    if (!g_application_register(G_APPLICATION(app), nullptr, &error)) {
-        if (error) g_error_free(error);
-        g_object_unref(app);
-        return nullptr;
-    }
+    // GTK exports a process-wide profiler object on the session bus. Creating
+    // another GtkApplication before that export has been released fails on
+    // GTK builds with sysprof enabled, so these tests share one application.
+    static GtkApplication* app = []() -> GtkApplication* {
+        GtkApplication* instance = gtk_application_new("xyz.vidur.pux.test.views", G_APPLICATION_NON_UNIQUE);
+        GError* error = nullptr;
+        if (!g_application_register(G_APPLICATION(instance), nullptr, &error)) {
+            if (error) {
+                std::cerr << "GTK application registration failed: " << error->message << std::endl;
+                g_error_free(error);
+            }
+            g_object_unref(instance);
+            return nullptr;
+        }
+        return instance;
+    }();
+    if (!app) return nullptr;
+    g_object_ref(app);
     g_application_hold(G_APPLICATION(app));
     return app;
 }
@@ -130,13 +141,8 @@ GtkApplication* register_test_application() {
 TEST(app_window_survives_repeated_view_refresh) {
     if (!gtk_init_check(nullptr, nullptr)) return;
 
-    GtkApplication* app = gtk_application_new("xyz.vidur.pux.test", G_APPLICATION_NON_UNIQUE);
-    GError* error = nullptr;
-    if (!g_application_register(G_APPLICATION(app), nullptr, &error)) {
-        if (error) g_error_free(error);
-        return;
-    }
-    g_application_hold(G_APPLICATION(app));
+    GtkApplication* app = register_test_application();
+    if (!app) SKIP_TEST("GTK application could not register");
 
     auto transport = std::make_shared<LocalhostOnlyHttpTransport>();
     auto api = std::make_shared<pux::api::ApiClient>(transport);
