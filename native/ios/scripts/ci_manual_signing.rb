@@ -1,20 +1,20 @@
 #!/usr/bin/env ruby
-# Switches the Release configuration of Pux and NotificationService to manual
+# Switches the Release configuration of Pux, NotificationService and AutoFillExtension to manual
 # signing with the given App Store profiles. CI only: the testflight workflow runs
 # it on a throwaway checkout so local builds keep automatic signing.
 #
 # Command-line build settings can't do this, because they apply to every target
-# (including Swift packages, which reject provisioning profiles) and the two app
+# (including Swift packages, which reject provisioning profiles) and the app and extension
 # targets need different profiles.
 #
 #   gem install xcodeproj
-#   ruby ios/scripts/ci_manual_signing.rb TEAM_ID APP_PROFILE_NAME EXTENSION_PROFILE_NAME
+#   ruby ios/scripts/ci_manual_signing.rb TEAM_ID APP_PROFILE_NAME EXTENSION_PROFILE_NAME AUTOFILL_PROFILE_NAME
 require 'xcodeproj'
 
-team, app_profile, extension_profile = ARGV
-abort 'usage: ci_manual_signing.rb TEAM_ID APP_PROFILE_NAME EXTENSION_PROFILE_NAME' unless extension_profile
+team, app_profile, extension_profile, autofill_profile = ARGV
+abort 'usage: ci_manual_signing.rb TEAM_ID APP_PROFILE_NAME EXTENSION_PROFILE_NAME AUTOFILL_PROFILE_NAME' unless autofill_profile
 
-profiles = { 'Pux' => app_profile, 'NotificationService' => extension_profile }
+profiles = { 'Pux' => app_profile, 'NotificationService' => extension_profile, 'AutoFillExtension' => autofill_profile }
 project = Xcodeproj::Project.open(File.expand_path('../Pux.xcodeproj', __dir__))
 
 profiles.each do |target_name, profile|

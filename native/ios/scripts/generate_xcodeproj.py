@@ -20,6 +20,74 @@ def get_marketing_version() -> str:
 def get_build_number() -> str:
     return os.environ.get("CURRENT_PROJECT_VERSION", os.environ.get("BUILD_NUMBER", "1"))
 
+
+def autofill_objects(marketing_version: str, build_number: str) -> list[str]:
+    """Objects for the OTP-only provider, embedded in Pux alongside the push extension."""
+    def af(key):
+        return make_id("AF_" + key)
+
+    source = make_id("FILE_Sources/AutoFillExtension/CredentialProviderViewController.swift")
+    core = make_id("PRODUCT_CORE")
+    project = make_id("PROJECT")
+    core_target = make_id("TARGET_CORE")
+    sodium_package = make_id("PACKAGE_SODIUM")
+    objects = [f"""
+/* AutoFill credential provider extension */
+{af('PRODUCT')} = {{isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = AutoFillExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; }};
+{af('PLIST')} = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/AutoFillExtension/Info.plist; sourceTree = "<group>"; }};
+{af('ENTITLEMENTS')} = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sources/AutoFillExtension/AutoFill.entitlements; sourceTree = "<group>"; }};
+{af('EMBED')} = {{isa = PBXBuildFile; fileRef = {af('PRODUCT')}; settings = {{ATTRIBUTES = (RemoveHeadersOnCopy, ); }}; }};
+{af('SOURCE_BUILD')} = {{isa = PBXBuildFile; fileRef = {source}; }};
+{af('CORE_BUILD')} = {{isa = PBXBuildFile; fileRef = {core}; }};
+{af('SODIUM_BUILD')} = {{isa = PBXBuildFile; productRef = {af('SODIUM')}; }};
+{af('SODIUM')} = {{isa = XCSwiftPackageProductDependency; package = {sodium_package}; productName = Sodium; }};
+{af('SOURCES')} = {{isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ({af('SOURCE_BUILD')}, ); runOnlyForDeploymentPostprocessing = 0; }};
+{af('FRAMEWORKS')} = {{isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ({af('CORE_BUILD')}, {af('SODIUM_BUILD')}, ); runOnlyForDeploymentPostprocessing = 0; }};
+{af('CORE_PROXY')} = {{isa = PBXContainerItemProxy; containerPortal = {project}; proxyType = 1; remoteGlobalIDString = {core_target}; remoteInfo = PuxCore; }};
+{af('CORE_DEP')} = {{isa = PBXTargetDependency; target = {core_target}; targetProxy = {af('CORE_PROXY')}; }};
+{af('APP_PROXY')} = {{isa = PBXContainerItemProxy; containerPortal = {project}; proxyType = 1; remoteGlobalIDString = {af('TARGET')}; remoteInfo = AutoFillExtension; }};
+{af('APP_DEP')} = {{isa = PBXTargetDependency; target = {af('TARGET')}; targetProxy = {af('APP_PROXY')}; }};
+{af('TARGET')} = {{
+    isa = PBXNativeTarget;
+    buildConfigurationList = {af('CONFIGS')};
+    buildPhases = ({af('SOURCES')}, {af('FRAMEWORKS')}, );
+    buildRules = ();
+    dependencies = ({af('CORE_DEP')}, );
+    name = AutoFillExtension;
+    packageProductDependencies = ({af('SODIUM')}, );
+    productName = AutoFillExtension;
+    productReference = {af('PRODUCT')};
+    productType = "com.apple.product-type.app-extension";
+}};
+{af('CONFIGS')} = {{isa = XCConfigurationList; buildConfigurations = ({af('DEBUG')}, {af('RELEASE')}, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; }};
+"""]
+    for configuration in ["Debug", "Release"]:
+        objects.append(f"""
+{af(configuration.upper())} = {{
+    isa = XCBuildConfiguration;
+    buildSettings = {{
+        APPLICATION_EXTENSION_API_ONLY = YES;
+        CODE_SIGN_ENTITLEMENTS = Sources/AutoFillExtension/AutoFill.entitlements;
+        CODE_SIGN_STYLE = Automatic;
+        CURRENT_PROJECT_VERSION = {build_number};
+        FRAMEWORK_SEARCH_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        GENERATE_INFOPLIST_FILE = NO;
+        INFOPLIST_FILE = Sources/AutoFillExtension/Info.plist;
+        IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+        LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks", );
+        MARKETING_VERSION = {marketing_version};
+        PRODUCT_BUNDLE_IDENTIFIER = xyz.vidur.pux.AutoFill;
+        PRODUCT_NAME = "$(TARGET_NAME)";
+        SKIP_INSTALL = YES;
+        SWIFT_INCLUDE_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        SWIFT_VERSION = 5.0;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    }};
+    name = {configuration};
+}};
+""")
+    return objects
+
 def generate():
     # File references
     puxcore_files = [
@@ -44,6 +112,8 @@ def generate():
         ("RegisterAsyncBridge.swift", "Sources/PuxCore/Services/RegisterAsyncBridge.swift"),
         ("NotificationPermissions.swift", "Sources/PuxCore/Services/NotificationPermissions.swift"),
         ("SensitiveClipboard.swift", "Sources/PuxCore/Services/SensitiveClipboard.swift"),
+        ("AutoFillStore.swift", "Sources/PuxCore/Services/AutoFillStore.swift"),
+        ("AutoFillIdentities.swift", "Sources/PuxCore/Services/AutoFillIdentities.swift"),
     ]
 
     puxapp_files = [
@@ -61,6 +131,7 @@ def generate():
         ("EnrollScreen.swift", "Sources/PuxApp/Views/EnrollScreen.swift"),
         ("ForwardingHelpScreen.swift", "Sources/PuxApp/Views/ForwardingHelpScreen.swift"),
         ("HomeScreen.swift", "Sources/PuxApp/Views/HomeScreen.swift"),
+        ("AutoFillScreen.swift", "Sources/PuxApp/Views/AutoFillScreen.swift"),
         ("ImportEnrollmentScreen.swift", "Sources/PuxApp/Views/ImportEnrollmentScreen.swift"),
         ("NotificationExplainerView.swift", "Sources/PuxApp/Views/NotificationExplainerView.swift"),
         ("QRCodeView.swift", "Sources/PuxApp/Views/QRCodeView.swift"),
@@ -74,7 +145,12 @@ def generate():
         ("NotificationService.swift", "Sources/NotificationService/NotificationService.swift"),
     ]
 
+    autofill_files = [
+        ("CredentialProviderViewController.swift", "Sources/AutoFillExtension/CredentialProviderViewController.swift"),
+    ]
+
     test_files = [
+        ("AutoFillStoreTests.swift", "Tests/PuxCoreTests/AutoFillStoreTests.swift"),
         ("MockURLProtocol.swift", "Tests/PuxCoreTests/MockURLProtocol.swift"),
         ("CryptoServiceTests.swift", "Tests/PuxCoreTests/CryptoServiceTests.swift"),
         ("RecordStoreTests.swift", "Tests/PuxCoreTests/RecordStoreTests.swift"),
@@ -269,6 +345,7 @@ def generate():
     out.append("\t\t\tdstPath = \"\";")
     out.append("\t\t\tdstSubfolderSpec = 13;")
     out.append("\t\t\tfiles = (")
+    out.append(f"\t\t\t\t{make_id('AF_EMBED')} /* AutoFillExtension.appex */,")
     out.append(f"\t\t\t\t{id_embed_nse_buildfile} /* NotificationService.appex in Embed Foundation Extensions */,")
     out.append("\t\t\t);")
     out.append("\t\t\tname = \"Embed Foundation Extensions\";")
@@ -287,7 +364,7 @@ def generate():
     out.append(f"\t\t{id_gservice_ref} /* GoogleService-Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/PuxApp/GoogleService-Info.plist; sourceTree = \"<group>\"; }};")
 
     # Sorted so regenerating the project is reproducible (set order varies per run).
-    all_file_refs = sorted(set(puxcore_files + puxapp_files + nse_files + test_files), key=lambda f: f[1])
+    all_file_refs = sorted(set(puxcore_files + puxapp_files + nse_files + autofill_files + test_files), key=lambda f: f[1])
     for name, path in all_file_refs:
         fr_id = make_id(f"FILE_{path}")
         out.append(f"\t\t{fr_id} /* {name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"{path}\"; sourceTree = \"<group>\"; }};")
@@ -363,6 +440,8 @@ def generate():
     out.append(f"\t\t\t\t{id_app_release_entitlements} /* PuxRelease.entitlements */,")
     out.append(f"\t\t\t\t{id_nse_plist} /* Info.plist */,")
     out.append(f"\t\t\t\t{id_nse_entitlements} /* NotificationService.entitlements */,")
+    for key in ["AF_PLIST", "AF_ENTITLEMENTS"]:
+        out.append(f"\t\t\t\t{make_id(key)},")
     out.append(f"\t\t\t\t{id_products_group} /* Products */,")
     out.append("\t\t\t);")
     out.append("\t\t\tsourceTree = \"<group>\";")
@@ -373,6 +452,7 @@ def generate():
     out.append("\t\t\tchildren = (")
     out.append(f"\t\t\t\t{id_core_product} /* PuxCore.framework */,")
     out.append(f"\t\t\t\t{id_app_product} /* Pux.app */,")
+    out.append(f"\t\t\t\t{make_id('AF_PRODUCT')} /* AutoFillExtension.appex */,")
     out.append(f"\t\t\t\t{id_nse_product} /* NotificationService.appex */,")
     out.append(f"\t\t\t\t{id_test_product} /* PuxTests.xctest */,")
     out.append("\t\t\t);")
@@ -434,6 +514,7 @@ def generate():
     out.append("\t\t\t);")
     out.append("\t\t\tdependencies = (")
     out.append(f"\t\t\t\t{id_dep_core_app} /* PBXTargetDependency */,")
+    out.append(f"\t\t\t\t{make_id('AF_APP_DEP')},")
     out.append(f"\t\t\t\t{id_dep_nse_app} /* PBXTargetDependency */,")
     out.append("\t\t\t);")
     out.append("\t\t\tname = Pux;")
@@ -538,6 +619,7 @@ def generate():
     out.append("\t\t\ttargets = (")
     out.append(f"\t\t\t\t{id_core_target} /* PuxCore */,")
     out.append(f"\t\t\t\t{id_app_target} /* Pux */,")
+    out.append(f"\t\t\t\t{make_id('AF_TARGET')} /* AutoFillExtension */,")
     out.append(f"\t\t\t\t{id_nse_target} /* NotificationService */,")
     out.append(f"\t\t\t\t{id_test_target} /* PuxTests */,")
     out.append("\t\t\t);")
@@ -954,6 +1036,7 @@ def generate():
     out.append("\t\t};")
     out.append("/* End XCSwiftPackageProductDependency section */")
 
+    out.extend(autofill_objects(marketing_ver, build_num))
     out.append("\t};")
     out.append(f"\trootObject = {id_proj} /* Project object */;")
     out.append("}")

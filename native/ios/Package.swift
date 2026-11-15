@@ -42,6 +42,12 @@ let package = Package(
             path: "Sources/NotificationService",
             exclude: ["Info.plist", "NotificationService.entitlements"]
         ),
+        .target(
+            name: "AutoFillExtension",
+            dependencies: ["PuxCore"],
+            path: "Sources/AutoFillExtension",
+            exclude: ["Info.plist", "AutoFill.entitlements"]
+        ),
         .testTarget(
             name: "PuxCoreTests",
             dependencies: [

@@ -30,6 +30,10 @@ public final class NotificationService: UNNotificationServiceExtension {
             return
         }
 
+        if #available(iOS 18.0, *) {
+            AutoFillStore().capture(ciphertext: ciphertext, payload: payload)
+        }
+
         let relay = RelayNotification.fromPayload(payload)
         content.title = relay.title
         content.body = relay.body

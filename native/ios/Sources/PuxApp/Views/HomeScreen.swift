@@ -36,6 +36,12 @@ public struct HomeScreen: View {
                 VStack(spacing: 20) {
                     DeliveryPromptView(permissions: permissions)
 
+                    if #available(iOS 18.0, *) {
+                        NavigationLink(destination: AutoFillScreen()) {
+                            Label("Keyboard AutoFill", systemImage: "keyboard")
+                        }
+                    }
+
                     ServerStatusView()
 
                     DeliveryBannerView(

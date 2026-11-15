@@ -39,6 +39,8 @@
 		7129B65066AB74B34CB20A25 /* RegisterAsyncBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683CD644B49838C2409621EA /* RegisterAsyncBridge.swift */; };
 		2067132D5E3E32B8AF694568 /* NotificationPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF66822B61D3D7B9D0D3693 /* NotificationPermissions.swift */; };
 		469D21E136673483655C4A11 /* SensitiveClipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFBD021C168DAEF9D6565897 /* SensitiveClipboard.swift */; };
+		35D5E59AB1007E5737906B76 /* AutoFillStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9483E6BE9CE8BC416A58843F /* AutoFillStore.swift */; };
+		DF30FDE6100FE5A02C076B46 /* AutoFillIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A77083329AEC729D726A37 /* AutoFillIdentities.swift */; };
 		82708BC78913F806648692FD /* PuxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3BBBEAB4302E5B417558F /* PuxApp.swift */; };
 		2C1C88A4F41435E18448CD05 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A09742A34C02A6C4CC657F2F /* AppDelegate.swift */; };
 		47B610021FC99E9CAECCA66B /* PuxTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA79BD0A2F35CDAF9C6636B1 /* PuxTheme.swift */; };
@@ -53,6 +55,7 @@
 		B2CC7583674DBBD7B9A80566 /* EnrollScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEC9031656581163F711D09 /* EnrollScreen.swift */; };
 		E78F2FF804EA7CE91D0F9CA1 /* ForwardingHelpScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5622C1D3119AC1119C592B9A /* ForwardingHelpScreen.swift */; };
 		40C58E72B2275B28BF64D195 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0D0274E27BF46FC1D6ED4A /* HomeScreen.swift */; };
+		BCABB3A59B801A40B930E4E4 /* AutoFillScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A5B20F0F3FEAEBDFB1979AC /* AutoFillScreen.swift */; };
 		6AB5372175F1E6A22C00193B /* ImportEnrollmentScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757E09D909844AD6FFDC96F5 /* ImportEnrollmentScreen.swift */; };
 		C11D4FE1C87CED7FAA53285B /* NotificationExplainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D70B1C90F772A18E27549E /* NotificationExplainerView.swift */; };
 		7AF19E8DC7EBBB8EF98012EB /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E61C4106939989D63418A8 /* QRCodeView.swift */; };
@@ -61,6 +64,7 @@
 		818185936A7B26FD28EA9644 /* TestCodeDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6D0E2A2E9A989DD46FACCE /* TestCodeDialog.swift */; };
 		46200CC0FC785C2ADA2A99C6 /* PuxStackNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A55AD3E0929B756233CF3BE /* PuxStackNavigation.swift */; };
 		C5D95FD2D144CEAA945C8D29 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBD646279594FC386A4278C /* NotificationService.swift */; };
+		C3EED104A7E0143D187A315D /* AutoFillStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26EB8C125165A741D68C5787 /* AutoFillStoreTests.swift */; };
 		139FC5BC5EC0AB935FB17235 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7751E170A2EED3A8FC9693E9 /* MockURLProtocol.swift */; };
 		8C13F6A55A318AA0A9935258 /* CryptoServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EDBCEF919122C892D47D35 /* CryptoServiceTests.swift */; };
 		B38AB3C25E9FB59B47D571B6 /* RecordStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACEA78783B6951E4CA6CE6F /* RecordStoreTests.swift */; };
@@ -125,6 +129,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				4EE8AFAD1D2F009D0D53BBD9 /* AutoFillExtension.appex */,
 				0445E1233CA525AF9C58E745 /* NotificationService.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -139,11 +144,13 @@
 		4E4DC5E43E05C63F256D4E31 /* PuxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PuxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		382039EAE3932F5FB85EED8F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Sources/PuxApp/Assets.xcassets; sourceTree = "<group>"; };
 		67877CBB2BC5464D9C7F0484 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/PuxApp/GoogleService-Info.plist; sourceTree = "<group>"; };
+		228CBDFD1E3B0D6406093C63 /* CredentialProviderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/AutoFillExtension/CredentialProviderViewController.swift"; sourceTree = "<group>"; };
 		3CBD646279594FC386A4278C /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NotificationService/NotificationService.swift"; sourceTree = "<group>"; };
 		A09742A34C02A6C4CC657F2F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/AppDelegate.swift"; sourceTree = "<group>"; };
 		66C3BBBEAB4302E5B417558F /* PuxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/PuxApp.swift"; sourceTree = "<group>"; };
 		EA79BD0A2F35CDAF9C6636B1 /* PuxTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/PuxTheme.swift"; sourceTree = "<group>"; };
 		F5948130C475758CAEEFF279 /* NativeFirebaseRegistrationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/Services/NativeFirebaseRegistrationSource.swift"; sourceTree = "<group>"; };
+		4A5B20F0F3FEAEBDFB1979AC /* AutoFillScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/Views/AutoFillScreen.swift"; sourceTree = "<group>"; };
 		C403850799C7A334330D3198 /* ConfirmServerAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/Views/ConfirmServerAlert.swift"; sourceTree = "<group>"; };
 		67C7CAE5FAD6072376C82186 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/Views/ContentView.swift"; sourceTree = "<group>"; };
 		917538735F7E10E58293B900 /* CreateRelayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxApp/Views/CreateRelayScreen.swift"; sourceTree = "<group>"; };
@@ -174,6 +181,8 @@
 		7B3E99FF2F8D6130F452907C /* TestCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Models/TestCode.swift"; sourceTree = "<group>"; };
 		86F006D45DD5794E03BB25E5 /* ApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/ApiClient.swift"; sourceTree = "<group>"; };
 		104DFC1FF7450C0D25E58156 /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/AppBootstrap.swift"; sourceTree = "<group>"; };
+		A7A77083329AEC729D726A37 /* AutoFillIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/AutoFillIdentities.swift"; sourceTree = "<group>"; };
+		9483E6BE9CE8BC416A58843F /* AutoFillStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/AutoFillStore.swift"; sourceTree = "<group>"; };
 		4E803DEF581A07BDD12ED313 /* CryptoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/CryptoService.swift"; sourceTree = "<group>"; };
 		FCE635FF88E337BB1538E866 /* DeliveryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/DeliveryController.swift"; sourceTree = "<group>"; };
 		10128DC2BCEA7AC7D069BEF1 /* FcmRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/FcmRegistration.swift"; sourceTree = "<group>"; };
@@ -184,6 +193,7 @@
 		AFBD021C168DAEF9D6565897 /* SensitiveClipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/PuxCore/Services/SensitiveClipboard.swift"; sourceTree = "<group>"; };
 		58505543679E5775CB8DD59D /* ApiClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/ApiClientTests.swift"; sourceTree = "<group>"; };
 		C6002830F841E9E597C626C4 /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/AppBootstrapTests.swift"; sourceTree = "<group>"; };
+		26EB8C125165A741D68C5787 /* AutoFillStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/AutoFillStoreTests.swift"; sourceTree = "<group>"; };
 		E1EDBCEF919122C892D47D35 /* CryptoServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/CryptoServiceTests.swift"; sourceTree = "<group>"; };
 		CA454EB512756880BBE246A1 /* DeliveryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/DeliveryControllerTests.swift"; sourceTree = "<group>"; };
 		DBBEC22A4306D9595A51DBCB /* EnrollmentImportAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/PuxCoreTests/EnrollmentImportAccessibilityTests.swift"; sourceTree = "<group>"; };
@@ -249,11 +259,13 @@
 		3C9D7F1ECE6B1C2C05B9A223 = {
 			isa = PBXGroup;
 			children = (
+				228CBDFD1E3B0D6406093C63 /* CredentialProviderViewController.swift */,
 				3CBD646279594FC386A4278C /* NotificationService.swift */,
 				A09742A34C02A6C4CC657F2F /* AppDelegate.swift */,
 				66C3BBBEAB4302E5B417558F /* PuxApp.swift */,
 				EA79BD0A2F35CDAF9C6636B1 /* PuxTheme.swift */,
 				F5948130C475758CAEEFF279 /* NativeFirebaseRegistrationSource.swift */,
+				4A5B20F0F3FEAEBDFB1979AC /* AutoFillScreen.swift */,
 				C403850799C7A334330D3198 /* ConfirmServerAlert.swift */,
 				67C7CAE5FAD6072376C82186 /* ContentView.swift */,
 				917538735F7E10E58293B900 /* CreateRelayScreen.swift */,
@@ -284,6 +296,8 @@
 				7B3E99FF2F8D6130F452907C /* TestCode.swift */,
 				86F006D45DD5794E03BB25E5 /* ApiClient.swift */,
 				104DFC1FF7450C0D25E58156 /* AppBootstrap.swift */,
+				A7A77083329AEC729D726A37 /* AutoFillIdentities.swift */,
+				9483E6BE9CE8BC416A58843F /* AutoFillStore.swift */,
 				4E803DEF581A07BDD12ED313 /* CryptoService.swift */,
 				FCE635FF88E337BB1538E866 /* DeliveryController.swift */,
 				10128DC2BCEA7AC7D069BEF1 /* FcmRegistration.swift */,
@@ -294,6 +308,7 @@
 				AFBD021C168DAEF9D6565897 /* SensitiveClipboard.swift */,
 				58505543679E5775CB8DD59D /* ApiClientTests.swift */,
 				C6002830F841E9E597C626C4 /* AppBootstrapTests.swift */,
+				26EB8C125165A741D68C5787 /* AutoFillStoreTests.swift */,
 				E1EDBCEF919122C892D47D35 /* CryptoServiceTests.swift */,
 				CA454EB512756880BBE246A1 /* DeliveryControllerTests.swift */,
 				DBBEC22A4306D9595A51DBCB /* EnrollmentImportAccessibilityTests.swift */,
@@ -316,6 +331,8 @@
 				0DF547BF06B35D11B3666FBC /* PuxRelease.entitlements */,
 				EB03BE8EF8BB60E80B37D9A3 /* Info.plist */,
 				33B7657D494848EFBC1498D1 /* NotificationService.entitlements */,
+				C3693B02FAE3A49382938C70,
+				3CCF575F7030258DC0CF88E8,
 				5ADE8A4128725EB9150C196B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -325,6 +342,7 @@
 			children = (
 				3E9468003A7EA2ABBBFC6DBC /* PuxCore.framework */,
 				A802F398D810872E35B7CFFD /* Pux.app */,
+				5E92080A7B701122D6C98AF2 /* AutoFillExtension.appex */,
 				67F78ADE52BB16CB11D92185 /* NotificationService.appex */,
 				4E4DC5E43E05C63F256D4E31 /* PuxTests.xctest */,
 			);
@@ -366,6 +384,7 @@
 			);
 			dependencies = (
 				023CD33C63003A3734021165 /* PBXTargetDependency */,
+				43B8D9D500C9DA8B603E95F5,
 				82164CD1612AB076E11BE34B /* PBXTargetDependency */,
 			);
 			name = Pux;
@@ -464,6 +483,7 @@
 			targets = (
 				8CC4FBA4A7A1868B5703CC91 /* PuxCore */,
 				4463214C206F029C3B6CF93B /* Pux */,
+				7F2444A807B40AC5E96C4B82 /* AutoFillExtension */,
 				F3BD73988EC5B194ECC97B59 /* NotificationService */,
 				A564764398D825A0005ED25C /* PuxTests */,
 			);
@@ -522,6 +542,8 @@
 				7129B65066AB74B34CB20A25 /* RegisterAsyncBridge.swift in Sources */,
 				2067132D5E3E32B8AF694568 /* NotificationPermissions.swift in Sources */,
 				469D21E136673483655C4A11 /* SensitiveClipboard.swift in Sources */,
+				35D5E59AB1007E5737906B76 /* AutoFillStore.swift in Sources */,
+				DF30FDE6100FE5A02C076B46 /* AutoFillIdentities.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -543,6 +565,7 @@
 				B2CC7583674DBBD7B9A80566 /* EnrollScreen.swift in Sources */,
 				E78F2FF804EA7CE91D0F9CA1 /* ForwardingHelpScreen.swift in Sources */,
 				40C58E72B2275B28BF64D195 /* HomeScreen.swift in Sources */,
+				BCABB3A59B801A40B930E4E4 /* AutoFillScreen.swift in Sources */,
 				6AB5372175F1E6A22C00193B /* ImportEnrollmentScreen.swift in Sources */,
 				C11D4FE1C87CED7FAA53285B /* NotificationExplainerView.swift in Sources */,
 				7AF19E8DC7EBBB8EF98012EB /* QRCodeView.swift in Sources */,
@@ -565,6 +588,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C3EED104A7E0143D187A315D /* AutoFillStoreTests.swift in Sources */,
 				139FC5BC5EC0AB935FB17235 /* MockURLProtocol.swift in Sources */,
 				8C13F6A55A318AA0A9935258 /* CryptoServiceTests.swift in Sources */,
 				B38AB3C25E9FB59B47D571B6 /* RecordStoreTests.swift in Sources */,
@@ -976,6 +1000,84 @@
 			productName = Sodium;
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* AutoFill credential provider extension */
+5E92080A7B701122D6C98AF2 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = AutoFillExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+C3693B02FAE3A49382938C70 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/AutoFillExtension/Info.plist; sourceTree = "<group>"; };
+3CCF575F7030258DC0CF88E8 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sources/AutoFillExtension/AutoFill.entitlements; sourceTree = "<group>"; };
+4EE8AFAD1D2F009D0D53BBD9 = {isa = PBXBuildFile; fileRef = 5E92080A7B701122D6C98AF2; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+387A956D2C5B879E4FBE3229 = {isa = PBXBuildFile; fileRef = 228CBDFD1E3B0D6406093C63; };
+AAB7709BF6680230D76C4511 = {isa = PBXBuildFile; fileRef = 3E9468003A7EA2ABBBFC6DBC; };
+68AA688A9A0FE4177FDD4B32 = {isa = PBXBuildFile; productRef = 5BDC202AAC3851FEE38EA9C3; };
+5BDC202AAC3851FEE38EA9C3 = {isa = XCSwiftPackageProductDependency; package = FE10DBE6922DBA06C7B0F872; productName = Sodium; };
+4418921829AEE3663D513CB7 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (387A956D2C5B879E4FBE3229, ); runOnlyForDeploymentPostprocessing = 0; };
+5DD4D86794FF934082A0E791 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AAB7709BF6680230D76C4511, 68AA688A9A0FE4177FDD4B32, ); runOnlyForDeploymentPostprocessing = 0; };
+5E5D2C8F10E20FF4939A6A42 = {isa = PBXContainerItemProxy; containerPortal = 16EEAF57BAFC2A41CAB7C99A; proxyType = 1; remoteGlobalIDString = 8CC4FBA4A7A1868B5703CC91; remoteInfo = PuxCore; };
+67C529388113292481C04C31 = {isa = PBXTargetDependency; target = 8CC4FBA4A7A1868B5703CC91; targetProxy = 5E5D2C8F10E20FF4939A6A42; };
+C1247CD44FF5C2C571C65B40 = {isa = PBXContainerItemProxy; containerPortal = 16EEAF57BAFC2A41CAB7C99A; proxyType = 1; remoteGlobalIDString = 7F2444A807B40AC5E96C4B82; remoteInfo = AutoFillExtension; };
+43B8D9D500C9DA8B603E95F5 = {isa = PBXTargetDependency; target = 7F2444A807B40AC5E96C4B82; targetProxy = C1247CD44FF5C2C571C65B40; };
+7F2444A807B40AC5E96C4B82 = {
+    isa = PBXNativeTarget;
+    buildConfigurationList = E055185EA238BDC97D6D4D77;
+    buildPhases = (4418921829AEE3663D513CB7, 5DD4D86794FF934082A0E791, );
+    buildRules = ();
+    dependencies = (67C529388113292481C04C31, );
+    name = AutoFillExtension;
+    packageProductDependencies = (5BDC202AAC3851FEE38EA9C3, );
+    productName = AutoFillExtension;
+    productReference = 5E92080A7B701122D6C98AF2;
+    productType = "com.apple.product-type.app-extension";
+};
+E055185EA238BDC97D6D4D77 = {isa = XCConfigurationList; buildConfigurations = (799427473689A2674F7497C9, A4B478E72C53CD362EB4C976, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+
+
+799427473689A2674F7497C9 = {
+    isa = XCBuildConfiguration;
+    buildSettings = {
+        APPLICATION_EXTENSION_API_ONLY = YES;
+        CODE_SIGN_ENTITLEMENTS = Sources/AutoFillExtension/AutoFill.entitlements;
+        CODE_SIGN_STYLE = Automatic;
+        CURRENT_PROJECT_VERSION = 1;
+        FRAMEWORK_SEARCH_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        GENERATE_INFOPLIST_FILE = NO;
+        INFOPLIST_FILE = Sources/AutoFillExtension/Info.plist;
+        IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+        LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks", );
+        MARKETING_VERSION = 0.2.2;
+        PRODUCT_BUNDLE_IDENTIFIER = xyz.vidur.pux.AutoFill;
+        PRODUCT_NAME = "$(TARGET_NAME)";
+        SKIP_INSTALL = YES;
+        SWIFT_INCLUDE_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        SWIFT_VERSION = 5.0;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    };
+    name = Debug;
+};
+
+
+A4B478E72C53CD362EB4C976 = {
+    isa = XCBuildConfiguration;
+    buildSettings = {
+        APPLICATION_EXTENSION_API_ONLY = YES;
+        CODE_SIGN_ENTITLEMENTS = Sources/AutoFillExtension/AutoFill.entitlements;
+        CODE_SIGN_STYLE = Automatic;
+        CURRENT_PROJECT_VERSION = 1;
+        FRAMEWORK_SEARCH_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        GENERATE_INFOPLIST_FILE = NO;
+        INFOPLIST_FILE = Sources/AutoFillExtension/Info.plist;
+        IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+        LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks", );
+        MARKETING_VERSION = 0.2.2;
+        PRODUCT_BUNDLE_IDENTIFIER = xyz.vidur.pux.AutoFill;
+        PRODUCT_NAME = "$(TARGET_NAME)";
+        SKIP_INSTALL = YES;
+        SWIFT_INCLUDE_PATHS = ("$(inherited)", "$(BUILT_PRODUCTS_DIR)", );
+        SWIFT_VERSION = 5.0;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    };
+    name = Release;
+};
+
 	};
 	rootObject = 16EEAF57BAFC2A41CAB7C99A /* Project object */;
 }
